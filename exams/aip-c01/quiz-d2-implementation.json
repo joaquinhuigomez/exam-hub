@@ -1,0 +1,433 @@
+{
+  "domain_id": "D2",
+  "domain_title": "Implementation and Integration",
+  "questions": [
+    {
+      "id": "D2-Q001",
+      "type": "single_choice",
+      "difficulty": "hard",
+      "tags": ["bedrock-agents", "orchestration", "decision"],
+      "scenario": "A fintech platform needs an assistant that, given a natural-language request like 'show me my last three transactions and the running total', decides which internal APIs to call, in what order, and how to aggregate the results.",
+      "stem": "Which AWS service combination MOST naturally fits this pattern?",
+      "options": [
+        {"letter": "A", "text": "AWS Step Functions Standard with a state machine for every supported request type.", "correct": false, "why": "Step Functions is deterministic orchestration. The LLM must DECIDE the steps at runtime — Step Functions cannot do that decision."},
+        {"letter": "B", "text": "Amazon Bedrock Agents with action groups backed by Lambda functions.", "correct": true, "why": "Agents let the FM reason which tool/action to call next via a ReAct loop. Action groups expose APIs to the FM; Lambda implements them."},
+        {"letter": "C", "text": "API Gateway + Lambda + Bedrock InvokeModel with prompt templates.", "correct": false, "why": "Works for single-shot calls; lacks the orchestration loop, tool selection, and session memory Agents give you."},
+        {"letter": "D", "text": "Amazon Kendra with intent classification.", "correct": false, "why": "Kendra is enterprise search, not multi-step tool orchestration."}
+      ],
+      "knowledge_point": "Bedrock Agents = FM-driven multi-step orchestration with tool use. Use when the LLM must DECIDE which tool to call. Step Functions for deterministic workflows.",
+      "trap_alert": "If the stem says 'LLM picks which tool/API to call next', it's Agents — not Step Functions.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/agents.html"]
+    },
+    {
+      "id": "D2-Q002",
+      "type": "single_choice",
+      "difficulty": "hard",
+      "tags": ["bedrock-agents", "action-groups", "function-detail"],
+      "scenario": "A team is configuring a Bedrock Agent action group. They have a small set of internal functions, no existing OpenAPI spec, and they want the simplest definition.",
+      "stem": "Which action group definition style is MOST appropriate?",
+      "options": [
+        {"letter": "A", "text": "Provide an OpenAPI 3.0 schema describing each operation.", "correct": false, "why": "Valid option, but introducing OpenAPI maintenance overhead is unnecessary when only a few simple functions are needed."},
+        {"letter": "B", "text": "Use the Function Detail definition style (function name + parameters defined inline).", "correct": true, "why": "Function Detail is the simpler alternative: just define function name, description, and parameter shapes — no OpenAPI document required."},
+        {"letter": "C", "text": "Define everything in the agent's system prompt.", "correct": false, "why": "System prompt is for the agent persona/instructions, not for defining callable tools."},
+        {"letter": "D", "text": "Skip action groups and rely on the agent's built-in tool library.", "correct": false, "why": "Agents don't have a generic 'built-in tool library' — actions are defined via action groups."}
+      ],
+      "knowledge_point": "Bedrock Agent action group can be defined two ways: OpenAPI 3.0 schema (richer) or Function Detail (simpler — name + parameters inline).",
+      "trap_alert": "Don't default to OpenAPI for everything. For a handful of simple functions, Function Detail is the documented simpler path.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/agents-action-create.html"]
+    },
+    {
+      "id": "D2-Q003",
+      "type": "single_choice",
+      "difficulty": "hard",
+      "tags": ["bedrock-agents", "return-control"],
+      "scenario": "An enterprise wants a Bedrock Agent to invoke internal APIs that already exist behind a tightly controlled gateway in a private VPC. The team prefers to keep the API invocation logic inside their existing application rather than in a Lambda function attached to the Agent.",
+      "stem": "Which Bedrock Agent feature MOST appropriately supports this?",
+      "options": [
+        {"letter": "A", "text": "Return Control (RoC) — Agent returns the tool call details to the calling application, which executes it and returns the result.", "correct": true, "why": "RoC is exactly designed for this: the Agent does the reasoning, but the application code (not a Lambda action group) executes the tool call."},
+        {"letter": "B", "text": "VPC interface endpoints for bedrock-agent-runtime.", "correct": false, "why": "Provides private connectivity, but does not change which code executes the tool — that's an RoC concern."},
+        {"letter": "C", "text": "Provisioned Throughput for the Agent.", "correct": false, "why": "Throughput capacity has nothing to do with where the action executes."},
+        {"letter": "D", "text": "Bedrock Flows.", "correct": false, "why": "Flows are a separate visual orchestration product — not the Agent action-execution model."}
+      ],
+      "knowledge_point": "Bedrock Agent action execution options: (1) Lambda function attached to the action group, OR (2) Return Control (RoC) where the application receives the tool call and executes it.",
+      "trap_alert": "Return Control is easy to miss. It's the right choice when 'execution must happen in the existing app, not a Lambda'.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/agents-returncontrol.html"]
+    },
+    {
+      "id": "D2-Q004",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["prompt-engineering", "chain-of-thought"],
+      "scenario": "A data team finds that Claude is making arithmetic mistakes on multi-step word problems when answering tersely.",
+      "stem": "Which prompt-engineering technique MOST cost-effectively improves accuracy?",
+      "options": [
+        {"letter": "A", "text": "Few-shot prompting with three solved examples plus a Chain-of-Thought instruction ('think step by step').", "correct": true, "why": "CoT + few-shot examples is the canonical pattern for boosting multi-step reasoning accuracy without model changes."},
+        {"letter": "B", "text": "Fine-tune Claude on a math dataset.", "correct": false, "why": "Expensive and slow vs. a prompting change that often closes the gap."},
+        {"letter": "C", "text": "Switch to a code-generation model like Code Llama.", "correct": false, "why": "Code Llama is for code synthesis, not arithmetic word problems."},
+        {"letter": "D", "text": "Set temperature to 1.0 to explore more answers.", "correct": false, "why": "Higher temperature INCREASES variability, not accuracy."}
+      ],
+      "knowledge_point": "Chain-of-Thought prompting + few-shot exemplars is the cheapest first lever for reasoning accuracy. Fine-tuning is heavier and slower.",
+      "trap_alert": "Higher temperature = more creative, NOT more accurate. Lower temperature for deterministic answers.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/prompt-engineering-guidelines.html"]
+    },
+    {
+      "id": "D2-Q005",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["prompt-engineering", "json-mode", "structured-output"],
+      "scenario": "A workflow needs Claude to ALWAYS return a JSON object with fields `intent`, `confidence`, and `entities`. Currently the response sometimes includes a preamble like 'Sure, here is the JSON:'.",
+      "stem": "Which prompt technique MOST reliably enforces a clean JSON-only response?",
+      "options": [
+        {"letter": "A", "text": "Use a system prompt that defines the exact JSON schema AND prime the assistant turn with an opening `{` to force JSON output.", "correct": true, "why": "Schema-in-system + priming the response with `{` (assistant turn) is the documented Anthropic pattern for clean structured output."},
+        {"letter": "B", "text": "Set temperature to 0.7 for creativity.", "correct": false, "why": "Higher creativity reduces structural compliance."},
+        {"letter": "C", "text": "Increase max_tokens to 4096.", "correct": false, "why": "Length cap is unrelated to format compliance."},
+        {"letter": "D", "text": "Ask politely 'please return JSON only'.", "correct": false, "why": "Less reliable than schema + priming."}
+      ],
+      "knowledge_point": "Structured-output pattern on Claude: schema in system prompt + prime the assistant turn with the opening structural token (`{` or `[`) for clean JSON without preamble.",
+      "trap_alert": "Claude doesn't have a strict 'JSON mode' parameter like some providers; the priming pattern is the AWS-recommended approach.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/prompt-engineering-guidelines.html"]
+    },
+    {
+      "id": "D2-Q006",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["prompt-management", "versioning"],
+      "scenario": "A team manages dozens of production prompts with frequent revisions. They want to safely roll forward and roll back prompt versions without redeploying the application.",
+      "stem": "Which Bedrock feature is MOST appropriate?",
+      "options": [
+        {"letter": "A", "text": "Bedrock Prompt Management — define prompts as managed resources with draft and published versions, called by ID.", "correct": true, "why": "Prompt Management provides versioning, variables, and IDs that can be rolled forward/back without code deploys."},
+        {"letter": "B", "text": "Store prompts in S3 and load them at app startup.", "correct": false, "why": "Workable, but no native version aliasing, variables, or built-in rollback compared to Prompt Management."},
+        {"letter": "C", "text": "Hardcode prompts in Lambda code and use Lambda versions/aliases.", "correct": false, "why": "Couples prompt life cycle to Lambda deploys. Higher operational overhead."},
+        {"letter": "D", "text": "Use Bedrock Flows.", "correct": false, "why": "Flows compose pipelines; Prompt Management is the dedicated prompt-as-resource feature."}
+      ],
+      "knowledge_point": "Bedrock Prompt Management = prompts as managed resources with versions and variables. Call by ID; ship without code deploys.",
+      "trap_alert": "Flows orchestrates. Prompt Management VERSIONS. Don't conflate.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/prompt-management.html"]
+    },
+    {
+      "id": "D2-Q007",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["bedrock-flows", "visual-orchestration"],
+      "scenario": "A non-engineering team must compose a multi-step GenAI workflow with conditional branching, a KB retrieval, an FM invocation, and a Lambda data lookup — without writing orchestration code.",
+      "stem": "Which Bedrock feature is MOST appropriate?",
+      "options": [
+        {"letter": "A", "text": "Bedrock Flows — visual nodes for Prompt, Knowledge Base, Agent, Lambda, Condition, Iterator.", "correct": true, "why": "Flows is the visual, low-code orchestration product for multi-step GenAI pipelines with branching."},
+        {"letter": "B", "text": "AWS Step Functions visual editor.", "correct": false, "why": "General orchestration, not GenAI-native; you'd manually wire FM/KB invocations."},
+        {"letter": "C", "text": "AWS App Composer.", "correct": false, "why": "App Composer is for IaC composition (SAM/CDK), not runtime GenAI orchestration."},
+        {"letter": "D", "text": "Bedrock Prompt Management.", "correct": false, "why": "Prompt Management stores and versions prompts; it does not orchestrate multi-step flows."}
+      ],
+      "knowledge_point": "Bedrock Flows: visual GenAI orchestration with nodes for Prompt, KB, Agent, Lambda, Condition, Iterator. Low-code path for multi-step pipelines.",
+      "trap_alert": "Flows ≠ Step Functions. Flows is GenAI-native and lower-code for prompt/KB/agent composition.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/flows.html"]
+    },
+    {
+      "id": "D2-Q008",
+      "type": "single_choice",
+      "difficulty": "hard",
+      "tags": ["cross-region-inference", "inference-profiles"],
+      "scenario": "A new Anthropic Claude 3.5 Sonnet release on Bedrock requires invocation through a cross-region inference profile because on-demand single-region capacity for the model is unavailable.",
+      "stem": "Which statement is TRUE about the request?",
+      "options": [
+        {"letter": "A", "text": "The InvokeModel call must reference the inference profile ARN (not the bare model ID), and traffic may be routed to one of several configured regions.", "correct": true, "why": "Cross-region inference profiles are referenced by ARN; the service routes the call across pre-defined regions for capacity/resilience."},
+        {"letter": "B", "text": "The caller must explicitly choose a region for each request.", "correct": false, "why": "The inference profile abstracts the routing; the caller does not choose the executing region per request."},
+        {"letter": "C", "text": "Cross-region inference replicates the model weights to your account's S3 bucket.", "correct": false, "why": "It does not replicate weights to the customer; AWS routes invocations."},
+        {"letter": "D", "text": "Inference profiles only support custom imported models, not first-party FMs.", "correct": false, "why": "Inference profiles are explicitly supported for first-party FMs requiring cross-region capacity."}
+      ],
+      "knowledge_point": "Cross-region inference profile: call by profile ARN; the service routes the invocation to one of the configured regions. Required for some newer model invocations.",
+      "trap_alert": "Quotas for cross-region inference are counted at the HOME region of the profile, not aggregated freely.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html"]
+    },
+    {
+      "id": "D2-Q009",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["streaming", "invokemodel"],
+      "scenario": "A chat UI needs to render tokens as the FM produces them, to reduce perceived latency.",
+      "stem": "Which Bedrock API call is REQUIRED?",
+      "options": [
+        {"letter": "A", "text": "InvokeModel.", "correct": false, "why": "Returns the full response in one shot — no token streaming."},
+        {"letter": "B", "text": "InvokeModelWithResponseStream.", "correct": true, "why": "Returns a stream of response chunks suitable for incremental UI rendering."},
+        {"letter": "C", "text": "BatchInferenceJob.", "correct": false, "why": "Asynchronous offline batch, not interactive streaming."},
+        {"letter": "D", "text": "InvokeAgent with streaming flag.", "correct": false, "why": "InvokeAgent has streaming capability but the canonical API for streaming raw model responses is InvokeModelWithResponseStream."}
+      ],
+      "knowledge_point": "Bedrock streaming API = InvokeModelWithResponseStream. For Agents, InvokeAgent streams events; the question's signal is 'token-by-token chat UI'.",
+      "trap_alert": "InvokeModel ≠ InvokeModelWithResponseStream. The streaming variant is a separate API.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_InvokeModelWithResponseStream.html"]
+    },
+    {
+      "id": "D2-Q010",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["multimodal", "vision"],
+      "scenario": "An app must analyze user-uploaded product photographs to extract structured attributes (color, size, brand) into JSON.",
+      "stem": "Which Bedrock model family is MOST appropriate?",
+      "options": [
+        {"letter": "A", "text": "Anthropic Claude 3 Sonnet (vision-capable).", "correct": true, "why": "Claude 3 family includes vision: send the image with a structured-output prompt to extract attributes into JSON."},
+        {"letter": "B", "text": "Amazon Titan Text Embeddings v2.", "correct": false, "why": "Text embeddings — cannot analyze image content."},
+        {"letter": "C", "text": "Stability AI SDXL.", "correct": false, "why": "Image GENERATION, not image understanding."},
+        {"letter": "D", "text": "Amazon Polly.", "correct": false, "why": "Text-to-speech."}
+      ],
+      "knowledge_point": "Vision-capable FMs on Bedrock include Claude 3 family and Amazon Nova Lite/Pro/Premier. Use them for IMAGE UNDERSTANDING tasks; SDXL/Titan Image/Nova Canvas are GENERATION.",
+      "trap_alert": "Embedding models ≠ understanding models. Embeddings represent; vision models reason about content.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters-anthropic-claude-messages.html"]
+    },
+    {
+      "id": "D2-Q011",
+      "type": "single_choice",
+      "difficulty": "hard",
+      "tags": ["bedrock-agents", "sessions", "memory"],
+      "scenario": "A customer assistant Bedrock Agent must remember the user's preferences across consecutive turns within a single conversation, but state must NOT persist after the user ends the session.",
+      "stem": "Which capability satisfies this?",
+      "options": [
+        {"letter": "A", "text": "Bedrock Agent sessions identified by sessionId — the orchestrator retains conversation state until the session ends or times out.", "correct": true, "why": "sessionId in InvokeAgent ties multiple turns into one conversation with retained state; ephemeral by design."},
+        {"letter": "B", "text": "Persist conversation history in DynamoDB and re-send on each call.", "correct": false, "why": "Works but adds custom code and persistence vs. the native session abstraction."},
+        {"letter": "C", "text": "Enable Bedrock Memory feature with a Knowledge Base.", "correct": false, "why": "KBs are for grounding documents, not short-lived per-session conversational memory."},
+        {"letter": "D", "text": "Provisioned Throughput keeps state in the model.", "correct": false, "why": "Throughput is capacity, not state."}
+      ],
+      "knowledge_point": "Bedrock Agent sessions: pass a consistent sessionId across InvokeAgent calls to retain conversation state in a single ephemeral session.",
+      "trap_alert": "Don't roll a custom DynamoDB state store when the agent's native session abstraction suffices.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/agents-session-state.html"]
+    },
+    {
+      "id": "D2-Q012",
+      "type": "single_choice",
+      "difficulty": "hard",
+      "tags": ["multi-agent-collaboration"],
+      "scenario": "A platform must support a 'supervisor' AI that delegates research tasks to specialist sub-agents (one for finance, one for legal) and aggregates their findings.",
+      "stem": "Which Bedrock capability MOST directly supports this pattern?",
+      "options": [
+        {"letter": "A", "text": "Bedrock Multi-Agent Collaboration — supervisor agent routes tasks to sub-agents and aggregates results.", "correct": true, "why": "Multi-Agent Collaboration is the native pattern for supervisor + specialist agents on Bedrock."},
+        {"letter": "B", "text": "Create a single agent with many action groups.", "correct": false, "why": "Possible but doesn't model true delegation between distinct agents; loses isolation benefits."},
+        {"letter": "C", "text": "Use Step Functions to call independent Agents.", "correct": false, "why": "Works as deterministic orchestration; loses the FM-driven delegation choice the question implies."},
+        {"letter": "D", "text": "Use Bedrock Flows nodes only.", "correct": false, "why": "Flows can orchestrate but not natively model supervisor-subagent collaboration."}
+      ],
+      "knowledge_point": "Bedrock Multi-Agent Collaboration: supervisor agent + specialist sub-agents, with native delegation, routing, and result aggregation.",
+      "trap_alert": "When the stem says 'supervisor + specialists' or 'agent of agents', the answer is Multi-Agent Collaboration.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/agents-multi-agent-collaboration.html"]
+    },
+    {
+      "id": "D2-Q013",
+      "type": "multiple_response",
+      "difficulty": "hard",
+      "tags": ["bedrock-agents", "action-group", "lambda"],
+      "scenario": "A Bedrock Agent action group is backed by a Lambda function. The team needs the action to be both secure and auditable.",
+      "stem": "Which configurations are REQUIRED? (Select TWO)",
+      "options": [
+        {"letter": "A", "text": "The Lambda's resource-based policy must grant bedrock.amazonaws.com permission to invoke it, scoped to the Agent ARN.", "correct": true, "why": "Bedrock invokes the Lambda on the customer's behalf; a resource-based policy with bedrock principal is required."},
+        {"letter": "B", "text": "CloudTrail must be enabled in the region.", "correct": true, "why": "CloudTrail captures the InvokeAgent / Lambda invocation control-plane events — required for audit."},
+        {"letter": "C", "text": "The Lambda must be deployed in eu-west-1 only.", "correct": false, "why": "No such region restriction; Lambda must be in the SAME region as the Agent runtime but the choice of region is yours."},
+        {"letter": "D", "text": "Encrypt the Lambda code with a customer-managed KMS key.", "correct": false, "why": "Code encryption is optional, not REQUIRED for the integration."},
+        {"letter": "E", "text": "Disable VPC integration on the Lambda.", "correct": false, "why": "VPC integration is supported and is often desired for private access."}
+      ],
+      "knowledge_point": "Bedrock Agent → Lambda action: Lambda resource-based policy grants bedrock.amazonaws.com Invoke permission; CloudTrail captures the integration audit.",
+      "trap_alert": "Forgetting the Lambda resource policy is the #1 cause of Agent action failures with 'access denied' errors.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/agents-permissions.html"]
+    },
+    {
+      "id": "D2-Q014",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["prompt-engineering", "few-shot"],
+      "scenario": "An entity-extraction prompt with no examples produces inconsistent output formats.",
+      "stem": "Which prompt technique BEST stabilizes the format?",
+      "options": [
+        {"letter": "A", "text": "Zero-shot with longer instructions.", "correct": false, "why": "More words can help, but pattern-matching against examples is stronger."},
+        {"letter": "B", "text": "Few-shot prompting with 3–5 worked input/output examples in the user prompt.", "correct": true, "why": "Few-shot examples are the most reliable lever for format consistency without fine-tuning."},
+        {"letter": "C", "text": "Increase temperature to 1.0.", "correct": false, "why": "Increases variability."},
+        {"letter": "D", "text": "Use chain-of-thought.", "correct": false, "why": "CoT improves reasoning, not strict format compliance — sometimes makes formats noisier."}
+      ],
+      "knowledge_point": "Few-shot examples = strongest prompting lever for format consistency. CoT = strongest for reasoning accuracy.",
+      "trap_alert": "CoT and few-shot solve different problems. Match the technique to the failure mode.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/prompt-engineering-guidelines.html"]
+    },
+    {
+      "id": "D2-Q015",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["image-generation", "titan-image"],
+      "scenario": "A marketing team needs to generate product hero images programmatically in batch jobs. Cost matters; latency does not.",
+      "stem": "Which Bedrock model is MOST cost-effective for this batch image generation?",
+      "options": [
+        {"letter": "A", "text": "Amazon Titan Image Generator (with Bedrock Batch Inference).", "correct": true, "why": "Titan Image is purpose-built on Bedrock; combined with Batch Inference gives a ~50% cost discount for async generation."},
+        {"letter": "B", "text": "Amazon Polly.", "correct": false, "why": "Polly is text-to-speech, not image generation."},
+        {"letter": "C", "text": "Amazon Rekognition.", "correct": false, "why": "Rekognition is image ANALYSIS, not generation."},
+        {"letter": "D", "text": "Amazon Comprehend.", "correct": false, "why": "Comprehend is NLP entity/sentiment extraction."}
+      ],
+      "knowledge_point": "Image generation on Bedrock: Titan Image Generator, Stability AI SDXL, Amazon Nova Canvas. Batch Inference saves ~50% for async workloads.",
+      "trap_alert": "Rekognition is for analysis. Polly is TTS. Comprehend is NLP. Don't confuse the AI-services family with the GenAI-on-Bedrock family.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/titan-image-models.html"]
+    },
+    {
+      "id": "D2-Q016",
+      "type": "single_choice",
+      "difficulty": "hard",
+      "tags": ["api-gateway", "lambda", "bedrock", "websocket"],
+      "scenario": "A web chat app needs an architecture where browser clients stream tokens from a Bedrock model in real time via a persistent connection.",
+      "stem": "Which architecture is MOST appropriate?",
+      "options": [
+        {"letter": "A", "text": "Browser → API Gateway WebSocket → Lambda (streaming response) → Bedrock InvokeModelWithResponseStream.", "correct": true, "why": "WebSocket gives the persistent bidirectional connection; Lambda streaming returns chunks; Bedrock streaming yields tokens incrementally."},
+        {"letter": "B", "text": "Browser → API Gateway REST → Lambda → Bedrock InvokeModel.", "correct": false, "why": "REST is request/response — no streaming."},
+        {"letter": "C", "text": "Browser → CloudFront → S3 → Bedrock.", "correct": false, "why": "CloudFront/S3 cannot proxy to Bedrock with streaming semantics."},
+        {"letter": "D", "text": "Browser → SQS → Lambda → Bedrock.", "correct": false, "why": "SQS is async messaging, not low-latency streaming."}
+      ],
+      "knowledge_point": "Streaming GenAI to browsers: WebSocket (API Gateway) + Lambda streaming responses + InvokeModelWithResponseStream. Or use API Gateway HTTP API with response streaming.",
+      "trap_alert": "REST + InvokeModel is the WRONG pattern when the requirement is token-by-token streaming.",
+      "doc_refs": ["https://docs.aws.amazon.com/apigateway/latest/developerguide/apigateway-websocket-api-overview.html"]
+    },
+    {
+      "id": "D2-Q017",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["tool-use", "function-calling"],
+      "scenario": "An application calls Bedrock InvokeModel directly (not via an Agent) and wants the model to decide whether to call an external 'get_weather' function based on the user's question.",
+      "stem": "Which Anthropic Claude feature on Bedrock MOST directly supports this?",
+      "options": [
+        {"letter": "A", "text": "Anthropic Claude Tool Use (Function Calling) — pass tool definitions in the Messages API; model returns a tool_use block when it decides to call.", "correct": true, "why": "Claude's Tool Use lets the model emit a structured tool_use block; the application executes the tool and returns a tool_result. Native pattern without Agents."},
+        {"letter": "B", "text": "Configure a Bedrock Guardrail with an allow-list.", "correct": false, "why": "Guardrails are CONTENT policies, not tool-routing."},
+        {"letter": "C", "text": "Switch to Amazon Titan and use Code Interpreter.", "correct": false, "why": "Titan does not expose a 'Code Interpreter' on Bedrock; not applicable."},
+        {"letter": "D", "text": "Use Knowledge Bases to retrieve weather.", "correct": false, "why": "KBs retrieve static documents, not live external function calls."}
+      ],
+      "knowledge_point": "Tool use / function calling on Bedrock via Claude Messages API: pass `tools` definitions; model returns tool_use; app executes; returns tool_result; model continues. Works without a Bedrock Agent.",
+      "trap_alert": "You can do tool use WITHOUT an Agent. Agents add orchestration loops + native KB integration; raw tool use is enough for simple single-call patterns.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters-anthropic-claude-messages.html"]
+    },
+    {
+      "id": "D2-Q018",
+      "type": "single_choice",
+      "difficulty": "easy",
+      "tags": ["deterministic", "temperature"],
+      "scenario": "A summarization workflow must produce the SAME response for the same input across runs as much as possible.",
+      "stem": "Which parameter setting BEST achieves this?",
+      "options": [
+        {"letter": "A", "text": "temperature = 0 (or very small), top_p = 1.", "correct": true, "why": "Lowest temperature + maximal top_p yields the most deterministic outputs supported by the model."},
+        {"letter": "B", "text": "temperature = 1.0, top_p = 0.9.", "correct": false, "why": "High temperature increases randomness."},
+        {"letter": "C", "text": "temperature = 0.7, top_k = 250.", "correct": false, "why": "Mid-temperature is creative/varied."},
+        {"letter": "D", "text": "Set max_tokens = 4000.", "correct": false, "why": "Length cap does not control determinism."}
+      ],
+      "knowledge_point": "For deterministic output: temperature ≈ 0, top_p ≈ 1. Note: even at temperature 0, exact reproducibility is not always guaranteed by all model providers.",
+      "trap_alert": "Higher temperature = more creative, NOT more accurate. Pair with low top_p for the most deterministic decoding.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters.html"]
+    },
+    {
+      "id": "D2-Q019",
+      "type": "single_choice",
+      "difficulty": "hard",
+      "tags": ["bedrock-flows", "conditional"],
+      "scenario": "A Bedrock Flow must route requests: technical questions go to a specialist KB; billing questions go to a Lambda that queries the billing system; everything else goes to a general FM prompt.",
+      "stem": "Which Flow node enables this routing?",
+      "options": [
+        {"letter": "A", "text": "Condition node — evaluates an expression and routes to one of multiple branches.", "correct": true, "why": "Condition is the native branching node in Bedrock Flows for if/elseif/else routing."},
+        {"letter": "B", "text": "Iterator node.", "correct": false, "why": "Iterator loops over collections; it does not branch on a condition."},
+        {"letter": "C", "text": "Lambda node only.", "correct": false, "why": "Lambda nodes execute custom code, but routing is the Condition node's job."},
+        {"letter": "D", "text": "Prompt node.", "correct": false, "why": "Prompt nodes invoke an FM; they don't branch."}
+      ],
+      "knowledge_point": "Bedrock Flow node types include Input/Output, Prompt, Knowledge Base, Agent, Lambda, Condition, Iterator. Pick by purpose.",
+      "trap_alert": "Don't add a Lambda for what a Condition node already does — over-engineering.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/flows.html"]
+    },
+    {
+      "id": "D2-Q020",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["bedrock-agents", "prompt-templates"],
+      "scenario": "A team wants to customize the system prompt that a Bedrock Agent uses for pre-processing user input, orchestration reasoning, and KB summarization.",
+      "stem": "How is this customized?",
+      "options": [
+        {"letter": "A", "text": "Override the four built-in Agent prompt templates (Pre-Processing, Orchestration, KB Response Generation, Post-Processing) in the Agent configuration.", "correct": true, "why": "Bedrock Agents expose four overridable prompt templates per stage; each can be customized."},
+        {"letter": "B", "text": "Send the system prompt as the first user message.", "correct": false, "why": "Agents have separate templates; user messages do not replace them."},
+        {"letter": "C", "text": "Modify the underlying model weights.", "correct": false, "why": "Weight modification is fine-tuning, not prompt customization."},
+        {"letter": "D", "text": "Use Bedrock Prompt Management — Agents do not have built-in templates.", "correct": false, "why": "Agents DO have built-in templates; this is false."}
+      ],
+      "knowledge_point": "Bedrock Agent customizable prompt templates: Pre-Processing, Orchestration, Knowledge Base Response Generation, Post-Processing.",
+      "trap_alert": "Customize the templates in the AGENT, not via Prompt Management. Two different features.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/agents-prompt-templates.html"]
+    },
+    {
+      "id": "D2-Q021",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["code-generation", "q-developer"],
+      "scenario": "An engineering org wants AI-assisted code generation directly inside developers' IDEs (VS Code, IntelliJ) with awareness of internal repos.",
+      "stem": "Which AWS service is MOST appropriate?",
+      "options": [
+        {"letter": "A", "text": "Amazon Q Developer.", "correct": true, "why": "Q Developer is the AWS-native code-assist tool integrated into IDEs, with code suggestions, scans, and inline chat."},
+        {"letter": "B", "text": "Amazon CodeGuru Reviewer only.", "correct": false, "why": "CodeGuru reviews and suggests improvements, but isn't a real-time IDE code assistant in the same way as Q Developer."},
+        {"letter": "C", "text": "Amazon Lex.", "correct": false, "why": "Lex is for chatbot intent recognition, not coding."},
+        {"letter": "D", "text": "Amazon Polly.", "correct": false, "why": "Text-to-speech."}
+      ],
+      "knowledge_point": "Amazon Q Developer = AWS's developer-focused AI assistant: IDE inline suggestions, code scans, security reviews, /transform refactoring.",
+      "trap_alert": "Q Developer (developer assistant) ≠ Q Business (enterprise knowledge assistant). Read the use case.",
+      "doc_refs": ["https://docs.aws.amazon.com/amazonq/latest/aws-builder-use-ug/what-is.html"]
+    },
+    {
+      "id": "D2-Q022",
+      "type": "single_choice",
+      "difficulty": "hard",
+      "tags": ["async-inference", "batch", "pattern"],
+      "scenario": "A team must classify 50,000 customer reviews overnight. Latency per item does not matter; minimizing cost is critical.",
+      "stem": "Which Bedrock pattern is MOST cost-effective?",
+      "options": [
+        {"letter": "A", "text": "Bedrock Batch Inference — submit a single JSONL job to S3, receive results in S3, ~50% cost saving versus on-demand.", "correct": true, "why": "Batch Inference is purpose-built for high-volume async inference at 50% lower per-token cost."},
+        {"letter": "B", "text": "InvokeModel from a Lambda fan-out.", "correct": false, "why": "Works but more expensive (full per-token rate) and adds Lambda invocation costs."},
+        {"letter": "C", "text": "Provisioned Throughput.", "correct": false, "why": "Provisioned is a 1mo/6mo commit. Overkill for a one-night job."},
+        {"letter": "D", "text": "Bedrock Knowledge Bases.", "correct": false, "why": "KBs are for RAG retrieval, not bulk classification."}
+      ],
+      "knowledge_point": "Bedrock Batch Inference: async, S3 in/out, JSONL format, up to 24h SLA, ~50% discount vs on-demand. Designed for offline high-volume jobs.",
+      "trap_alert": "If the question says 'cost matters' AND 'overnight'/'async', Batch Inference is the signal — not Provisioned Throughput.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/batch-inference.html"]
+    },
+    {
+      "id": "D2-Q023",
+      "type": "single_choice",
+      "difficulty": "hard",
+      "tags": ["bedrock-agents", "guardrails", "composition"],
+      "scenario": "A Bedrock Agent must enforce a no-PII-leakage policy on both user inputs and FM outputs.",
+      "stem": "Where is the Guardrail applied?",
+      "options": [
+        {"letter": "A", "text": "Attach the Guardrail to the Agent in its configuration — Guardrail evaluates both input and output during every Agent turn.", "correct": true, "why": "Bedrock Agents support a guardrailConfiguration that evaluates each turn's input and output automatically."},
+        {"letter": "B", "text": "Wrap every Agent call in an ApplyGuardrail API call manually.", "correct": false, "why": "Possible, but native attachment is the cleaner managed path."},
+        {"letter": "C", "text": "Add the Guardrail to the underlying Knowledge Base only.", "correct": false, "why": "KB-attached guardrails apply to retrievals; user input + FM output policing happens at the Agent level."},
+        {"letter": "D", "text": "Guardrails cannot be used with Agents.", "correct": false, "why": "False — Guardrails fully integrate with Agents."}
+      ],
+      "knowledge_point": "Guardrails can attach natively to Models, Agents, KBs — or be applied independently via the ApplyGuardrail API. Native attachment is the simplest path.",
+      "trap_alert": "Attach the Guardrail at the highest enclosing layer (Agent) so it covers all turns, instead of at every sub-component.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails-use.html"]
+    },
+    {
+      "id": "D2-Q024",
+      "type": "multiple_response",
+      "difficulty": "medium",
+      "tags": ["video-image-generation"],
+      "scenario": "A creative team wants AWS-native services for (a) generating product images from text and (b) generating short video clips from text.",
+      "stem": "Which combination of Bedrock models? (Select TWO)",
+      "options": [
+        {"letter": "A", "text": "Amazon Nova Canvas for images.", "correct": true, "why": "Nova Canvas is Amazon's text-to-image model on Bedrock."},
+        {"letter": "B", "text": "Amazon Nova Reel for video.", "correct": true, "why": "Nova Reel is Amazon's text-to-video model on Bedrock."},
+        {"letter": "C", "text": "Amazon Polly for video.", "correct": false, "why": "Polly is text-to-speech."},
+        {"letter": "D", "text": "Anthropic Claude 3 Opus for images.", "correct": false, "why": "Claude vision can ANALYZE images but does not GENERATE them."},
+        {"letter": "E", "text": "Amazon Rekognition Video for video generation.", "correct": false, "why": "Rekognition is video ANALYSIS, not generation."}
+      ],
+      "knowledge_point": "Amazon Nova generation models: Nova Canvas (image), Nova Reel (video). Other image gen models on Bedrock: Titan Image Generator, Stability AI SDXL.",
+      "trap_alert": "Rekognition / Polly are AWS AI services that look adjacent but aren't generation models on Bedrock.",
+      "doc_refs": ["https://docs.aws.amazon.com/nova/latest/userguide/what-is-nova.html"]
+    },
+    {
+      "id": "D2-Q025",
+      "type": "single_choice",
+      "difficulty": "hard",
+      "tags": ["bedrock-agents", "kb", "ordering"],
+      "stem": "Which option correctly orders the runtime steps of a single InvokeAgent call where the Agent uses BOTH an attached Knowledge Base AND an action group?",
+      "scenario": "",
+      "options": [
+        {"letter": "A", "text": "Pre-processing → Orchestration (reason) → KB retrieval / Action group invocation → Post-processing → Response.", "correct": true, "why": "Agent runtime: pre-processing of user input, orchestration step (FM reasons), tool/KB calls as decided, post-processing for the final response."},
+        {"letter": "B", "text": "Post-processing → Orchestration → KB retrieval → Response → Pre-processing.", "correct": false, "why": "Wrong order; pre-processing is first, post-processing is last."},
+        {"letter": "C", "text": "Action group → KB retrieval → Pre-processing → Orchestration → Response.", "correct": false, "why": "Pre-processing comes before orchestration."},
+        {"letter": "D", "text": "KB retrieval → Pre-processing → Action group → Orchestration → Response.", "correct": false, "why": "Pre-processing must precede any reasoning or tool calls."}
+      ],
+      "knowledge_point": "Bedrock Agent runtime stages: Pre-processing → Orchestration (reasoning loop, with KB/Action calls) → Post-processing → Response. Each stage has an overridable prompt template.",
+      "trap_alert": "Memorizing the four stage names also helps with the 'which template to override?' question.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/agents-prompt-templates.html"]
+    }
+  ]
+}

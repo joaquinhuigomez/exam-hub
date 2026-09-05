@@ -1,0 +1,517 @@
+<title>PMP Cheat Sheet</title>
+<style>
+:root{
+  --bg:#ffffff; --fg:#141618; --muted:#5b6470; --line:#c3c9d2; --line2:#e5e8ec;
+  --head:#eceff3; --accent:#1a3d6d; --accentbg:#e9f0f8;
+  --good:#0d6b3f; --goodbg:#e7f4ec; --bad:#8c1d18; --badbg:#fbeceb;
+  --warnbg:#fff6e0; --warnline:#d9a520;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  background:var(--bg); color:var(--fg); margin:0; padding:12px 12px 40px;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Helvetica Neue",Arial,sans-serif;
+  font-size:15px; line-height:1.33;
+}
+h1{font-size:1.3rem;margin:0 0 2px;letter-spacing:-.01em}
+.sub{color:var(--muted);font-size:.78rem;margin:0 0 12px}
+h2{font-size:.84rem;text-transform:uppercase;letter-spacing:.05em;margin:16px 0 5px;padding:3px 6px;color:#fff;background:var(--accent);border-radius:3px;break-after:avoid;page-break-after:avoid}
+h2 .n{display:inline-block;min-width:1.25em;opacity:.75;font-weight:400}
+h3{font-size:.76rem;margin:8px 0 2px;color:var(--accent);text-transform:uppercase;letter-spacing:.04em;break-after:avoid;page-break-after:avoid}
+table{width:100%;border-collapse:collapse;margin:3px 0 5px;font-size:.79rem}
+th,td{border:1px solid var(--line);padding:2.5px 4px;text-align:left;vertical-align:top;overflow-wrap:break-word}
+th{background:var(--head);font-weight:700}
+tbody tr:nth-child(even) td{background:#fafbfc}
+.f{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.95em}
+.pos{color:var(--good);font-weight:700}
+.neg{color:var(--bad);font-weight:700}
+ol,ul{margin:3px 0 5px;padding-left:1.1em}
+li{margin:1px 0;font-size:.81rem}
+p{margin:3px 0;font-size:.81rem}
+.hook{background:var(--warnbg);border-left:3px solid var(--warnline);padding:3px 5px;margin:3px 0;font-size:.79rem}
+.hook b.t{text-transform:uppercase;font-size:.9em;letter-spacing:.03em}
+.box{border:1px solid var(--line);border-radius:3px;padding:4px 6px;margin:4px 0;font-size:.79rem;background:#fbfcfd}
+.mind{border:2px solid var(--accent);background:var(--accentbg);border-radius:4px;padding:6px 7px;margin:4px 0}
+.mind ol{counter-reset:m;list-style:none;padding-left:0;margin:2px 0}
+.mind ol li{counter-increment:m;padding-left:1.6em;position:relative;margin:2px 0;font-size:.85rem;font-weight:600}
+.mind ol li::before{content:counter(m);position:absolute;left:0;top:.1em;width:1.2em;height:1.2em;line-height:1.2em;text-align:center;background:var(--accent);color:#fff;border-radius:50%;font-size:.8em;font-weight:700}
+.arrow{font-size:.77rem}
+.strip{display:flex;flex-wrap:wrap;gap:3px;margin:3px 0}
+.strip>div{flex:1 1 130px;border:1px solid var(--line);border-radius:3px;padding:3px 5px;font-size:.75rem;background:#fbfcfd}
+.strip>div>b:first-child{display:block;color:var(--accent)}
+.nav{font-size:.72rem;line-height:1.7;margin:0 0 10px}
+.nav a{color:var(--accent);text-decoration:none;border:1px solid var(--line2);border-radius:3px;padding:2px 5px;display:inline-block;margin:0 2px 2px 0}
+.ok{background:var(--goodbg)!important}
+.no{background:var(--badbg)!important}
+.small{font-size:.74rem;color:var(--muted)}
+.printnote{font-size:.72rem;color:var(--muted);border:1px dashed var(--line);padding:5px 7px;border-radius:3px;margin:0 0 12px}
+
+@media (min-width:760px){
+  body{font-size:14px;max-width:1180px;margin:0 auto;padding:20px 24px 60px}
+  .cols{column-count:2;column-gap:22px}
+  .cols>section{break-inside:avoid-column}
+}
+@media (min-width:1100px){ .cols{column-count:3;column-gap:20px} }
+
+@page{size:A4 portrait;margin:5mm 4.5mm}
+@media print{
+  html,body{background:#fff}
+  body{font-size:6.5pt;line-height:1.1;padding:0;margin:0;max-width:none}
+  .noprint{display:none!important}
+  h1{font-size:10pt;margin:0 0 .5pt}
+  .sub{font-size:6.2pt;margin:0 0 2pt}
+  .cols{column-count:3;column-gap:4mm;column-fill:auto}
+  h2{font-size:6.9pt;margin:3.5pt 0 1.5pt;padding:1pt 2.5pt}
+  h3{font-size:6.5pt;margin:2.5pt 0 .5pt}
+  table{font-size:6.3pt;margin:1pt 0 2.5pt}
+  th,td{padding:.35pt 1.2pt;line-height:1.07;border-width:.4pt;overflow-wrap:break-word}
+  table{table-layout:auto;max-width:100%}
+  li,p,.box,.hook,.strip>div,.arrow{font-size:6.3pt}
+  li{margin:0;line-height:1.08}
+  ol,ul{margin:1pt 0 2pt;padding-left:.9em}
+  .hook,.box{padding:1.2pt 2.5pt;margin:1pt 0}
+  .mind{padding:2pt 3pt;margin:1pt 0;border-width:.8pt}
+  .mind ol li{font-size:6.5pt;margin:.6pt 0;padding-left:1.4em;line-height:1.1}
+  .strip{gap:1.2pt}
+  .strip>div{padding:1.2pt 2pt;flex:1 1 100%}
+  .small{font-size:6.3pt}
+  /* pack columns tightly: tables may break, individual rows may not */
+  table,.hook,.box,.mind,section{break-inside:auto;page-break-inside:auto}
+  tr,li{break-inside:avoid;page-break-inside:avoid}
+  thead{display:table-row-group}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
+</style>
+
+<h1>PMP Brain Dump &mdash; 15 Blocks</h1>
+<p class="sub">PMBOK 6/7 &middot; Agile Practice Guide &middot; ECO 2021. Block 10 wins the situational questions &mdash; read it last before you walk in.</p>
+
+<div class="printnote noprint">Print: Chrome &rarr; A4 portrait &middot; margins <b>Default</b> or <b>None</b> &middot; <b>Background graphics ON</b> &middot; scale 100% &rarr; 2 pages.</div>
+
+<div class="nav noprint">
+<a href="#s1">1 EVM</a><a href="#s2">2 Formulas</a><a href="#s3">3 Contracts</a><a href="#s4">4 Conflict</a><a href="#s5">5 Tuckman</a><a href="#s6">6 Stakeholders</a><a href="#s7">7 Change</a><a href="#s8">8 Risk</a><a href="#s9">9 Agile</a><a href="#s10">10 MINDSET</a><a href="#s11">11 Stems</a><a href="#s12">12 AMZN&rarr;PMI</a><a href="#s13">13 Artifacts</a><a href="#s14">14 Quality</a><a href="#s15">15 Process Groups</a>
+</div>
+
+<div class="cols">
+
+<!-- 1 -->
+<section id="s1">
+<h2><span class="n">1</span> EVM Formula Block</h2>
+<table>
+<tbody>
+<tr><td><b>PV</b> (BCWS)</td><td>Planned Value &mdash; budgeted cost of work <b>scheduled</b> by now = planned % &times; BAC</td></tr>
+<tr><td><b>EV</b> (BCWP)</td><td>Earned Value &mdash; budgeted cost of work <b>performed</b> = actual % complete &times; BAC</td></tr>
+<tr><td><b>AC</b> (ACWP)</td><td>Actual Cost &mdash; money actually spent</td></tr>
+<tr><td><b>BAC</b></td><td>Budget at Completion &mdash; total approved cost baseline</td></tr>
+</tbody>
+</table>
+<div class="hook"><b class="t">Hook:</b> <b>EV first</b> in all four &middot; <b>V = minus</b> &middot; <b>I = divide</b> &middot; <b>S pairs with PV</b>, <b>C pairs with AC</b>.</div>
+<table>
+<tbody>
+<tr><td>SV</td><td class="f">EV &minus; PV</td><td>Schedule Variance (in $, not time)</td></tr>
+<tr><td>CV</td><td class="f">EV &minus; AC</td><td>Cost Variance</td></tr>
+<tr><td>SPI</td><td class="f">EV &divide; PV</td><td>Schedule Performance Index</td></tr>
+<tr><td>CPI</td><td class="f">EV &divide; AC</td><td>Cost Performance Index &mdash; best single cost indicator</td></tr>
+</tbody>
+</table>
+<div class="hook"><b class="t">Interpret:</b> variance (SV, CV, VAC) <span class="pos">positive = good</span>, <span class="neg">negative = bad</span> &middot; index (SPI, CPI) <span class="pos">&gt;1 = good</span>, <span class="neg">&lt;1 = bad</span> &middot; <b>TCPI inverted</b>: <span class="neg">&gt;1 = must beat plan</span>.</div>
+<h3>EAC &mdash; 4 variants, pick from the stem</h3>
+<table>
+<thead><tr><th>Formula</th><th>Use when</th></tr></thead>
+<tbody>
+<tr><td class="f">BAC &divide; CPI</td><td><b>Typical</b> &mdash; variances continue / are representative. <b>Default if stem says nothing.</b></td></tr>
+<tr><td class="f">AC + (BAC &minus; EV)</td><td><b>Atypical</b> &mdash; one-off event; rest runs at original budgeted rate</td></tr>
+<tr><td class="f">AC + bottom-up ETC</td><td><b>Original estimate flawed</b> &mdash; team re-estimates remaining work</td></tr>
+<tr><td class="f">AC + (BAC&minus;EV) &divide; (CPI&times;SPI)</td><td><b>Cost AND schedule pressure</b> &mdash; must hit the date too. Harshest.</td></tr>
+</tbody>
+</table>
+<table>
+<tbody>
+<tr><td>ETC</td><td class="f">EAC &minus; AC</td><td>cost of work left</td></tr>
+<tr><td>VAC</td><td class="f">BAC &minus; EAC</td><td>forecast over/under at end</td></tr>
+<tr><td>TCPI&rarr;BAC</td><td class="f">(BAC&minus;EV)&divide;(BAC&minus;AC)</td><td>efficiency needed to still hit original budget</td></tr>
+<tr><td>TCPI&rarr;EAC</td><td class="f">(BAC&minus;EV)&divide;(EAC&minus;AC)</td><td>use once BAC unachievable &amp; new EAC approved</td></tr>
+</tbody>
+</table>
+<p class="small">TCPI: numerator = <b>work</b> left, denominator = <b>money</b> left.</p>
+<h3>One worked example &mdash; reused for every formula</h3>
+<div class="box"><b>BAC 1000 &middot; 50% complete &middot; AC 600 &middot; plan said 70%</b> &rarr; PV <b class="f">700</b>, EV <b class="f">500</b>, AC <b class="f">600</b></div>
+<table>
+<tbody>
+<tr><td>SV</td><td class="f">500&minus;700 = <b>&minus;200</b> <span class="neg">behind</span></td></tr>
+<tr><td>CV</td><td class="f">500&minus;600 = <b>&minus;100</b> <span class="neg">over</span></td></tr>
+<tr><td>SPI</td><td class="f">500&divide;700 = <b>0.71</b></td></tr>
+<tr><td>CPI</td><td class="f">500&divide;600 = <b>0.83</b></td></tr>
+<tr><td>EAC typical</td><td class="f">1000&divide;0.833 = <b>1200</b></td></tr>
+<tr><td>EAC atypical</td><td class="f">600+500 = <b>1100</b></td></tr>
+<tr><td>EAC bottom-up</td><td class="f">600+ETC(450) = <b>1050</b></td></tr>
+<tr><td>EAC cost+sched</td><td class="f">600+500&divide;(.833&times;.714) = <b>1440</b></td></tr>
+<tr><td>ETC</td><td class="f">1200&minus;600 = <b>600</b></td></tr>
+<tr><td>VAC</td><td class="f">1000&minus;1200 = <b>&minus;200</b></td></tr>
+<tr><td>TCPI&rarr;BAC</td><td class="f">500&divide;400 = <b>1.25</b> <span class="neg">need 1.25 vs 0.83 &rarr; unrealistic</span></td></tr>
+<tr><td>TCPI&rarr;EAC</td><td class="f">500&divide;600 = <b>0.83</b> <span class="pos">achievable</span></td></tr>
+</tbody>
+</table>
+</section>
+
+<!-- 2 -->
+<section id="s2">
+<h2><span class="n">2</span> Other Formulas</h2>
+<table>
+<tbody>
+<tr><td>Comms channels</td><td class="f">n(n&minus;1)&divide;2</td><td><b>TRAP: n includes the PM.</b> "5 team + PM" &rarr; n=6 &rarr; 15. For "how many <b>additional</b>", compute both and subtract (5&rarr;6 adds 5).</td></tr>
+<tr><td>PERT / beta</td><td class="f">(O+4M+P)&divide;6</td><td>Triangular avg = <span class="f">(O+M+P)&divide;3</span></td></tr>
+<tr><td>PERT &sigma;</td><td class="f">(P&minus;O)&divide;6</td><td>Variance = &sigma;&sup2; &middot; &plusmn;1&sigma; 68.3%, &plusmn;2&sigma; 95.5%, &plusmn;3&sigma; 99.7%</td></tr>
+<tr><td>Total float</td><td class="f">LS&minus;ES = LF&minus;EF</td><td>Delay <b>without delaying project finish</b> or breaking a constraint. Negative TF = imposed date already at risk &rarr; compress.</td></tr>
+<tr><td>Free float</td><td class="f">ES<sub>succ</sub>&minus;EF<sub>act</sub></td><td>Delay without delaying the <b>early start of any successor</b>. FF &le; TF.</td></tr>
+<tr><td>Critical path</td><td class="f">longest path</td><td><b>Longest</b> path = <b>shortest</b> possible duration &middot; <b>zero total float</b> &middot; &gt;1 CP = more risk</td></tr>
+<tr><td>EMV</td><td class="f">P &times; I</td><td>Threat &minus;, opportunity + &middot; <b>sum</b> the branches at a decision-tree node, pick highest EMV &middot; quantitative</td></tr>
+<tr><td>ROM estimate</td><td class="f">&minus;25% / +75%</td><td>early, little detail</td></tr>
+<tr><td>Definitive estimate</td><td class="f">&minus;5% / +10%</td><td>late, detailed scope</td></tr>
+</tbody>
+</table>
+<table>
+<thead><tr><th>Compression</th><th>Do</th><th>Costs</th></tr></thead>
+<tbody>
+<tr><td><b>Crashing</b></td><td>Add resources/overtime to <b>critical path</b>, cheapest first</td><td class="no">adds <b>COST</b></td></tr>
+<tr><td><b>Fast-tracking</b></td><td>Overlap / parallelise sequential activities</td><td class="no">adds <b>RISK</b></td></tr>
+</tbody>
+</table>
+<p class="small">Both keep scope intact. Cutting scope is <b>not</b> compression &mdash; that needs change control.</p>
+</section>
+
+<!-- 3 -->
+<section id="s3">
+<h2><span class="n">3</span> Contract Types &mdash; Risk Spectrum</h2>
+<p class="arrow"><b>SELLER risk max</b> &larr;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&rarr; <b>BUYER risk max</b></p>
+<table>
+<thead><tr><th>Type</th><th>Risk on</th><th>Use when</th></tr></thead>
+<tbody>
+<tr><td><b>FFP</b> Firm Fixed Price</td><td><b>Seller (max)</b></td><td>Scope <b>well defined &amp; stable</b>. Price fixed whatever seller's cost. Most common.</td></tr>
+<tr><td><b>FPIF</b> FP Incentive Fee</td><td>Seller (high)</td><td>Fixed price + incentive for beating cost / schedule / performance targets. Has a <b>price ceiling</b>.</td></tr>
+<tr><td><b>FP-EPA</b> Econ Price Adj.</td><td>Seller (high)</td><td><b>Multi-year</b>, exposed to inflation / FX / commodity. Adjusts on a <b>pre-agreed index</b>.</td></tr>
+<tr><td><b>T&amp;M</b> Time &amp; Material</td><td>Shared (middle)</td><td><b>Staff aug, experts, small or urgent work</b>; scope not yet definable. Fixed rates, open quantity. Cap with <b>not-to-exceed</b>.</td></tr>
+<tr><td><b>CPIF</b> CP Incentive Fee</td><td>Buyer (high)</td><td>Costs reimbursed + fee flexing on performance, buyer / seller <b>share ratio</b>.</td></tr>
+<tr><td><b>CPAF</b> CP Award Fee</td><td>Buyer (higher)</td><td>Costs + <b>subjective</b> award fee at buyer's discretion; generally <b>not appealable</b>.</td></tr>
+<tr><td><b>CPFF</b> CP Fixed Fee</td><td><b>Buyer (max)</b></td><td>Costs + fixed fee (% of <b>initial</b> estimate). <b>R&amp;D / high uncertainty.</b> Seller has least cost incentive.</td></tr>
+</tbody>
+</table>
+<div class="hook"><b class="t">PTA &mdash; FPIF only:</b> cost above which the <b>seller absorbs 100%</b> of further overrun. <span class="f">PTA = ((Ceiling &minus; Target Price) &divide; Buyer share ratio) + Target Cost</span></div>
+<p class="small">Vaguer the scope &rarr; further right. Never FFP on undefined scope.</p>
+</section>
+
+<!-- 4 -->
+<section id="s4">
+<h2><span class="n">4</span> Conflict Modes</h2>
+<table>
+<thead><tr><th>Prep order*</th><th>Mode</th><th>Use when</th></tr></thead>
+<tbody>
+<tr><td class="ok"><b>1 BEST</b></td><td class="ok"><b>Collaborate / Problem-Solve</b> win&ndash;win</td><td><b>Default correct answer.</b> Multiple viewpoints, time available, need real commitment &rarr; root cause + consensus.</td></tr>
+<tr><td>2</td><td><b>Compromise / Reconcile</b> lose&ndash;lose</td><td>Equal power, temporary fix, deadline pressure. Both give something up. Fast, not durable.</td></tr>
+<tr><td>3</td><td><b>Smooth / Accommodate</b> lose&ndash;win</td><td>Stress areas of agreement; preserve the relationship; matters more to them.</td></tr>
+<tr><td>4</td><td><b>Force / Direct</b> win&ndash;lose</td><td><b>Emergency only</b> &mdash; safety, legal, ethics, real no-time crisis. Breeds resentment.</td></tr>
+<tr><td class="no"><b>5 WORST</b></td><td class="no"><b>Withdraw / Avoid</b> lose&ndash;lose</td><td>Only a deliberate <b>cooling-off</b>, or issue trivial / clearly someone else's. Never permanent.</td></tr>
+</tbody>
+</table>
+<p class="small">*PMBOK 6 (9.5.2.1) names these five techniques but does <b>not</b> publish a 1&ndash;5 ranking &mdash; the order is common prep convention. What doctrine does support: <b>collaborate / problem-solve</b> is the durable win&ndash;win and the usual best answer; <b>withdraw / avoid</b> resolves nothing. Conflict is inevitable and can be healthy. Address it <b>early, in private, directly</b>; it is a <b>team</b> issue, not personal. Team resolves first, PM facilitates, escalation last.</p>
+</section>
+
+<!-- 5 -->
+<section id="s5">
+<h2><span class="n">5</span> Tuckman Ladder</h2>
+<table>
+<thead><tr><th>Stage</th><th>Team</th><th>Leadership</th></tr></thead>
+<tbody>
+<tr><td><b>Forming</b></td><td>Polite, independent, roles unclear. Low output.</td><td><b>Directing</b></td></tr>
+<tr><td><b>Storming</b></td><td>Conflict; approach and authority challenged. Morale low.</td><td><b>Coaching</b></td></tr>
+<tr><td><b>Norming</b></td><td>Norms agreed, trust builds, behaviour adjusts.</td><td><b>Participating / Supporting</b></td></tr>
+<tr><td><b>Performing</b></td><td>Interdependent, self-organising, high output. Goal state.</td><td><b>Delegating</b></td></tr>
+<tr><td><b>Adjourning</b></td><td>Done &rarr; recognition, lessons learned, release resources.</td><td>Celebrate &amp; close</td></tr>
+</tbody>
+</table>
+<p class="small">Teams <b>regress</b> (new member, new scope, re-org) &rarr; back to Storming. Co-location and team-building accelerate it.</p>
+</section>
+
+<!-- 6 -->
+<section id="s6">
+<h2><span class="n">6</span> Stakeholders</h2>
+<h3>Power / Interest grid</h3>
+<table>
+<thead><tr><th></th><th>HIGH interest</th><th>LOW interest</th></tr></thead>
+<tbody>
+<tr><td><b>HIGH power</b></td><td class="ok"><b>MANAGE CLOSELY</b> &mdash; full engagement, frequent 2-way (sponsor, key customer)</td><td><b>KEEP SATISFIED</b> &mdash; keep content or they intervene; don't overload (exec, regulator)</td></tr>
+<tr><td><b>LOW power</b></td><td><b>KEEP INFORMED</b> &mdash; regular updates</td><td><b>MONITOR</b> &mdash; minimum effort, watch for change</td></tr>
+</tbody>
+</table>
+<p class="small">Variants: power / influence, influence / impact, salience (power &middot; urgency &middot; legitimacy). Identification is <b>iterative and continuous</b>, not one-off in Initiating.</p>
+<h3>Engagement levels (low &rarr; high)</h3>
+<p><b>Unaware</b> (doesn't know) &rarr; <b>Resistant</b> (aware, opposed) &rarr; <b>Neutral</b> (aware, indifferent) &rarr; <b>Supportive</b> (backs it) &rarr; <b>Leading</b> (actively engaged in success)</p>
+<div class="box"><b>Engagement Assessment Matrix (C/D):</b> rows = stakeholders, columns = the 5 levels. Mark <b>C</b> current, <b>D</b> desired. <b>C &ne; D = a gap</b> &rarr; drives actions in the stakeholder engagement plan. Re-assess periodically. <b>Higher is not always the target.</b></div>
+</section>
+
+<!-- 7 -->
+<section id="s7">
+<h2><span class="n">7</span> Change Control Flow (Predictive)</h2>
+<div class="mind">
+<ol>
+<li><b>Change request raised</b> &mdash; by <i>anyone</i>; <b>documented</b>, never verbal</li>
+<li><b>PM evaluates impact on ALL baselines</b> &mdash; scope, schedule, cost + quality, risk, resources, procurement. Never just the one named.</li>
+<li><b>Log it</b> in the <b>change log</b>; route to the <b>CCB</b> (or sponsor/customer per authority threshold)</li>
+<li><b>CCB decides</b> &mdash; approve / reject / defer; decision + rationale recorded either way</li>
+<li><b>If approved &rarr; update the PM plan, baselines &amp; affected documents</b> (re-baseline)</li>
+<li><b>Communicate</b> to all impacted stakeholders &mdash; <b>including rejections</b></li>
+<li><b>Implement</b>, then <b>verify</b> in Monitoring &amp; Controlling</li>
+</ol>
+</div>
+<div class="hook"><b class="t">Golden rules</b>
+<ul>
+<li><b>Never act before approval</b> &mdash; not for the sponsor, not if "small" or "free"</li>
+<li><b>Never a flat no</b> (nor a flat yes) &mdash; <b>assess, document, route</b>. Refusing to evaluate is as wrong as approving alone.</li>
+<li><b>Gold-plating is never OK</b> &mdash; unrequested extras = unapproved scope, added risk and cost</li>
+<li><b>Scope creep</b> = uncontrolled change; the cure is the process, not heroics</li>
+<li>Change control starts <b>once baselines exist</b> &middot; approved changes drive <b>corrective / preventive action or defect repair</b></li>
+</ul>
+</div>
+</section>
+
+<!-- 8 -->
+<section id="s8">
+<h2><span class="n">8</span> Risk</h2>
+<table>
+<thead><tr><th>THREAT (&minus;)</th><th>OPPORTUNITY (+)</th><th>Shared idea</th></tr></thead>
+<tbody>
+<tr><td><b>Escalate</b></td><td><b>Escalate</b></td><td>Outside project scope or PM authority &rarr; programme / portfolio / ops. Owner is outside the project; the team <b>no longer monitors it</b> (it may stay in the register for information).</td></tr>
+<tr><td><b>Avoid</b></td><td><b>Exploit</b></td><td>Probability to <b>0%</b> / to <b>100%</b> &mdash; kill the cause, or guarantee the upside</td></tr>
+<tr><td><b>Transfer</b></td><td><b>Share</b></td><td>Ownership to a third party: insurance, warranty, fixed-price contract / JV. Costs a <b>risk premium</b>.</td></tr>
+<tr><td><b>Mitigate</b></td><td><b>Enhance</b></td><td>Change the <b>size</b>: reduce vs increase probability and/or impact</td></tr>
+<tr><td><b>Accept</b></td><td><b>Accept</b></td><td><b>Active</b> = contingency reserve / plan &middot; <b>Passive</b> = document &amp; monitor only</td></tr>
+</tbody>
+</table>
+<p class="small"><b>Contingency plan</b> = pre-planned response &middot; <b>Fallback</b> = backup if the response fails &middot; <b>Trigger</b> = warning sign &middot; <b>Workaround</b> = unplanned response to an <b>unidentified</b> risk that already occurred.</p>
+<table>
+<tbody>
+<tr><td><b>Risk register</b></td><td><b>Uncertain future</b> events: cause, category, P&amp;I, score, <b>risk owner</b>, strategy, actions, residual/secondary risks, triggers</td></tr>
+<tr><td><b>Issue log</b></td><td><b>Already happened</b>, action now: issue, owner, action, due date, status. A risk that occurs <b>becomes an issue</b>.</td></tr>
+<tr><td><b>Assumption log</b></td><td>Assumptions + constraints from charter onward. An <b>invalidated assumption becomes a risk or issue</b>.</td></tr>
+</tbody>
+</table>
+<table>
+<thead><tr><th>Qualitative</th><th>Quantitative</th></tr></thead>
+<tbody>
+<tr><td><b>Always done, all projects.</b> Subjective <b>ranking</b> via probability &times; impact matrix &rarr; prioritised shortlist. Adds urgency, proximity, detectability.</td><td><b>Optional</b> &mdash; large/complex/high-value, usually only risks qualitative promoted. <b>Numeric</b>: Monte Carlo, EMV / decision trees, sensitivity (tornado). Gives probability of hitting cost / time targets.</td></tr>
+</tbody>
+</table>
+<table>
+<thead><tr><th></th><th>Contingency</th><th>Management</th></tr></thead>
+<tbody>
+<tr><td>Covers</td><td><b>Known-unknowns</b> (identified risks)</td><td><b>Unknown-unknowns</b> (unforeseen work in scope)</td></tr>
+<tr><td>Sits</td><td><b>INSIDE</b> the cost baseline</td><td><b>OUTSIDE</b> baseline, inside the <b>budget</b></td></tr>
+<tr><td>Controlled by</td><td><b>The PM</b> &mdash; no extra approval</td><td>Mgmt / sponsor &mdash; <b>needs approval</b></td></tr>
+<tr><td>Using it</td><td>No change request</td><td><b>Changes the cost baseline</b> &rarr; change request</td></tr>
+</tbody>
+</table>
+<p class="small">Both are <b>reserves</b>. Cost baseline = estimates + contingency &middot; <b>Budget = cost baseline + management reserve</b>.</p>
+<div class="hook"><b class="t">Secondary vs residual:</b> <b>Secondary</b> = <i>new</i> risk created <b>by implementing a response</b> (outsourced &rarr; now vendor-failure risk). <b>Residual</b> = what <b>remains after</b> the response, knowingly accepted. Both go in the register.</div>
+</section>
+
+<!-- 9 -->
+<section id="s9">
+<h2><span class="n">9</span> Agile Compact</h2>
+<h3>Timeboxes &mdash; maxima for a <b>1-month</b> sprint (scale down proportionally)</h3>
+<table>
+<thead><tr><th>Event</th><th>1&nbsp;mo</th><th>2&nbsp;wk</th><th>Purpose</th></tr></thead>
+<tbody>
+<tr><td>Sprint Planning</td><td><b>8 h</b></td><td>4 h</td><td>Why (Sprint Goal) &middot; What (items) &middot; How (plan)</td></tr>
+<tr><td>Daily Scrum</td><td><b>15 min</b></td><td>15 min</td><td><b>Always 15 min</b>, for the <b>developers</b>; re-plan the day. <b>Not a status report to the PM/SM.</b></td></tr>
+<tr><td>Sprint Review</td><td><b>4 h</b></td><td>2 h</td><td>Inspect the <b>increment</b> with <b>stakeholders</b>, adapt the backlog. Demo, not slides.</td></tr>
+<tr><td>Retrospective</td><td><b>3 h</b></td><td>1.5 h</td><td>Inspect people, process, tools, DoD &rarr; improvement actions. Ends the sprint.</td></tr>
+<tr><td>Sprint</td><td colspan="2"><b>&le; 1 month</b></td><td>Nothing may endanger the Sprint Goal. Only the PO can cancel a sprint.</td></tr>
+</tbody>
+</table>
+<table>
+<tbody>
+<tr><td><b>Product Owner</b></td><td><b>Owns the backlog, maximises value</b> &mdash; orders it, single voice on what/why, can say no</td></tr>
+<tr><td><b>Scrum Master</b></td><td><b>Servant leader: serves the team, removes impediments</b>, coaches, protects from interruption. <b>No authority to assign work.</b></td></tr>
+<tr><td><b>Developers</b></td><td><b>Self-organising, cross-functional</b> &mdash; they estimate, pull work, own the how and the quality</td></tr>
+</tbody>
+</table>
+<table>
+<tbody>
+<tr><td><b>DoD</b></td><td><b>Exit</b> criterion, one standard for <b>every</b> increment: coded, tested, integrated, documented, <b>potentially releasable</b>. Not met = <b>not done</b>, back to the backlog, no partial credit.</td></tr>
+<tr><td><b>DoR</b></td><td><b>Entry</b> criterion: clear, estimated, acceptance criteria set, dependencies resolved, <b>INVEST</b> (Independent, Negotiable, Valuable, Estimable, Small, Testable)</td></tr>
+<tr><td>Acceptance criteria</td><td>Per-story, used by the <b>PO</b> to accept that item. DoD global, AC local.</td></tr>
+</tbody>
+</table>
+<table>
+<tbody>
+<tr><td><b>Burndown</b></td><td>Work <b>remaining</b> &rarr; zero. Above ideal line = behind &middot; flat = blocked &middot; hides scope change.</td></tr>
+<tr><td><b>Burnup</b></td><td>Work <b>completed</b> rising + separate <b>total scope</b> line &rarr; rising scope line makes <b>scope creep visible</b>.</td></tr>
+<tr><td><b>CFD</b></td><td>Stacked bands per state. <b>Band width = WIP</b>; widening = <b>bottleneck</b>. Horizontal gap = <b>cycle time</b>, slope of top band = <b>throughput</b>.</td></tr>
+</tbody>
+</table>
+<div class="hook"><b class="t">Agile reflexes</b>
+<ul>
+<li><b>Velocity is empirical and team-specific &mdash; a planning tool, never a performance metric, NEVER compared across teams</b></li>
+<li><b>Story points are relative</b> (effort + complexity + uncertainty), not hours. <b>The team estimates &mdash; not the PM, PO or manager.</b></li>
+<li><b>WIP limits</b> (Kanban): cap items per column &rarr; expose bottlenecks, cut cycle time. <b>Stop starting, start finishing.</b> Little's Law: cycle time = WIP &divide; throughput.</li>
+<li>Kanban = continuous pull flow, no fixed iteration &middot; Scrum = timeboxed iterations</li>
+<li><b>Servant-leader first response: facilitate, don't assign.</b> Coach, let the team solve it, remove the impediment.</li>
+<li>Backlog refinement is <b>ongoing</b>, not a formal event &middot; prioritise <b>highest value &amp; highest risk first</b></li>
+<li>Change is handled by <b>re-ordering the backlog</b> &mdash; no CCB in a pure agile context</li>
+</ul>
+</div>
+</section>
+
+<!-- 10 -->
+<section id="s10">
+<h2><span class="n">10</span> &#9733; PMI MINDSET HIERARCHY &mdash; read twice</h2>
+<div class="mind">
+<p style="margin:0 0 2px"><b>"What should the PM do FIRST / NEXT / BEST?" &rarr; walk the ladder. The answer is the highest rung not yet done.</b></p>
+<ol>
+<li><b>GATHER INFORMATION &mdash; assess the situation.</b> Understand problem, root cause and impact before reacting. Meet the person, analyse the data.</li>
+<li><b>CONSULT THE RELEVANT PLAN / REGISTER / ARTIFACT.</b> Risk register, change management plan, comms plan, quality plan, contract, issue log, lessons learned. It is usually already documented.</li>
+<li><b>ACT WITHIN YOUR AUTHORITY, PER THE PROCESS.</b> Implement the documented response, raise the change request, update the register, have the conversation, replan.</li>
+<li><b>ESCALATE &mdash; LAST RESORT ONLY.</b> To sponsor / CCB / programme, only after 1&ndash;3, only if genuinely beyond your authority. <b>Escalating first is the classic wrong answer.</b></li>
+</ol>
+</div>
+<div class="hook"><b class="t">Reflexes &mdash; the orthodox default in any ambiguous question</b>
+<ul>
+<li><b>Never blame individuals.</b> Attack the process and root cause. No public criticism, no firing, no running to their functional manager first.</li>
+<li><b>The team estimates and plans its own work.</b> The PM facilitates; never imposes.</li>
+<li><b>Prevention over inspection</b> &mdash; quality is planned and built in, never inspected in at the end.</li>
+<li><b>The PM is proactive and never waits.</b> No "wait and see", no "monitor and do nothing".</li>
+<li><b>Face-to-face beats email</b> for conflict, bad news, negotiation. Written for records and formal decisions. Performance and conflict talks happen <b>in private</b>.</li>
+<li><b>Culture / language / diversity &rarr; adapt, respect, accommodate. Never impose</b> your own norms, never "tell them to adjust".</li>
+<li><b>The sponsor funds, champions and signs the charter; the PM plans and executes.</b> The sponsor removes organisational obstacles.</li>
+<li><b>Never bypass the CCB.</b> No verbal approvals, no favours, no starting before the decision.</li>
+<li><b>Never add scope without change control &mdash; and never gold-plate.</b></li>
+<li><b>Bad news travels immediately and transparently.</b> Never hide, delay or soften a variance.</li>
+<li><b>Code of Ethics</b>: responsibility, respect, fairness, honesty. Report violations, refuse gifts that look like bribes, disclose conflicts of interest.</li>
+<li><b>Servant leadership over command-and-control</b> &middot; <b>tailor</b> to the project &middot; if a process exists, <b>follow it</b>.</li>
+</ul>
+</div>
+</section>
+
+<!-- 11 -->
+<section id="s11">
+<h2><span class="n">11</span> Stem Decoder</h2>
+<table>
+<thead><tr><th>Signal</th><th>Means &rarr; do</th></tr></thead>
+<tbody>
+<tr><td><b>FIRST / NEXT</b></td><td><b>Sequence question.</b> Several options are all things you'd eventually do &rarr; pick the <b>earliest rung</b>. Usually <b>assess / gather info / consult the plan</b>, not act, never escalate.</td></tr>
+<tr><td><b>BEST / MOST</b></td><td>All options defensible &rarr; pick the <b>PMI-orthodox</b> one: proactive, process-following, collaborative, root-cause, documented.</td></tr>
+<tr><td><b>EXCEPT / NOT / LEAST</b></td><td><b>Inverted &mdash; SLOW DOWN.</b> Three options are correct; you're hunting the wrong one. Re-read, then test each option true/false.</td></tr>
+<tr><td><b>"should the PM <i>have</i> done"</b></td><td>Past tense &rarr; answer is a <b>prevention / planning artifact</b>: risk identification, stakeholder register, comms plan, clearer WBS, quality plan.</td></tr>
+<tr><td>Two answers both look right</td><td>Pick the more <b>proactive</b>, and <b>root cause</b> over symptom; team-involving over PM-alone; documented over verbal.</td></tr>
+<tr><td>"Escalate to sponsor / inform senior management / go to their functional manager"</td><td>Almost always <b>wrong as a FIRST step</b>. Right only if you have already assessed and it exceeds your authority.</td></tr>
+<tr><td>"Do nothing / wait / monitor and take no action"</td><td>Nearly always <b>wrong</b>. The PM acts.</td></tr>
+<tr><td>"Make an exception / approve it yourself / just do it"</td><td><b>Wrong.</b> Process and change control hold.</td></tr>
+<tr><td>Stem says sprint / backlog / PO / iteration</td><td>Answer in <b>agile grammar</b>: re-order the backlog, team self-organises, servant leadership, retrospective &mdash; not CCB or baselines.</td></tr>
+<tr><td>"In execution" + a plan gap</td><td>You still go back and <b>plan / replan</b>. Process groups are <b>iterative</b>.</td></tr>
+<tr><td>Long stem, lots of numbers</td><td>Read the <b>last sentence first</b>. Half the data is a distractor.</td></tr>
+</tbody>
+</table>
+</section>
+
+<!-- 12 -->
+<section id="s12">
+<h2><span class="n">12</span> Amazon &rarr; PMI Terminology Map</h2>
+<table>
+<thead><tr><th>Amazon</th><th>PMI</th><th>Watch out</th></tr></thead>
+<tbody>
+<tr><td>Mechanism</td><td><b>Process</b></td><td>PMI says process / procedure / policy (OPA). "Mechanism" is in no option.</td></tr>
+<tr><td>COE, 5-whys, post-mortem</td><td><b>Lessons learned register &middot; RCA</b></td><td>Captured <b>continuously throughout</b>, not only at closing; roll into the lessons learned <b>repository</b> (an OPA) at closure.</td></tr>
+<tr><td>Two-way door</td><td><b>Low-impact / reversible change</b></td><td><b>Still documented and still assessed.</b> Reversible is no licence to skip the change log.</td></tr>
+<tr><td>One-way door</td><td><b>Formal change control &middot; decision / phase gate</b></td><td>Needs a <b>change request &rarr; CCB</b>, or a phase-gate review first.</td></tr>
+<tr><td>WBR / MBR / QBR</td><td><b>Performance review meeting</b> (M&amp;C)</td><td>Outputs are <b>work performance reports</b>. Data &rarr; information &rarr; reports.</td></tr>
+<tr><td>6-pager / PR-FAQ</td><td><b>Business case &middot; project charter</b></td><td>Business case comes <b>before</b> the charter. <b>The sponsor issues the charter</b>, not you.</td></tr>
+<tr><td>SIM / ticket queue</td><td><b>Issue log</b></td><td>Issues = already happened. Not-yet-happened lives in the <b>risk register</b>.</td></tr>
+<tr><td>Bar raiser</td><td><b>Peer review &middot; QA audit</b></td><td>Reviews/audits = <b>QA (process)</b>. Testing a deliverable = <b>QC (product)</b>.</td></tr>
+<tr><td>Andon cord</td><td><b>Stop-the-line quality control</b></td><td>PMI approves: empowered team, defect caught at source, prevention over inspection.</td></tr>
+<tr><td>OP1 / OP2</td><td><b>Portfolio planning</b></td><td>Portfolio &gt; programme &gt; project. Portfolio picks <b>what</b>; the project delivers <b>how</b>.</td></tr>
+<tr><td>Escalate to L8 / skip-level</td><td><b>Escalate to sponsor / CCB</b></td><td><b>PMI escalates LAST</b> &mdash; after assessing and consulting the plan, and only if beyond your authority. Early escalation is the trap.</td></tr>
+</tbody>
+</table>
+</section>
+
+<!-- 13 -->
+<section id="s13">
+<h2><span class="n">13</span> Artifact Quick Map</h2>
+<table>
+<thead><tr><th>Artifact</th><th>Owner</th><th>Is / is NOT</th></tr></thead>
+<tbody>
+<tr><td><b>Project charter</b></td><td><b>Sponsor</b> issues &amp; signs</td><td><b>Authorises the project AND names the PM with their authority.</b> High-level: purpose, objectives, high-level requirements &amp; risks, summary milestones / budget, success criteria. <b>Not detailed, not baselined.</b></td></tr>
+<tr><td><b>PM plan</b></td><td><b>PM</b> creates, CCB / sponsor approves</td><td><b>HOW</b> the project is executed, monitored, controlled, closed. Subsidiary plans + the <b>3 baselines</b>. Once approved, changes <b>only via change control</b>.</td></tr>
+<tr><td><b>Scope statement</b></td><td>PM &amp; team</td><td>Detailed <b>product + project</b> scope: deliverables, acceptance criteria, <b>exclusions</b>, constraints, assumptions. Comes <b>before</b> the WBS.</td></tr>
+<tr><td><b>WBS</b></td><td>Team, with the PM</td><td><b>Decomposition of DELIVERABLES</b> &mdash; not activities, not the org chart. <b>100% rule.</b> Lowest level = <b>work package</b>. <b>Scope baseline = scope statement + WBS + WBS dictionary.</b></td></tr>
+<tr><td><b>RACI</b></td><td>PM</td><td><b>R</b> does &middot; <b>A</b> owns &mdash; <b>exactly ONE A per task</b> &middot; <b>C</b> two-way input &middot; <b>I</b> one-way update.</td></tr>
+<tr><td><b>Stakeholder register</b></td><td>PM</td><td>Identity, role, requirements, expectations, influence / power, current &amp; desired engagement. <b>Living</b> &mdash; starts in Initiating, updated throughout.</td></tr>
+<tr><td><b>Product backlog</b></td><td><b>Product Owner</b></td><td><b>Living, ordered</b> list. <b>Never baselined or frozen</b>, re-ordered freely. The <b>sprint backlog</b> belongs to the <b>developers</b>.</td></tr>
+<tr><td><b>Baselines (3)</b></td><td>PM / CCB</td><td>Scope, schedule, cost &mdash; the <b>approved</b> versions variance is measured against. Changed <b>only</b> by approved change request.</td></tr>
+</tbody>
+</table>
+</section>
+
+<!-- 14 -->
+<section id="s14">
+<h2><span class="n">14</span> Quality</h2>
+<table>
+<thead><tr><th></th><th>QA &mdash; Manage Quality</th><th>QC &mdash; Control Quality</th></tr></thead>
+<tbody>
+<tr><td>Focus</td><td><b>PROCESS</b></td><td><b>PRODUCT / deliverable</b></td></tr>
+<tr><td>Aim</td><td><b>Prevention</b> &mdash; build quality in</td><td><b>Inspection</b> &mdash; find defects</td></tr>
+<tr><td>Group</td><td>Executing</td><td>Monitoring &amp; Controlling</td></tr>
+<tr><td>Tools</td><td>Audits, process analysis, RCA</td><td>Inspection, testing, checklists, sampling, control charts</td></tr>
+<tr><td>Output</td><td>Quality reports, change requests</td><td><b>Verified deliverables</b> &rarr; <b>Validate Scope</b> &rarr; customer-<b>accepted</b></td></tr>
+</tbody>
+</table>
+<p class="small"><b>Control Quality = correctness (internal, PM/team). Validate Scope = acceptance (external, customer sign-off). QC comes FIRST.</b> Quality = meets requirements. Grade = category of features &mdash; <b>low grade may be acceptable, low quality never is</b>.</p>
+<h3>Cost of Quality</h3>
+<table>
+<thead><tr><th>CONFORMANCE (to prevent failure)</th><th>NON-CONFORMANCE (because of failure)</th></tr></thead>
+<tbody>
+<tr><td><b>Prevention</b> &mdash; training, documented process, right equipment<br><b>Appraisal</b> &mdash; testing, inspection, audits</td><td><b>Internal failure</b> &mdash; found <b>before</b> the customer: rework, scrap<br><b class="neg">External failure</b> &mdash; found <b>by</b> the customer: warranty, recalls, lost business &mdash; <b>ALWAYS DEAREST</b></td></tr>
+</tbody>
+</table>
+<p class="small">Cheapest &rarr; dearest: <b>prevention &lt; appraisal &lt; internal failure &lt; external failure</b>. So spend on prevention.</p>
+<table>
+<tbody>
+<tr><td><b>Pareto</b></td><td><b>80/20</b> &mdash; ordered bar chart of causes by frequency. 80% of problems from 20% of causes &rarr; <b>where to focus first</b>.</td></tr>
+<tr><td><b>Ishikawa</b></td><td>Fishbone / cause-and-effect &mdash; <b>finds the ROOT CAUSE</b> by decomposing an effect into categories (people, process, machine, material, measurement, environment).</td></tr>
+<tr><td><b>Control chart</b></td><td><b>Spec limits</b> = customer requirement &middot; <b>control limits</b> = process capability, normally <b>&plusmn;3&sigma;</b> from the mean. Point <b>outside a control limit &rarr; out of control</b>. <b>RULE OF SEVEN: 7 consecutive points on one side of the mean &rarr; out of control &mdash; INVESTIGATE, even though every point is inside the limits.</b></td></tr>
+<tr><td>Others</td><td>Histogram = distribution &middot; scatter = correlation &middot; flowchart = steps / handoffs &middot; checksheet = tally while collecting</td></tr>
+</tbody>
+</table>
+</section>
+
+<!-- 15 -->
+<section id="s15">
+<h2><span class="n">15</span> Process Groups &mdash; One-Liner Strip</h2>
+<div class="strip">
+<div><b>INITIATING</b>Authorise the project / phase &rarr; <b>project charter</b>, <b>stakeholder register</b>, assumption log.</div>
+<div><b>PLANNING</b>Define scope, refine objectives &rarr; <b>PM plan + ALL THREE BASELINES</b> (scope, schedule, cost), subsidiary plans, risk register. Largest group.</div>
+<div><b>EXECUTING</b>Do the work in the plan &rarr; <b>deliverables</b>, acquire / develop / manage the <b>team</b>, manage comms &amp; engagement, conduct procurements, implement approved changes.</div>
+<div><b>MONITORING &amp; CONTROLLING</b>Track, review, regulate &rarr; <b>variance analysis, EVM, work performance reports, change requests, INTEGRATED CHANGE CONTROL</b>, validate &amp; control scope, monitor risks. Runs <b>in parallel with every other group</b>.</div>
+<div><b>CLOSING</b>Formally finish &rarr; <b>final report</b>, transition the product, close procurements, <b>lessons learned repository</b>, archive, <b>release resources</b>. Close out even a <b>terminated</b> project.</div>
+</div>
+<p class="small">Process groups are <b>not</b> phases and <b>not</b> sequential &mdash; they overlap and iterate. <b>ECO 2021 domains: People 42% &middot; Process 50% &middot; Business Environment 8%</b>, roughly <b>50% predictive / 50% agile-hybrid</b>.</p>
+</section>
+
+</div>
+<!-- VERIFY-LIST: EMPTY. Zero uncertainty tags were required anywhere in this sheet.
+     All values are standard PMBOK Guide 6th/7th Edition, Agile Practice Guide, 2020 Scrum Guide and PMP ECO 2021 doctrine.
+     Cross-checks applied while authoring:
+     - ROM -25%/+75%, definitive -5%/+10%: PMBOK 6 Sec 7.2 Estimate Costs.
+     - Scrum timeboxes 8h / 15min / 4h / 3h for a one-month Sprint: 2020 Scrum Guide maxima; the 2-week column is the proportional halving.
+     - Contract risk order FFP > FPIF > FP-EPA > T&M > CPIF > CPAF > CPFF: standard exam ordering of risk transfer from seller to buyer.
+     - PTA = ((Ceiling Price - Target Price) / Buyer share ratio) + Target Cost; FPIF only.
+     - Conflict techniques (collaborate, compromise, smooth, force, withdraw): PMBOK 6 Sec 9.5.2.1 NAMES all five but publishes NO 1-5 ranking.
+       The 1-5 order on the sheet is labelled as prep convention only; doctrine supports collaborate = best, withdraw = resolves nothing.
+     - Threat/opportunity response mirrors including Escalate on both sides: PMBOK 6 Sec 11.5.2.
+     - Reserves: contingency inside cost baseline / PM-controlled; management outside baseline, inside budget, needs approval.
+     - Rule of seven (7 consecutive points one side of the mean) = standard PMP control-chart doctrine.
+     - ECO 2021 domain weights People 42% / Process 50% / Business Environment 8%.
+     - EVM worked example arithmetic verified: PV=700, EV=500, AC=600; SV=-200; CV=-100; SPI=5/7=0.714; CPI=5/6=0.833;
+       EAC(typical)=1000/0.8333=1200; EAC(atypical)=600+500=1100; EAC(cost+sched)=600+500/(25/42)=600+840=1440;
+       ETC=1200-600=600; VAC=1000-1200=-200; TCPI(BAC)=500/400=1.25; TCPI(EAC)=500/600=0.833.
+-->

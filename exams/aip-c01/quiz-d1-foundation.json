@@ -1,0 +1,519 @@
+{
+  "domain_id": "D1",
+  "domain_title": "Foundation Model Integration, Data Management, and Compliance",
+  "questions": [
+    {
+      "id": "D1-Q001",
+      "type": "single_choice",
+      "difficulty": "hard",
+      "tags": ["bedrock-kb", "rag", "managed-rag"],
+      "scenario": "A retail company has 2M product PDFs in S3 that are updated weekly. The retrieval latency budget is 1.5 seconds. The platform team wants to minimize operational overhead.",
+      "stem": "Which approach MOST reduces operational overhead while meeting the latency target?",
+      "options": [
+        {"letter": "A", "text": "Build a custom AWS Lambda pipeline that calls Amazon Titan Embeddings and writes to an Amazon OpenSearch Service domain.", "correct": false, "why": "This meets latency but adds significant pipeline and ops overhead. KBs eliminate the plumbing."},
+        {"letter": "B", "text": "Use Amazon Bedrock Knowledge Bases with Amazon OpenSearch Serverless vector storage.", "correct": true, "why": "Managed end-to-end RAG (ingest → chunk → embed → index → retrieve). Lowest ops overhead and sub-second retrieval."},
+        {"letter": "C", "text": "Fine-tune the foundation model weekly on the latest product catalog.", "correct": false, "why": "Fine-tuning teaches style/format/task, not changing facts. Updates would require re-tuning weekly — high cost, latency in change propagation."},
+        {"letter": "D", "text": "Use Amazon Kendra to index the PDFs and a custom Lambda to call the FM with results.", "correct": false, "why": "Classic Kendra distractor. Kendra is enterprise search; Bedrock KBs are the managed-RAG path for Bedrock workflows."}
+      ],
+      "knowledge_point": "Bedrock Knowledge Bases = managed end-to-end RAG. Default choice when the question says 'reduce operational overhead' AND 'ground with my data'.",
+      "trap_alert": "Kendra often appears as a plausible-looking RAG answer — passers report it is almost always the WRONG choice on Bedrock-context questions.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/knowledge-base.html"]
+    },
+    {
+      "id": "D1-Q002",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["model-selection", "claude", "use-case-match"],
+      "scenario": "A law firm needs to summarize 80-page contracts. Quality and nuanced reasoning are the top priority; per-summary cost is a secondary concern; latency can be up to 30 seconds.",
+      "stem": "Which Amazon Bedrock model is MOST appropriate?",
+      "options": [
+        {"letter": "A", "text": "Anthropic Claude 3 Haiku", "correct": false, "why": "Optimized for speed and cost, not deep reasoning on long legal texts."},
+        {"letter": "B", "text": "Anthropic Claude 3 Opus", "correct": true, "why": "Highest-quality reasoning in the Claude 3 family — fits the 'quality first, cost secondary, latency lenient' profile."},
+        {"letter": "C", "text": "Amazon Nova Micro", "correct": false, "why": "Smallest Nova tier — text only, fastest/cheapest. Insufficient for nuanced legal reasoning."},
+        {"letter": "D", "text": "Stability AI SDXL", "correct": false, "why": "SDXL is an image-generation model, not a text summarizer."}
+      ],
+      "knowledge_point": "Match model to use case: Haiku/Nova Micro = speed/cost; Sonnet/Nova Pro = balanced; Opus/Nova Premier = deep reasoning at higher cost.",
+      "trap_alert": "Don't auto-pick Sonnet for everything. When 'quality first' is explicit and latency is lenient, Opus/Premier is the answer.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html"]
+    },
+    {
+      "id": "D1-Q003",
+      "type": "single_choice",
+      "difficulty": "hard",
+      "tags": ["bedrock-kb", "chunking", "hierarchical"],
+      "scenario": "A healthcare provider ingests long structured clinical guideline documents into a Bedrock Knowledge Base. Each document has nested sections, sub-sections, and cross-references. Retrieval must preserve the surrounding hierarchical context so the FM can ground answers accurately.",
+      "stem": "Which chunking strategy is MOST appropriate?",
+      "options": [
+        {"letter": "A", "text": "Default chunking (~300 tokens, 20% overlap).", "correct": false, "why": "Quick start, but ignores the document hierarchy — context is fragmented."},
+        {"letter": "B", "text": "Fixed-size chunking at 1000 tokens with 10% overlap.", "correct": false, "why": "Predictable size but still loses the parent-section context."},
+        {"letter": "C", "text": "Hierarchical chunking.", "correct": true, "why": "Parent-child chunk relationships preserve the document structure; the FM gets the right scope of context for nested headings/sections."},
+        {"letter": "D", "text": "Semantic chunking.", "correct": false, "why": "Groups by meaning — strong for narrative prose, weaker than hierarchical for structured docs with explicit hierarchy."}
+      ],
+      "knowledge_point": "Chunking choice: Default = quick start; Fixed = predictable size; Semantic = narrative grouping by meaning; Hierarchical = parent-child for long structured docs (manuals, legal, clinical).",
+      "trap_alert": "Hierarchical and Semantic both sound 'advanced'. Pick by document structure: structured/hierarchical docs → Hierarchical; narrative → Semantic.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/kb-chunking-parsing.html"]
+    },
+    {
+      "id": "D1-Q004",
+      "type": "single_choice",
+      "difficulty": "hard",
+      "tags": ["vector-store", "latency", "memorydb"],
+      "scenario": "A trading desk needs a real-time AI co-pilot. The vector retrieval step must complete in under 5 ms per request at p99 to fit within the overall latency budget.",
+      "stem": "Which vector store is MOST appropriate?",
+      "options": [
+        {"letter": "A", "text": "Amazon OpenSearch Serverless vector engine.", "correct": false, "why": "Strong default but latency is typically tens to hundreds of ms — does not meet sub-5ms p99."},
+        {"letter": "B", "text": "Amazon Aurora PostgreSQL with pgvector.", "correct": false, "why": "Aurora pgvector is disk-based; latency is higher than in-memory stores."},
+        {"letter": "C", "text": "Amazon MemoryDB with vector search.", "correct": true, "why": "Redis-compatible in-memory store with single-digit-millisecond latency, designed for vector workloads needing the lowest latency."},
+        {"letter": "D", "text": "Amazon DocumentDB elastic clusters with vector search.", "correct": false, "why": "MongoDB-compatible; not optimized for sub-5ms vector retrieval at scale."}
+      ],
+      "knowledge_point": "Vector store latency: MemoryDB (in-memory, single-digit ms) < OpenSearch Serverless (tens of ms) < Aurora pgvector / DocumentDB. Pick by latency + scale + existing-stack.",
+      "trap_alert": "Don't default to OpenSearch Serverless when sub-5ms is required. The 'lowest latency' phrasing is a MemoryDB signal.",
+      "doc_refs": ["https://docs.aws.amazon.com/memorydb/latest/devguide/vector-search.html"]
+    },
+    {
+      "id": "D1-Q005",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["embeddings", "titan"],
+      "stem": "Which output dimensions does Amazon Titan Text Embeddings v2 support?",
+      "scenario": "",
+      "options": [
+        {"letter": "A", "text": "256, 512, and 1024.", "correct": true, "why": "Titan Embed Text v2 supports three output dim choices — pick smaller dims for cost/latency, larger for accuracy."},
+        {"letter": "B", "text": "384, 768, and 1536.", "correct": false, "why": "1536 is OpenAI ada-002; not Titan Embed v2."},
+        {"letter": "C", "text": "128, 256, and 512.", "correct": false, "why": "Titan v2 does not offer 128 dims."},
+        {"letter": "D", "text": "1024 only.", "correct": false, "why": "Titan Embed Text v1 was 1536-only; v2 added flexible dim sizing."}
+      ],
+      "knowledge_point": "Titan Embed Text v2: 8192 input tokens, output dims 256 / 512 / 1024. Smaller dims = lower storage / faster ANN search; larger = best accuracy.",
+      "trap_alert": "Don't confuse Titan v2 dims with OpenAI dims (1536). AWS exam values AWS-specific numbers.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/titan-embedding-models.html"]
+    },
+    {
+      "id": "D1-Q006",
+      "type": "multiple_response",
+      "difficulty": "hard",
+      "tags": ["data-residency", "compliance", "region"],
+      "scenario": "An EU customer requires that all FM inference, prompts, and completions remain within the eu-central-1 region. The current architecture uses Amazon Bedrock.",
+      "stem": "Which actions ensure data residency in the EU? (Select TWO)",
+      "options": [
+        {"letter": "A", "text": "Invoke Amazon Bedrock through the eu-central-1 regional endpoint only.", "correct": true, "why": "Bedrock is a regional service. Calling the EU endpoint keeps data plane traffic in the EU region."},
+        {"letter": "B", "text": "Use only foundation models that are available in eu-central-1.", "correct": true, "why": "Model availability varies by region. Picking models supported in the EU avoids needing cross-region calls."},
+        {"letter": "C", "text": "Configure a cross-region inference profile that includes us-east-1 as a fallback for capacity.", "correct": false, "why": "Cross-region inference can route requests to non-EU regions — explicitly violates EU residency."},
+        {"letter": "D", "text": "Enable Bedrock Guardrails with a 'data residency' policy.", "correct": false, "why": "There is no Guardrails policy that enforces region residency. Guardrails are CONTENT policies."},
+        {"letter": "E", "text": "Invoke Bedrock from us-east-1 over AWS PrivateLink.", "correct": false, "why": "PrivateLink is private connectivity, not residency. Inference would still occur in us-east-1."}
+      ],
+      "knowledge_point": "Data residency = call a regional endpoint + use models available in that region + avoid cross-region inference profiles that route elsewhere.",
+      "trap_alert": "PrivateLink is privacy of network path, NOT data residency. Guardrails are content policies, not regional enforcement.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html"]
+    },
+    {
+      "id": "D1-Q007",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["pii", "guardrails", "anonymize"],
+      "scenario": "A customer support assistant receives chat messages that may contain Social Security Numbers and credit card numbers. The team needs to prevent these values from ever being sent to the foundation model, and the assistant should continue to respond meaningfully without showing the user an error.",
+      "stem": "Which approach BEST minimizes operational overhead?",
+      "options": [
+        {"letter": "A", "text": "Run an Amazon Comprehend PII detection step in a Lambda preprocessor and redact tokens before invoking the FM.", "correct": false, "why": "Functional but adds Lambda plumbing, custom error handling, and parallel maintenance vs. a managed Guardrails policy."},
+        {"letter": "B", "text": "Configure Amazon Bedrock Guardrails Sensitive Information policy with ANONYMIZE action for SSN and credit card.", "correct": true, "why": "ANONYMIZE replaces detected PII with a placeholder token in the prompt sent to the FM — the FM still responds; user sees no error; fully managed."},
+        {"letter": "C", "text": "Run Amazon Macie on the chat-history S3 bucket nightly.", "correct": false, "why": "Macie scans data AT REST in S3 — it does not intercept live prompts."},
+        {"letter": "D", "text": "Write a regex Lambda that scrubs SSN and credit-card patterns before invocation.", "correct": false, "why": "Custom code = highest operational overhead and lowest accuracy compared to managed Guardrails."}
+      ],
+      "knowledge_point": "Guardrails Sensitive Information policy: DETECT (log only), ANONYMIZE (replace with [TAG]), BLOCK (reject the request). Choose by UX requirement.",
+      "trap_alert": "Comprehend is over-cited in third-party practice exams. On Bedrock-context PII questions, Guardrails is usually the right answer.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails-sensitive-filters.html"]
+    },
+    {
+      "id": "D1-Q008",
+      "type": "multiple_response",
+      "difficulty": "hard",
+      "tags": ["rag-vs-finetune", "knowledge-bases", "decision-framework"],
+      "scenario": "A SaaS company wants its FM to (a) answer questions about new customer onboarding documents that change weekly and (b) consistently use the company's brand terminology and tone in every response.",
+      "stem": "Which combination is MOST appropriate? (Select TWO)",
+      "options": [
+        {"letter": "A", "text": "Use Amazon Bedrock Knowledge Bases to ground responses on the latest onboarding documents.", "correct": true, "why": "RAG via KBs is the right tool when the underlying KNOWLEDGE changes frequently (weekly)."},
+        {"letter": "B", "text": "Fine-tune the FM weekly on the new onboarding documents.", "correct": false, "why": "Fine-tuning teaches style/format/task — wrong tool for facts that change. And weekly retraining is impractical/expensive."},
+        {"letter": "C", "text": "Fine-tune the FM on labeled examples of brand-voice responses.", "correct": true, "why": "Fine-tuning IS the right tool for style/tone/format consistency. Brand voice is stylistic, not factual."},
+        {"letter": "D", "text": "Do continued pre-training (CPT) every week on the new documents.", "correct": false, "why": "CPT is for domain vocabulary/jargon adaptation on unlabeled corpora; not appropriate for changing facts or weekly cycles."},
+        {"letter": "E", "text": "Add the entire onboarding document into every system prompt.", "correct": false, "why": "Wastes input tokens and breaks once documents exceed the context window."}
+      ],
+      "knowledge_point": "Decision framework: facts change → RAG. Style/tone/format/task → Fine-tune. New domain vocab without labels → Continued Pre-training.",
+      "trap_alert": "When a question has TWO needs (changing data + style), the answer is usually a COMBINATION of RAG + fine-tune, not a single technique.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/custom-models.html"]
+    },
+    {
+      "id": "D1-Q009",
+      "type": "multiple_response",
+      "difficulty": "medium",
+      "tags": ["lineage", "audit", "logging"],
+      "scenario": "A pharmaceutical compliance team must demonstrate to auditors both (a) which IAM principal called which Bedrock API and when, and (b) the actual prompt and completion text for every model invocation.",
+      "stem": "Which combination is REQUIRED? (Select TWO)",
+      "options": [
+        {"letter": "A", "text": "AWS CloudTrail.", "correct": true, "why": "CloudTrail records the control-plane and data-plane API calls (who, what API, when). Required for the 'who/when' audit."},
+        {"letter": "B", "text": "Amazon Bedrock model invocation logging enabled to S3 or CloudWatch.", "correct": true, "why": "Captures the actual prompt + completion + metadata for each invocation. Required for the prompt/response audit."},
+        {"letter": "C", "text": "AWS Config rules.", "correct": false, "why": "Config tracks resource configuration changes, not API calls or model I/O."},
+        {"letter": "D", "text": "Amazon Macie.", "correct": false, "why": "Macie discovers PII at rest in S3; it doesn't audit Bedrock invocations."},
+        {"letter": "E", "text": "Amazon GuardDuty.", "correct": false, "why": "GuardDuty is threat detection (anomalous behavior). Not an audit log of prompts/completions."}
+      ],
+      "knowledge_point": "Full Bedrock audit = CloudTrail (who/what API) + Model Invocation Logging (prompt/response content). Optional: Guardrail traces and Agent traces enrich this further.",
+      "trap_alert": "CloudTrail alone does NOT capture prompt/response content. You need model invocation logging for that.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/model-invocation-logging.html"]
+    },
+    {
+      "id": "D1-Q010",
+      "type": "single_choice",
+      "difficulty": "easy",
+      "tags": ["bedrock-kb", "ingestion-sync"],
+      "scenario": "A team uploads new files to a Bedrock Knowledge Base source S3 bucket. The next day they notice the new content is not yet retrievable through the KB.",
+      "stem": "What is the MOST LIKELY cause?",
+      "options": [
+        {"letter": "A", "text": "Bedrock KBs ingest automatically in near real time as files arrive in S3.", "correct": false, "why": "False — there is no automatic real-time ingestion. A sync job must run."},
+        {"letter": "B", "text": "A KB ingestion job has not run since the upload (sync is manual or scheduled via EventBridge).", "correct": true, "why": "KBs require an ingestion sync — either started manually, via API (StartIngestionJob), or scheduled by EventBridge/Step Functions."},
+        {"letter": "C", "text": "The S3 bucket needs Object Lock enabled for ingestion to detect new objects.", "correct": false, "why": "Object Lock has no effect on KB ingestion."},
+        {"letter": "D", "text": "OpenSearch Serverless does not support new vectors until reindex.", "correct": false, "why": "OpenSearch Serverless updates in near real-time; the gating step is the KB ingestion."}
+      ],
+      "knowledge_point": "Bedrock KB ingestion is NOT continuous. New documents require StartIngestionJob (manual or scheduled). Common operational gotcha.",
+      "trap_alert": "Don't assume 'managed RAG' means 'auto-syncing'. KB ingestion is on-demand.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/kb-ingestion.html"]
+    },
+    {
+      "id": "D1-Q011",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["vector-store", "aurora-pgvector", "existing-stack"],
+      "scenario": "A startup already uses Amazon Aurora PostgreSQL Serverless v2 for its application data. They want to add RAG capability with minimal new infrastructure and cost.",
+      "stem": "Which vector store is MOST cost-effective?",
+      "options": [
+        {"letter": "A", "text": "Amazon OpenSearch Serverless vector.", "correct": false, "why": "Adds a new service to operate and pay for. Reasonable default for greenfield, but not lowest cost given existing Aurora."},
+        {"letter": "B", "text": "Amazon Aurora PostgreSQL with the pgvector extension.", "correct": true, "why": "Reuses existing Aurora capacity. Lowest incremental cost; simplest ops since the team already runs Aurora."},
+        {"letter": "C", "text": "Amazon MemoryDB.", "correct": false, "why": "New infrastructure. Use only if sub-ms vector latency is needed."},
+        {"letter": "D", "text": "Amazon Kendra.", "correct": false, "why": "Search service, not a vector store. Adds cost and is not the integrated path for Bedrock KBs."}
+      ],
+      "knowledge_point": "Vector store selection by EXISTING-STACK: already on Aurora Postgres → pgvector; already on Redis/MemoryDB → MemoryDB; greenfield managed → OpenSearch Serverless vector.",
+      "trap_alert": "'MOST cost-effective' often means 'reuse what you have' — not 'pick the newest managed service'.",
+      "doc_refs": ["https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/AuroraPostgreSQL.VectorDB.html"]
+    },
+    {
+      "id": "D1-Q012",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["dr", "cross-region-replication", "knowledge-bases"],
+      "scenario": "A media company stores 5 TB of source documents for a Bedrock Knowledge Base in an S3 bucket in us-east-1. The disaster recovery requirement is RPO ≤ 15 minutes and the KB must be reproducible in us-west-2.",
+      "stem": "Which approach BEST meets the RPO?",
+      "options": [
+        {"letter": "A", "text": "Enable S3 Cross-Region Replication (CRR) to a us-west-2 bucket, and pre-provision a KB in us-west-2 ready to sync.", "correct": true, "why": "S3 CRR delivers near-real-time replication of objects (well within 15 min RPO). The KB in DR region can be (re-)synced from the replicated bucket."},
+        {"letter": "B", "text": "Run nightly aws s3 sync from us-east-1 to us-west-2 via a scheduled Lambda.", "correct": false, "why": "Nightly cadence exceeds the 15-minute RPO."},
+        {"letter": "C", "text": "Rely on Amazon Bedrock cross-region inference profiles for DR.", "correct": false, "why": "Cross-region inference routes invocation traffic; it does NOT replicate KB SOURCE data."},
+        {"letter": "D", "text": "Snapshot the OpenSearch Serverless vector collection nightly.", "correct": false, "why": "OpenSearch Serverless does not expose user-managed snapshots in this way; and nightly doesn't meet RPO."}
+      ],
+      "knowledge_point": "DR for RAG = replicate SOURCE DATA (S3 CRR) → re-create or re-sync the KB in the DR region. Cross-region inference is for traffic routing, not data DR.",
+      "trap_alert": "Don't confuse cross-region INFERENCE (compute) with cross-region REPLICATION (data).",
+      "doc_refs": ["https://docs.aws.amazon.com/AmazonS3/latest/userguide/replication.html"]
+    },
+    {
+      "id": "D1-Q013",
+      "type": "single_choice",
+      "difficulty": "hard",
+      "tags": ["continued-pretraining", "model-customization"],
+      "scenario": "A regional bank wants Amazon Titan Text to understand banking jargon, internal product names, and document formats. They have 50 GB of unlabeled bank documents but no labeled examples.",
+      "stem": "Which Bedrock model customization technique is MOST appropriate?",
+      "options": [
+        {"letter": "A", "text": "Supervised fine-tuning.", "correct": false, "why": "Fine-tuning requires labeled prompt/completion pairs. The bank does not have labels."},
+        {"letter": "B", "text": "Continued pre-training (CPT).", "correct": true, "why": "CPT is specifically for adapting a base model to a new DOMAIN VOCABULARY using UNLABELED text corpora."},
+        {"letter": "C", "text": "Retrieval Augmented Generation (RAG) only.", "correct": false, "why": "RAG retrieves at query time but does not adapt the model's understanding of jargon. Best COMBINED with CPT, not as a sole solution for vocabulary issues."},
+        {"letter": "D", "text": "Switch to a larger foundation model.", "correct": false, "why": "Larger model size doesn't teach the bank's specific internal jargon or document conventions."}
+      ],
+      "knowledge_point": "Continued Pre-training (CPT) = adapt to new domain on UNLABELED corpora. Fine-tuning = LABELED examples for task/style. RAG = changing knowledge at query time.",
+      "trap_alert": "If the question explicitly says 'no labeled examples' and 'domain vocabulary', the answer is CPT — not fine-tuning.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/model-customization.html"]
+    },
+    {
+      "id": "D1-Q014",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["embeddings", "multilingual", "cohere"],
+      "scenario": "An e-commerce platform serves users in English, Spanish, Japanese, and Arabic. The retrieval layer must use a single embedding model so multilingual queries can match multilingual documents within the same vector index.",
+      "stem": "Which embedding model is MOST appropriate?",
+      "options": [
+        {"letter": "A", "text": "Amazon Titan Embed Text v2.", "correct": false, "why": "Titan v2 has multilingual coverage but Cohere Multilingual v3 is purpose-built for cross-lingual semantic similarity at scale on Bedrock."},
+        {"letter": "B", "text": "Cohere Embed Multilingual v3 on Amazon Bedrock.", "correct": true, "why": "Designed for cross-lingual semantic search — embeddings of Spanish and English content map into the same vector space for direct similarity."},
+        {"letter": "C", "text": "Cohere Embed English v3 on Amazon Bedrock.", "correct": false, "why": "English-only variant — would not represent Japanese or Arabic content well."},
+        {"letter": "D", "text": "Amazon Titan Multimodal Embeddings G1.", "correct": false, "why": "Multimodal = TEXT + IMAGE in the same space, not specifically multilingual text."}
+      ],
+      "knowledge_point": "Embedding model picks: Titan Embed v2 (English-strong, flexible dims), Cohere Embed English v3 (English-only), Cohere Embed Multilingual v3 (cross-lingual), Titan Multimodal (text + image).",
+      "trap_alert": "'Multimodal' ≠ 'multilingual'. Multimodal = image + text. Multilingual = many natural languages.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/cohere-embed.html"]
+    },
+    {
+      "id": "D1-Q015",
+      "type": "single_choice",
+      "difficulty": "easy",
+      "tags": ["data-privacy", "bedrock"],
+      "stem": "Which statement about Amazon Bedrock and customer data is TRUE?",
+      "scenario": "",
+      "options": [
+        {"letter": "A", "text": "AWS uses customer prompts and completions to train and improve the underlying foundation models.", "correct": false, "why": "Incorrect — AWS explicitly does NOT use customer data for model training."},
+        {"letter": "B", "text": "AWS does not use customer prompts or completions to train any AWS or third-party foundation models.", "correct": true, "why": "Stated AWS Bedrock data policy: customer data is not used to train any model — neither AWS-owned nor third-party providers."},
+        {"letter": "C", "text": "AWS uses prompts only if customers do not opt out via Service Quotas.", "correct": false, "why": "There is no opt-out mechanism because there is no use of customer data for training in the first place."},
+        {"letter": "D", "text": "Only aggregated metrics are used for model improvement.", "correct": false, "why": "Bedrock customer data is not used for training in any form."}
+      ],
+      "knowledge_point": "Bedrock data privacy: customer prompts/completions are NOT used to train base models (AWS or third-party). Frequently tested compliance fact.",
+      "trap_alert": "This is a 'gimme' question if you know the AWS data policy — and a costly miss if you assume the OpenAI/consumer-LLM model.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/data-protection.html"]
+    },
+    {
+      "id": "D1-Q016",
+      "type": "single_choice",
+      "difficulty": "hard",
+      "tags": ["bedrock-kb", "data-sources"],
+      "scenario": "An enterprise customer wants to ingest content from Confluence Cloud, an S3 bucket, and Salesforce into a single Bedrock Knowledge Base for unified RAG.",
+      "stem": "Which statement is TRUE?",
+      "options": [
+        {"letter": "A", "text": "Each data source must be a separate KB; one KB supports only one source.", "correct": false, "why": "A single KB can have multiple data sources of different types."},
+        {"letter": "B", "text": "Bedrock Knowledge Bases support S3, web crawler, Confluence Cloud, SharePoint, and Salesforce as native managed connectors.", "correct": true, "why": "These are the supported managed data sources for a single KB. The team can mix and match in one KB."},
+        {"letter": "C", "text": "Confluence and Salesforce require a custom Lambda crawler — they are not native sources.", "correct": false, "why": "They are native managed connectors."},
+        {"letter": "D", "text": "Bedrock KBs only support S3 sources; everything else needs Amazon Kendra.", "correct": false, "why": "Kendra is a separate enterprise search service; KBs have their own native non-S3 connectors."}
+      ],
+      "knowledge_point": "Bedrock KBs native data sources: S3, web crawler, Confluence Cloud, SharePoint, Salesforce, Atlassian. Multiple sources can be combined in a single KB.",
+      "trap_alert": "When a question lists multiple SaaS sources, Bedrock KBs (not Kendra) is the unified-RAG answer.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/knowledge-base-ds.html"]
+    },
+    {
+      "id": "D1-Q017",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["pii", "guardrails", "block"],
+      "scenario": "A government agency must guarantee that any prompt containing a National ID number is REJECTED outright with an audit log — the FM must never see the prompt and the caller must receive a clear error.",
+      "stem": "Which Guardrails action is MOST appropriate?",
+      "options": [
+        {"letter": "A", "text": "DETECT — log occurrences but pass the prompt through.", "correct": false, "why": "Does not block; the FM would still receive the National ID."},
+        {"letter": "B", "text": "ANONYMIZE — replace the National ID with a [TAG] placeholder before the FM sees it.", "correct": false, "why": "FM is not blocked from receiving a sanitized version. Question requires REJECT outright."},
+        {"letter": "C", "text": "BLOCK — reject the entire request and return a guardrail-blocked response to the caller.", "correct": true, "why": "BLOCK is the right action when the request must be REJECTED, not sanitized. Audit log is captured by Guardrails trace."},
+        {"letter": "D", "text": "Add a custom regex; no action is required.", "correct": false, "why": "A regex without an action is not enforcement."}
+      ],
+      "knowledge_point": "Guardrails Sensitive Information actions: DETECT (log only), ANONYMIZE (sanitize and pass), BLOCK (reject outright). Match the action to the policy intent.",
+      "trap_alert": "Read the verb in the requirement: 'redact and continue' = ANONYMIZE; 'reject outright' = BLOCK.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails-sensitive-filters.html"]
+    },
+    {
+      "id": "D1-Q018",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["hipaa", "compliance"],
+      "scenario": "A healthcare ISV is building a clinical note summarization feature on Amazon Bedrock and must store and process Protected Health Information (PHI).",
+      "stem": "Which step is REQUIRED for HIPAA compliance with AWS?",
+      "options": [
+        {"letter": "A", "text": "Execute a Business Associate Addendum (BAA) with AWS.", "correct": true, "why": "AWS requires a BAA for any account processing PHI. This is the foundational HIPAA compliance step on AWS."},
+        {"letter": "B", "text": "Use only Amazon Titan models — no third-party models are HIPAA-eligible.", "correct": false, "why": "Many Bedrock models (Anthropic Claude, Titan, etc.) are HIPAA-eligible. Restriction to Titan only is false."},
+        {"letter": "C", "text": "Enable Amazon Macie on the Bedrock service.", "correct": false, "why": "Macie operates on S3 data, not Bedrock itself. Useful but not the foundational requirement."},
+        {"letter": "D", "text": "Switch to AWS GovCloud regions.", "correct": false, "why": "GovCloud is for ITAR / FedRAMP High workloads. HIPAA works in commercial AWS Regions with a signed BAA."}
+      ],
+      "knowledge_point": "HIPAA on AWS: sign a BAA, then use HIPAA-eligible services per the AWS HIPAA Eligible Services list. Bedrock is HIPAA-eligible.",
+      "trap_alert": "GovCloud is for government compliance regimes, not HIPAA. HIPAA works in commercial regions with a BAA.",
+      "doc_refs": ["https://aws.amazon.com/compliance/hipaa-compliance/"]
+    },
+    {
+      "id": "D1-Q019",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["embeddings", "titan-multimodal"],
+      "scenario": "An online retailer wants a single search experience where users can upload a product photo OR type a description, and both should retrieve relevant products from a unified product catalog.",
+      "stem": "Which embedding model is MOST appropriate?",
+      "options": [
+        {"letter": "A", "text": "Amazon Titan Embed Text v2.", "correct": false, "why": "Text-only embeddings — cannot represent images in the same vector space."},
+        {"letter": "B", "text": "Amazon Titan Multimodal Embeddings G1.", "correct": true, "why": "Encodes text AND images into the SAME vector space, enabling cross-modal retrieval (image → text matches, text → image matches)."},
+        {"letter": "C", "text": "Cohere Embed English v3.", "correct": false, "why": "Text-only embedding model."},
+        {"letter": "D", "text": "Stability AI SDXL.", "correct": false, "why": "SDXL is an image-GENERATION model, not an embedding model."}
+      ],
+      "knowledge_point": "Titan Multimodal Embeddings G1: same vector space for text and images. Use for cross-modal retrieval like image search or text-from-image lookup.",
+      "trap_alert": "Generation models (SDXL, Titan Image Generator) are NOT embedding models. Don't confuse the families.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/titan-multiemb-models.html"]
+    },
+    {
+      "id": "D1-Q020",
+      "type": "single_choice",
+      "difficulty": "hard",
+      "tags": ["bedrock-kb", "agents", "composition"],
+      "scenario": "A bank's customer assistant Bedrock Agent must answer product questions by retrieving from a managed Knowledge Base of product PDFs.",
+      "stem": "What is the LEAST-overhead way to wire the KB into the Agent?",
+      "options": [
+        {"letter": "A", "text": "Add the KB to the Agent's 'knowledge bases' configuration — the Agent automatically retrieves and grounds.", "correct": true, "why": "Native composition: an Agent has a 'knowledge bases' list; the Agent's orchestrator decides when to call KB and how to use the retrieved chunks."},
+        {"letter": "B", "text": "Create a Lambda action group that wraps a kb:Retrieve call.", "correct": false, "why": "Works but adds custom code where native KB attachment is supported."},
+        {"letter": "C", "text": "Embed the KB content into the Agent's system prompt at build time.", "correct": false, "why": "Loses freshness, blows the context window, and defeats the purpose of RAG."},
+        {"letter": "D", "text": "Use Bedrock Flows — agents cannot use KBs.", "correct": false, "why": "Agents natively support attached KBs. This statement is false."}
+      ],
+      "knowledge_point": "Bedrock Agent + Knowledge Base composition is native: attach the KB to the Agent. The orchestrator decides retrieval; no Lambda glue required for the read path.",
+      "trap_alert": "Lambda action groups for read-only KB retrieval is over-engineering. Use the native attachment.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/agents-kb-add.html"]
+    },
+    {
+      "id": "D1-Q021",
+      "type": "single_choice",
+      "difficulty": "hard",
+      "tags": ["fine-tuning", "style", "brand-voice"],
+      "scenario": "A marketing team wants every generated product description to follow a strict company brand voice and a consistent JSON schema. They have 800 labeled examples of prior approved descriptions.",
+      "stem": "Which model customization technique is MOST appropriate?",
+      "options": [
+        {"letter": "A", "text": "Supervised fine-tuning on Amazon Bedrock with the 800 labeled examples.", "correct": true, "why": "Fine-tuning is the right tool for STYLE and STRUCTURED OUTPUT consistency, and 800 labeled examples is a viable dataset."},
+        {"letter": "B", "text": "Retrieval Augmented Generation with brand guidelines in a KB.", "correct": false, "why": "RAG can inject guidelines but does not reliably enforce style and JSON schema across every response."},
+        {"letter": "C", "text": "Continued pre-training on prior product descriptions.", "correct": false, "why": "CPT is for unlabeled domain corpora. The team has labels and a structured target."},
+        {"letter": "D", "text": "Larger model with a longer system prompt.", "correct": false, "why": "More tokens of instruction does not match the precision of fine-tuning for style consistency."}
+      ],
+      "knowledge_point": "Fine-tune for STYLE / TONE / FORMAT / TASK with labeled examples. RAG for changing facts. CPT for new vocabulary on unlabeled data.",
+      "trap_alert": "Brand-voice or JSON-schema consistency = fine-tune signal — even if RAG sounds plausible.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/custom-models.html"]
+    },
+    {
+      "id": "D1-Q022",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["pii", "macie", "discovery"],
+      "scenario": "Before building a Bedrock Knowledge Base on a 12 TB S3 bucket of legacy documents, the security team needs to inventory and locate any Personally Identifiable Information lurking in the bucket.",
+      "stem": "Which service is the BEST FIRST step?",
+      "options": [
+        {"letter": "A", "text": "Amazon Macie — discover and classify PII at rest in S3 at scale.", "correct": true, "why": "Macie is purpose-built to discover and classify sensitive data in S3, including PII. The right tool BEFORE ingestion."},
+        {"letter": "B", "text": "Amazon Bedrock Guardrails Sensitive Information policy.", "correct": false, "why": "Guardrails operate at request time on prompts/completions — they do not scan static S3 content."},
+        {"letter": "C", "text": "Amazon Comprehend PII detection.", "correct": false, "why": "Comprehend can detect PII in text but is not designed for bucket-scale discovery; Macie is the native tool."},
+        {"letter": "D", "text": "AWS Config rules for PII.", "correct": false, "why": "Config tracks resource configuration; it does not scan object contents."}
+      ],
+      "knowledge_point": "PII workflow: Macie discovers PII AT REST in S3. Guardrails enforce PII policies at REQUEST TIME. Use both for defense in depth.",
+      "trap_alert": "Macie and Guardrails are complementary, not interchangeable. Don't pick Guardrails for bucket scanning.",
+      "doc_refs": ["https://docs.aws.amazon.com/macie/latest/user/data-classification.html"]
+    },
+    {
+      "id": "D1-Q023",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["chunking", "default"],
+      "stem": "What are the DEFAULT chunking parameters used by Bedrock Knowledge Bases?",
+      "scenario": "",
+      "options": [
+        {"letter": "A", "text": "Roughly 300 tokens per chunk with about 20% overlap.", "correct": true, "why": "The default chunking strategy in Bedrock KBs is ~300 tokens with ~20% overlap — a sensible general-purpose default."},
+        {"letter": "B", "text": "500 tokens per chunk, no overlap.", "correct": false, "why": "Not the documented default."},
+        {"letter": "C", "text": "1000 tokens per chunk, 50% overlap.", "correct": false, "why": "Not the default; would be a very aggressive overlap rate."},
+        {"letter": "D", "text": "100 tokens per chunk, 10% overlap.", "correct": false, "why": "Too small to capture useful context per chunk."}
+      ],
+      "knowledge_point": "Default chunking in Bedrock KBs ≈ 300 tokens with ~20% overlap. Override with Fixed, Semantic, or Hierarchical when document structure demands.",
+      "trap_alert": "Memorize the default values — the exam may test 'what is default vs custom?' directly.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/kb-chunking-parsing.html"]
+    },
+    {
+      "id": "D1-Q024",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["model-selection", "nova"],
+      "scenario": "A startup needs the CHEAPEST Bedrock text-only model for high-volume short prompt completions where minor quality differences are acceptable.",
+      "stem": "Which Amazon Nova tier MOST fits?",
+      "options": [
+        {"letter": "A", "text": "Amazon Nova Micro.", "correct": true, "why": "Text-only, smallest and cheapest of the Nova family — purpose-built for low-cost high-volume."},
+        {"letter": "B", "text": "Amazon Nova Lite.", "correct": false, "why": "Vision-capable multimodal tier — more expensive than Micro and unnecessary for text-only."},
+        {"letter": "C", "text": "Amazon Nova Pro.", "correct": false, "why": "Mid-tier — higher quality, higher cost."},
+        {"letter": "D", "text": "Amazon Nova Premier.", "correct": false, "why": "Highest tier for complex reasoning — most expensive of the Nova family."}
+      ],
+      "knowledge_point": "Amazon Nova family tiers: Micro (text-only, cheapest), Lite (multimodal), Pro (higher quality multimodal), Premier (top reasoning). Canvas = image gen; Reel = video gen.",
+      "trap_alert": "Lite is not the cheapest — Micro is. Lite adds vision.",
+      "doc_refs": ["https://docs.aws.amazon.com/nova/latest/userguide/what-is-nova.html"]
+    },
+    {
+      "id": "D1-Q025",
+      "type": "single_choice",
+      "difficulty": "hard",
+      "tags": ["vector-store", "neptune", "graph"],
+      "scenario": "A drug-discovery team needs RAG over a research corpus PLUS graph traversal of molecule-relationship data (compound A → metabolite → target).",
+      "stem": "Which AWS service BEST handles BOTH the vector retrieval and the graph traversal in a single store?",
+      "options": [
+        {"letter": "A", "text": "Amazon OpenSearch Serverless vector engine.", "correct": false, "why": "Vector + keyword search; not designed for graph traversal."},
+        {"letter": "B", "text": "Amazon Aurora PostgreSQL with pgvector.", "correct": false, "why": "Vector + relational, no native graph traversal."},
+        {"letter": "C", "text": "Amazon Neptune Analytics.", "correct": true, "why": "Neptune Analytics combines GRAPH analytics with VECTOR search in one engine — exactly the dual workload."},
+        {"letter": "D", "text": "Amazon MemoryDB.", "correct": false, "why": "Sub-ms vector retrieval, no graph algorithms."}
+      ],
+      "knowledge_point": "Neptune Analytics = graph algorithms + vector search in one engine. Pick it for hybrid graph-and-vector RAG.",
+      "trap_alert": "The exam may bury 'graph + vector' deep in a long scenario. Read carefully — Neptune Analytics is uncommon to use but the right answer when both are needed.",
+      "doc_refs": ["https://docs.aws.amazon.com/neptune-analytics/latest/userguide/vector-search.html"]
+    },
+    {
+      "id": "D1-Q026",
+      "type": "single_choice",
+      "difficulty": "hard",
+      "tags": ["rag-ordering", "pipeline"],
+      "stem": "Which option lists the managed RAG pipeline in Bedrock Knowledge Bases in the CORRECT order?",
+      "scenario": "",
+      "options": [
+        {"letter": "A", "text": "Ingest → Chunk → Embed → Index → Retrieve.", "correct": true, "why": "Correct end-to-end order for the managed RAG pipeline."},
+        {"letter": "B", "text": "Chunk → Ingest → Embed → Retrieve → Index.", "correct": false, "why": "Ingestion is the entry step; retrieval is the query-time step."},
+        {"letter": "C", "text": "Embed → Chunk → Index → Ingest → Retrieve.", "correct": false, "why": "Chunking precedes embedding; ingestion is first."},
+        {"letter": "D", "text": "Retrieve → Embed → Chunk → Ingest → Index.", "correct": false, "why": "Retrieve is the last (query-time) step, not the first."}
+      ],
+      "knowledge_point": "Managed RAG pipeline steps in order: Ingest → Chunk → Embed → Index → Retrieve. Embed-on-write at index time, then embed-the-query at retrieve time.",
+      "trap_alert": "Ordering questions reward memorizing the canonical pipeline. Visualize it as build-time (ingest→index) and query-time (retrieve).",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/knowledge-base.html"]
+    },
+    {
+      "id": "D1-Q027",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["custom-model-import", "bedrock"],
+      "scenario": "A team fine-tuned an open-source model outside of Amazon Bedrock and wants to host it on Bedrock so they can call it through the InvokeModel API.",
+      "stem": "Which Bedrock feature enables this?",
+      "options": [
+        {"letter": "A", "text": "Bedrock Custom Model Import (supports Llama, Mistral, Flan-T5, and a defined set of architectures).", "correct": true, "why": "Custom Model Import lets you bring fine-tuned weights for supported architectures into Bedrock for managed inference."},
+        {"letter": "B", "text": "Bedrock Provisioned Throughput — automatically supports any model.", "correct": false, "why": "Provisioned Throughput is a capacity model for already-supported models, not a way to import new architectures."},
+        {"letter": "C", "text": "Bedrock Knowledge Bases.", "correct": false, "why": "KBs are for RAG document ingestion, not model hosting."},
+        {"letter": "D", "text": "SageMaker JumpStart deployment to Bedrock.", "correct": false, "why": "JumpStart deploys to SageMaker endpoints; it does not register the model under the Bedrock InvokeModel API."}
+      ],
+      "knowledge_point": "Bedrock Custom Model Import: bring fine-tuned weights for SUPPORTED architectures (e.g., Llama, Mistral, Flan-T5) and serve via the standard Bedrock InvokeModel API.",
+      "trap_alert": "Custom Model Import does NOT accept arbitrary architectures. Check the supported-architectures list before assuming.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/model-customization-import-model.html"]
+    },
+    {
+      "id": "D1-Q028",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["gdpr", "right-to-erasure"],
+      "scenario": "A European customer invokes GDPR right-to-erasure for documents previously ingested into a Bedrock Knowledge Base.",
+      "stem": "Which step is REQUIRED to honor the request?",
+      "options": [
+        {"letter": "A", "text": "Delete the customer's documents from the KB SOURCE bucket and run a KB ingestion job to re-index.", "correct": true, "why": "KBs index from a source bucket. Removing source docs and re-running ingestion removes the indexed vectors. CloudTrail captures the deletion for audit."},
+        {"letter": "B", "text": "Delete the OpenSearch Serverless collection — the data is encrypted so it cannot be selectively removed.", "correct": false, "why": "Disproportionate; you can target the specific source documents and re-sync."},
+        {"letter": "C", "text": "Disable the KB temporarily.", "correct": false, "why": "Disabling does not delete data; GDPR requires deletion."},
+        {"letter": "D", "text": "Encrypt the bucket with a new KMS key.", "correct": false, "why": "Encryption is not deletion. Does not satisfy right-to-erasure."}
+      ],
+      "knowledge_point": "GDPR erasure for RAG: delete from SOURCE (S3) → re-ingest to remove from the vector index. The source-of-truth lives in S3.",
+      "trap_alert": "Crypto-shredding (rotate KMS key) is a valid erasure technique in some contexts, but the cleanest in RAG is delete-source + re-ingest.",
+      "doc_refs": ["https://aws.amazon.com/compliance/gdpr-center/"]
+    },
+    {
+      "id": "D1-Q029",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["bedrock-kb", "data-sources", "sharepoint"],
+      "scenario": "An enterprise wants to ingest content from Microsoft SharePoint Online into a Bedrock Knowledge Base with the LEAST custom code.",
+      "stem": "Which approach is MOST appropriate?",
+      "options": [
+        {"letter": "A", "text": "Use the native SharePoint data source connector in Bedrock Knowledge Bases.", "correct": true, "why": "SharePoint is a native managed connector for KBs — minimal custom code, just credentials and scope."},
+        {"letter": "B", "text": "Write a Lambda that calls the Microsoft Graph API and uploads files to S3 as the KB source.", "correct": false, "why": "Functional but requires building and operating a custom crawler when a native connector exists."},
+        {"letter": "C", "text": "Use Amazon Kendra SharePoint connector and call Kendra from a Lambda.", "correct": false, "why": "Kendra is enterprise search — adds a separate service alongside Bedrock when KBs already have a native SharePoint source."},
+        {"letter": "D", "text": "Export SharePoint to OneDrive nightly, then sync to S3.", "correct": false, "why": "Indirect and adds two extra hops."}
+      ],
+      "knowledge_point": "When the question lists a specific SaaS source (Confluence, SharePoint, Salesforce), check if KBs has a NATIVE connector — it usually does.",
+      "trap_alert": "Don't default to a custom Lambda crawler when a native KB connector exists.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/knowledge-base-ds.html"]
+    },
+    {
+      "id": "D1-Q030",
+      "type": "single_choice",
+      "difficulty": "hard",
+      "tags": ["embeddings", "dim-tradeoff", "cost"],
+      "scenario": "A team is using Titan Embed Text v2 for a 500M-vector index in OpenSearch Serverless. They are evaluating whether to use 256-dim or 1024-dim embeddings.",
+      "stem": "Which trade-off is CORRECT?",
+      "options": [
+        {"letter": "A", "text": "1024-dim has lower storage cost and lower retrieval accuracy than 256-dim.", "correct": false, "why": "Reversed — higher dims = MORE storage cost."},
+        {"letter": "B", "text": "256-dim reduces storage and ANN-search latency at the cost of some retrieval accuracy; 1024-dim is the inverse.", "correct": true, "why": "Smaller dims = less storage + faster ANN search; larger dims = best accuracy but higher cost and slightly slower."},
+        {"letter": "C", "text": "Storage and latency are identical regardless of dim — only accuracy changes.", "correct": false, "why": "Storage grows linearly with dim count; ANN latency is also dim-dependent."},
+        {"letter": "D", "text": "Titan v2 only supports 1024-dim; the choice does not apply.", "correct": false, "why": "Titan v2 supports 256 / 512 / 1024 dims."}
+      ],
+      "knowledge_point": "Embedding dim trade-off: smaller = cheaper + faster, lower accuracy. Larger = more accurate but more storage and slightly slower ANN search. Titan v2 lets you pick 256/512/1024.",
+      "trap_alert": "Memorize the direction of the trade-off — easy to flip and lose the point.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/titan-embedding-models.html"]
+    }
+  ]
+}

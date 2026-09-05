@@ -1,0 +1,107 @@
+{
+  "tier_s_must_memorize_cold": [
+    {
+      "topic": "Bedrock Knowledge Bases (Managed RAG)",
+      "fact": "End-to-end managed: ingest → chunk → embed → index → retrieve. Native sources: S3, web crawler, Confluence, SharePoint, Salesforce, Atlassian. Default chunking ≈ 300 tokens, 20% overlap. Ingestion is NOT automatic — run StartIngestionJob (manual or EventBridge-scheduled). Picks when stem says 'reduce ops overhead' + 'ground with my data'."
+    },
+    {
+      "topic": "Bedrock Guardrails — 6 Policy Types",
+      "fact": "1) Content filters (Hate/Insults/Sexual/Violence/Misconduct/Prompt-Attack — NONE/LOW/MEDIUM/HIGH, separate input+output)\n2) Denied topics (natural-language subjects)\n3) Word filters (custom blocklist + profanity)\n4) Sensitive info (PII types + custom regex; DETECT/ANONYMIZE/BLOCK)\n5) Contextual grounding (groundedness + relevance, 0-1 numeric)\n6) Image content filter\nAlso usable standalone via ApplyGuardrail API."
+    },
+    {
+      "topic": "Bedrock Agents — Anatomy",
+      "fact": "Action group = (OpenAPI 3.0 schema OR Function Detail) + Lambda backing (OR Return Control to caller). Sessions persist via sessionId. 4 overridable prompt templates: Pre-Processing → Orchestration → KB Response Generation → Post-Processing. Native KB attachment (no Lambda glue needed for KB read)."
+    },
+    {
+      "topic": "RAG vs Fine-tune vs Continued Pre-training",
+      "fact": "Data CHANGES (weekly/daily) → RAG (Knowledge Bases). STYLE/TONE/FORMAT/TASK with labeled examples → Fine-tune. New DOMAIN VOCAB on UNLABELED corpora → Continued Pre-training. Custom (fine-tuned) models on Bedrock REQUIRE Provisioned Throughput to host."
+    },
+    {
+      "topic": "Throughput Modes",
+      "fact": "On-Demand: pay-per-token, no commit, regional, base FMs only. Provisioned Throughput: 1mo/6mo commit, Model Units = guaranteed capacity, REQUIRED for custom-model hosting. Batch: ~50% cheaper, async, ≤24h SLA, JSONL in/out in S3 — wrong for interactive."
+    },
+    {
+      "topic": "Cross-Region Inference Profiles",
+      "fact": "ARN abstraction that routes invocation across multiple regions for resilience + capacity. System-defined (AWS-managed) vs Application (custom, tag-able for cost). Required for some newer model invocations. Quotas counted at the HOME region. Watch out: routing across regions can violate data residency."
+    },
+    {
+      "topic": "Vector Store Choice Matrix",
+      "fact": "OpenSearch Serverless vector: default for KBs, low-ops. Aurora pgvector: reuse existing Postgres. MemoryDB: single-digit-ms latency, Redis-compatible. DocumentDB elastic clusters: MongoDB-compatible, small scale. Neptune Analytics: graph + vector hybrid. Choose by latency, scale, existing-stack."
+    },
+    {
+      "topic": "Logging & Audit Stack",
+      "fact": "CloudTrail (control- and data-plane API metadata — who/when) + Model Invocation Logging (prompt + completion + metadata to S3 or CloudWatch) + Guardrail trace (which policy fired, in invocation logs) + Agent trace (rationale + tool calls + KB hits). Use ALL for full audit."
+    }
+  ],
+  "domains": {
+    "D1": [
+      {"topic": "KB native data sources", "fact": "S3, web crawler, Confluence Cloud, SharePoint, Salesforce, Atlassian. Multiple sources can be combined in a single KB."},
+      {"topic": "Default chunking", "fact": "≈ 300 tokens per chunk with ~20% overlap. Override with Fixed, Semantic, or Hierarchical."},
+      {"topic": "Chunking strategy mapping", "fact": "Default = quick start. Fixed = predictable size. Semantic = narrative grouping. Hierarchical = parent-child for long structured docs (manuals, legal)."},
+      {"topic": "Titan Embed Text v2", "fact": "Input: up to 8192 tokens. Output dims: 256 / 512 / 1024 (pick smaller = cheaper/faster ANN; larger = best accuracy)."},
+      {"topic": "Embedding model selection", "fact": "Cohere Embed Multilingual v3 for cross-lingual. Cohere Embed English v3 for English-only. Titan Embed v2 = flexible dims. Titan Multimodal G1 = text + image SAME vector space."},
+      {"topic": "Bedrock data privacy", "fact": "AWS does NOT use customer prompts or completions for training base models — neither AWS-owned nor third-party. No opt-out needed because no use."},
+      {"topic": "KB ingestion sync", "fact": "Not automatic. Use StartIngestionJob (manual or EventBridge scheduled). Common 'why isn't my new doc retrievable' gotcha."},
+      {"topic": "Vector-store latency tiers", "fact": "MemoryDB (single-digit ms) < OpenSearch Serverless (tens of ms) < Aurora pgvector / DocumentDB. Pick MemoryDB only when sub-5ms is required."},
+      {"topic": "PII discovery vs enforcement", "fact": "Macie = AT REST in S3. Guardrails Sensitive Info = AT REQUEST TIME. Comprehend PII = NLP detection for custom pipelines. Use Macie + Guardrails together."},
+      {"topic": "HIPAA on AWS", "fact": "Sign BAA with AWS. Then use HIPAA-eligible services. Bedrock is HIPAA-eligible (most models). GovCloud is for ITAR/FedRAMP-High, NOT HIPAA."},
+      {"topic": "Custom Model Import", "fact": "Brings fine-tuned weights for SUPPORTED architectures (e.g., Llama, Mistral, Flan-T5) into Bedrock. Served via standard InvokeModel API."},
+      {"topic": "DR for RAG data", "fact": "Replicate the SOURCE (S3 Cross-Region Replication) and recreate or re-sync the KB in the DR region. Cross-region INFERENCE routes traffic, not data."}
+    ],
+    "D2": [
+      {"topic": "Agents vs Step Functions", "fact": "FM decides next step → Agents. Deterministic predefined workflow → Step Functions. If the stem says 'LLM picks the tool', it's Agents."},
+      {"topic": "Action group definition", "fact": "Two styles: OpenAPI 3.0 schema OR Function Detail (name + parameters inline). Function Detail is simpler when you don't already have an OpenAPI spec."},
+      {"topic": "Return Control (RoC)", "fact": "Agent returns tool-call details to the calling application; the app executes (not a Lambda action group). Use when execution must stay inside the existing app."},
+      {"topic": "Streaming API", "fact": "InvokeModelWithResponseStream returns chunks for interactive UIs. InvokeModel is non-streaming. InvokeAgent supports streaming events for Agents."},
+      {"topic": "Vision models on Bedrock", "fact": "Claude 3 family (Sonnet/Opus/Haiku) and Amazon Nova Lite/Pro/Premier are vision-capable for image UNDERSTANDING. Generation = Titan Image, SDXL, Nova Canvas, Nova Reel (video)."},
+      {"topic": "Bedrock Flows nodes", "fact": "Input/Output, Prompt, Knowledge Base, Agent, Lambda, Condition (branching), Iterator (loops). Visual GenAI orchestration, lower-code than Step Functions."},
+      {"topic": "Multi-Agent Collaboration", "fact": "Native supervisor + specialist sub-agents pattern on Bedrock. Routes tasks, aggregates results. Use when scenario says 'agent of agents' or 'supervisor + specialists'."},
+      {"topic": "Agent runtime stages", "fact": "Pre-Processing → Orchestration (with KB/Action calls in a ReAct loop) → Post-Processing → Response. Each has an overridable prompt template."},
+      {"topic": "Determinism parameters", "fact": "temperature ≈ 0 + top_p ≈ 1 for most reproducible output. Higher temperature = creative, NOT more accurate."},
+      {"topic": "Few-shot vs Chain-of-Thought", "fact": "Few-shot exemplars → format consistency. Chain-of-Thought ('think step by step') → multi-step reasoning accuracy. Combine for best results."},
+      {"topic": "Lambda action group permissions", "fact": "Lambda needs a resource-based policy granting bedrock.amazonaws.com permission to invoke it, scoped to the Agent ARN. Forgetting this = most common Agent action failure."},
+      {"topic": "Tool use without Agents", "fact": "Anthropic Claude Tool Use (Function Calling) via the Messages API: pass `tools`, model returns tool_use, app executes, returns tool_result. Works without spinning up a full Agent."}
+    ],
+    "D3": [
+      {"topic": "Guardrails policy types", "fact": "Six: Content filters | Denied topics | Word filters | Sensitive info (PII) | Contextual grounding | Image content. Plus standalone ApplyGuardrail API."},
+      {"topic": "Content filter thresholds", "fact": "Per category, per direction (input/output), four levels: NONE / LOW / MEDIUM / HIGH. HIGH = block aggressively. Distinct from Contextual Grounding which is numeric 0-1."},
+      {"topic": "Contextual Grounding thresholds", "fact": "Two numeric thresholds: groundedness (response supported by retrieved context) + relevance (retrieved context relevant to query). Both 0-1. The runtime hallucination defense."},
+      {"topic": "Prompt-Attack defense", "fact": "Use Content filter category PROMPT ATTACK on the INPUT side. Detects jailbreaks/injections. Don't try to handcraft a word filter for this."},
+      {"topic": "IAM least-privilege for Bedrock", "fact": "Scope bedrock:InvokeModel to a specific foundation-model ARN: arn:aws:bedrock:REGION::foundation-model/MODEL_ID. User-Agent / IP conditions are weak controls."},
+      {"topic": "Bedrock Model Access", "fact": "Per account, per region, manual enablement on Bedrock Model Access page — required BEFORE IAM can authorize. AccessDenied on new accounts usually = missing Model Access."},
+      {"topic": "KMS for Bedrock", "fact": "Customer-managed KMS keys (CMK) supported for: model invocation logs, custom model artifacts, KB ingested data, Agent/Prompt resources."},
+      {"topic": "VPC interface endpoints (PrivateLink)", "fact": "Four: bedrock (control), bedrock-runtime (data — InvokeModel), bedrock-agent (control — Agents), bedrock-agent-runtime (data — InvokeAgent). NAT Gateway is NOT private."},
+      {"topic": "Customer-data isolation", "fact": "Third-party model providers (Anthropic, Cohere, Meta, Mistral, etc.) do NOT access customer prompts/completions when invoked through Bedrock."},
+      {"topic": "Audit layers", "fact": "CloudTrail = WHO called WHAT API WHEN. Model invocation logging = full PROMPT/COMPLETION. Guardrail trace = which policy fired. Agent trace = FM rationale + tool calls. Use the right layer for the question."},
+      {"topic": "Bias / explainability", "fact": "SageMaker Clarify for fine-tuned and custom models — pre/post-training bias metrics, SHAP feature attribution. Bedrock Model Evaluation can include fairness criteria."},
+      {"topic": "Org-level prevention", "fact": "Service Control Policies (SCPs) on an OU deny bedrock:InvokeModel on specific model ARNs — overrides any IAM in member accounts. Config detects; SCPs PREVENT."}
+    ],
+    "D4": [
+      {"topic": "Throughput-mode decision rule", "fact": "Sporadic/low → On-Demand. Steady high → Provisioned Throughput (1mo/6mo). Offline bulk → Batch (~50% off, ≤24h)."},
+      {"topic": "Custom-model hosting", "fact": "Fine-tuned (custom) models REQUIRE Provisioned Throughput to host on Bedrock. On-Demand is only for base FMs."},
+      {"topic": "Prompt caching pricing", "fact": "5-minute TTL. Cache WRITE ≈ 1.25× base input. Cache READ ≈ 0.1× base input. Break-even ≈ 2–3 reuses within TTL. Supported on Claude (cache_control breakpoints on system/tools/messages)."},
+      {"topic": "Model right-sizing", "fact": "Highest-ROI cost lever. Haiku / Nova Micro for high-volume light. Sonnet / Nova Pro for balanced. Opus / Nova Premier for deep reasoning. Try smaller first."},
+      {"topic": "Hybrid throughput pattern", "fact": "Provision PT for the BASELINE; let On-Demand absorb peaks. Provisioning for peak is the classic over-commit mistake."},
+      {"topic": "Batch Inference I/O", "fact": "JSONL in S3 → CreateModelInvocationJob → JSONL out in S3. Async, ≤24h SLA, ~50% discount vs On-Demand."},
+      {"topic": "Throttling levers (429)", "fact": "1) Backoff with jitter, 2) Service Quotas TPM/RPM increase, 3) Cross-region inference profile, 4) Provisioned Throughput for sustained loads."},
+      {"topic": "Cross-region for capacity", "fact": "Cross-region inference profile routes to multiple regions for capacity/resilience while keeping caller in one home region. Quotas counted at the home region."},
+      {"topic": "Cost alerting", "fact": "AWS Budgets = threshold alerts (fixed $). AWS Cost Anomaly Detection = ML-based unexpected-pattern alerts. Cost Explorer = analysis (no alerting)."},
+      {"topic": "Application Inference Profiles", "fact": "Tag-able profiles for cost allocation across teams/products. Tags propagate to Cost Explorer + AWS Budgets. Different from system-defined cross-region inference profiles."},
+      {"topic": "max_tokens", "fact": "Output CAP, not the actual output length. Reducing it doesn't reduce latency by itself."}
+    ],
+    "D5": [
+      {"topic": "Bedrock Model Evaluation job types", "fact": "Automated (built-in datasets + standard metrics like BLEU/ROUGE/F1). Human (your in-house team, custom criteria). LLM-as-a-Judge (FM scores subjective quality at scale, cheaper than human)."},
+      {"topic": "Metric ↔ task mapping", "fact": "Translation → BLEU. Summarization → ROUGE (1/2/L). Semantic similarity → BERTScore. Classification → F1, Accuracy. QA exact match → EM. LM uncertainty → Perplexity. Image gen → FID/CLIPScore."},
+      {"topic": "Retrieval quality metrics", "fact": "Recall@K (gold in top-K?), Precision@K (relevant fraction), MRR (rank of first relevant), NDCG (graded relevance with position discount), Hit Rate. For RAG retrieval evaluation."},
+      {"topic": "Bedrock CloudWatch metrics", "fact": "Invocations, InputTokenCount, OutputTokenCount, InvocationLatency, InvocationThrottles, InvocationClientErrors, InvocationServerErrors. Dimension by model."},
+      {"topic": "Hallucination defense", "fact": "Runtime: Guardrails Contextual Grounding (auto-block ungrounded). Offline: RAGAS framework. Combined with RAG + lower temperature for best results."},
+      {"topic": "Test variants on real traffic", "fact": "Shadow = mirror, zero user impact. Canary = % to new variant, small user impact. Blue/green = atomic cutover. Pick by user-impact tolerance."},
+      {"topic": "Drift detection (SageMaker)", "fact": "SageMaker Model Monitor handles 4 drift types: data quality, model quality, bias, feature attribution. For Bedrock-only GenAI, build custom CloudWatch metrics + scheduled Evaluation jobs."},
+      {"topic": "Continuous evaluation pipeline", "fact": "EventBridge schedule → Lambda orchestrator → Bedrock Model Evaluation job → S3 results bucket → Athena + QuickSight dashboards."},
+      {"topic": "Agent debugging", "fact": "Agent trace = FM rationale + tool calls + KB retrievals per InvokeAgent. Captured in model invocation logs when enabled."},
+      {"topic": "Guardrail trace storage", "fact": "Guardrail traces are emitted inside model invocation logs (S3 or CloudWatch) — not a separate log product. Query via Athena or CloudWatch Logs Insights."},
+      {"topic": "Context-too-long fix", "fact": "Truncate / chunk long inputs + retrieve only top-K via RAG + pre-validate token count client-side. max_tokens is OUTPUT cap, not input window."},
+      {"topic": "Latency-drift triage", "fact": "Check: cross-region inference health, region of execution, network path (PrivateLink vs internet), model version changes, prompt-size drift, downstream Lambda cold-starts."}
+    ]
+  }
+}

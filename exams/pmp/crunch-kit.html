@@ -1,0 +1,1449 @@
+<title>PMP Crunch Kit</title>
+<style>
+:root{
+  --bg:#f6f6f8;
+  --surface:#ffffff;
+  --surface-2:#f0f0f4;
+  --surface-3:#e9e9ef;
+  --text:#1a1a2e;
+  --text-2:#4a4a68;
+  --muted:#8888a0;
+  --border:#e2e2ea;
+  --accent:#3f6fd8;
+  --accent-soft:rgba(63,111,216,0.12);
+  --good:#16803c;
+  --good-soft:rgba(22,128,60,0.12);
+  --bad:#b4472c;
+  --bad-soft:rgba(180,71,44,0.12);
+  --warn:#a35a06;
+  --warn-soft:rgba(163,90,6,0.12);
+  --radius:12px;
+  --radius-sm:8px;
+  --mono:ui-monospace,SFMono-Regular,'SF Mono',Menlo,Consolas,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  --shadow:0 1px 2px rgba(16,16,32,0.06),0 4px 14px rgba(16,16,32,0.05);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0f0f15;
+    --surface:#191921;
+    --surface-2:#22222c;
+    --surface-3:#2c2c38;
+    --text:#ececf2;
+    --text-2:#b6b6c8;
+    --muted:#82829a;
+    --border:#2e2e3a;
+    --accent:#6d9bff;
+    --accent-soft:rgba(109,155,255,0.16);
+    --good:#4ade80;
+    --good-soft:rgba(74,222,128,0.14);
+    --bad:#f0846a;
+    --bad-soft:rgba(240,132,106,0.14);
+    --warn:#f2b559;
+    --warn-soft:rgba(242,181,89,0.14);
+    --shadow:0 1px 2px rgba(0,0,0,0.4),0 4px 14px rgba(0,0,0,0.3);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0f0f15;
+  --surface:#191921;
+  --surface-2:#22222c;
+  --surface-3:#2c2c38;
+  --text:#ececf2;
+  --text-2:#b6b6c8;
+  --muted:#82829a;
+  --border:#2e2e3a;
+  --accent:#6d9bff;
+  --accent-soft:rgba(109,155,255,0.16);
+  --good:#4ade80;
+  --good-soft:rgba(74,222,128,0.14);
+  --bad:#f0846a;
+  --bad-soft:rgba(240,132,106,0.14);
+  --warn:#f2b559;
+  --warn-soft:rgba(242,181,89,0.14);
+  --shadow:0 1px 2px rgba(0,0,0,0.4),0 4px 14px rgba(0,0,0,0.3);
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html{-webkit-text-size-adjust:100%;}
+body{
+  font-family:var(--sans);
+  background:var(--bg);
+  color:var(--text);
+  line-height:1.55;
+  font-size:16px;
+  -webkit-font-smoothing:antialiased;
+  padding-bottom:2.5rem;
+}
+.wrap{max-width:760px;margin:0 auto;padding:0 0.85rem;}
+
+/* ── Header + progress strip ─────────────────────── */
+.hdr{
+  position:sticky;top:0;z-index:20;
+  background:var(--surface);
+  border-bottom:1px solid var(--border);
+  padding-top:env(safe-area-inset-top);
+}
+.hdr-in{max-width:760px;margin:0 auto;padding:0.5rem 0.85rem 0.45rem;}
+.hdr-row{display:flex;align-items:baseline;justify-content:space-between;gap:0.6rem;}
+.hdr-row h1{font-size:0.95rem;font-weight:700;letter-spacing:-0.01em;}
+.hdr-row h1 span{color:var(--muted);font-weight:500;}
+.hdr-stat{font-family:var(--mono);font-size:0.72rem;color:var(--text-2);white-space:nowrap;}
+.strip{height:5px;border-radius:3px;background:var(--surface-3);overflow:hidden;margin-top:0.4rem;display:flex;}
+.strip i{display:block;height:100%;transition:width .25s ease;}
+.strip .s-good{background:var(--good);}
+.strip .s-bad{background:var(--bad);}
+.strip .s-todo{background:transparent;}
+.strip-label{display:flex;justify-content:space-between;font-family:var(--mono);font-size:0.66rem;color:var(--muted);margin-top:0.22rem;}
+
+/* ── Tabs ────────────────────────────────────────── */
+.tabs{display:flex;gap:0.3rem;max-width:760px;margin:0.6rem auto 0.75rem;padding:0.25rem;background:var(--surface-2);border-radius:var(--radius);}
+.tabs button{
+  flex:1;min-height:38px;border:none;border-radius:var(--radius-sm);cursor:pointer;
+  font-family:inherit;font-size:0.78rem;font-weight:600;letter-spacing:0.01em;
+  background:transparent;color:var(--text-2);transition:background .15s,color .15s;
+}
+.tabs button[aria-selected="true"]{background:var(--surface);color:var(--text);box-shadow:var(--shadow);}
+
+/* ── Cards + typography ──────────────────────────── */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:0.9rem;margin-bottom:0.75rem;box-shadow:var(--shadow);}
+.meta{display:flex;gap:0.4rem;flex-wrap:wrap;align-items:center;margin-bottom:0.6rem;}
+.chip{display:inline-block;padding:0.15rem 0.5rem;border-radius:999px;font-size:0.64rem;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;background:var(--surface-2);color:var(--text-2);border:1px solid var(--border);}
+.chip.cat{background:var(--accent-soft);color:var(--accent);border-color:transparent;}
+.chip.sweep{background:var(--warn-soft);color:var(--warn);border-color:transparent;}
+.stem{font-size:1rem;font-weight:600;line-height:1.45;margin-bottom:0.35rem;}
+.stem .num{font-family:var(--mono);font-weight:700;}
+.hint{font-size:0.76rem;color:var(--muted);margin-bottom:0.7rem;}
+h2.sec{font-size:0.82rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin:0 0 0.5rem;}
+p.lede{font-size:0.86rem;color:var(--text-2);margin-bottom:0.75rem;}
+
+/* ── Confidence ──────────────────────────────────── */
+.conf{display:flex;gap:0.4rem;align-items:center;margin-bottom:0.7rem;flex-wrap:wrap;}
+.conf .lab{font-size:0.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;font-weight:700;}
+.conf button{
+  min-height:32px;padding:0 0.75rem;border-radius:999px;cursor:pointer;font-family:inherit;
+  font-size:0.75rem;font-weight:600;background:var(--surface-2);color:var(--text-2);border:1px solid var(--border);
+}
+.conf button[aria-pressed="true"]{background:var(--accent-soft);color:var(--accent);border-color:var(--accent);}
+
+/* ── Options ─────────────────────────────────────── */
+.opts{display:flex;flex-direction:column;gap:0.45rem;}
+.opt{
+  display:flex;align-items:flex-start;gap:0.6rem;width:100%;text-align:left;
+  min-height:46px;padding:0.6rem 0.7rem;border-radius:var(--radius-sm);
+  border:1px solid var(--border);background:var(--surface-2);color:var(--text);
+  font-family:inherit;font-size:0.88rem;line-height:1.4;cursor:pointer;transition:border-color .12s,background .12s;
+}
+.opt:hover:not(:disabled){border-color:var(--accent);}
+.opt:disabled{cursor:default;}
+.opt .k{font-family:var(--mono);font-size:0.75rem;font-weight:700;color:var(--muted);min-width:1.15rem;padding-top:0.08rem;}
+.opt.is-key{border-color:var(--good);background:var(--good-soft);}
+.opt.is-key .k{color:var(--good);}
+.opt.is-wrong{border-color:var(--bad);background:var(--bad-soft);}
+.opt.is-wrong .k{color:var(--bad);}
+.opt.dim{opacity:0.5;}
+.opt .tagr{margin-left:auto;font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;white-space:nowrap;padding-top:0.1rem;}
+.opt.is-key .tagr{color:var(--good);}
+.opt.is-wrong .tagr{color:var(--bad);}
+
+/* ── Numeric ─────────────────────────────────────── */
+.numrow{display:flex;gap:0.5rem;align-items:stretch;}
+.numin{
+  flex:1;min-width:0;min-height:48px;padding:0 0.75rem;border-radius:var(--radius-sm);
+  border:1px solid var(--border);background:var(--surface-2);color:var(--text);
+  font-family:var(--mono);font-size:1.05rem;font-weight:600;outline:none;
+}
+.numin:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);}
+
+/* ── Sequence ────────────────────────────────────── */
+.seqbox{border:1px dashed var(--border);border-radius:var(--radius-sm);padding:0.5rem;margin-bottom:0.55rem;background:var(--surface-2);min-height:44px;}
+.seqbox .empty{font-size:0.78rem;color:var(--muted);}
+.seqpick{display:flex;align-items:center;gap:0.5rem;font-size:0.84rem;padding:0.22rem 0;}
+.seqpick b{font-family:var(--mono);color:var(--accent);min-width:1.2rem;}
+
+/* ── Buttons ─────────────────────────────────────── */
+.btn{
+  min-height:46px;padding:0 1.05rem;border-radius:var(--radius-sm);border:1px solid var(--border);
+  background:var(--surface-2);color:var(--text-2);font-family:inherit;font-size:0.86rem;font-weight:700;cursor:pointer;
+}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;}
+.btn.wide{width:100%;}
+.btn:disabled{opacity:0.45;cursor:default;}
+.btn.danger{background:var(--bad-soft);color:var(--bad);border-color:transparent;}
+.btnrow{display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.7rem;}
+
+/* ── Feedback ────────────────────────────────────── */
+.fb{border-radius:var(--radius-sm);padding:0.75rem;margin-top:0.8rem;border:1px solid var(--border);animation:pop .18s ease-out;}
+@keyframes pop{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;}}
+.fb.good{background:var(--good-soft);border-color:var(--good);}
+.fb.bad{background:var(--bad-soft);border-color:var(--bad);}
+.fb .verdict{font-size:0.78rem;font-weight:800;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:0.3rem;}
+.fb.good .verdict{color:var(--good);}
+.fb.bad .verdict{color:var(--bad);}
+.fb .keyline{font-size:0.92rem;font-weight:700;margin-bottom:0.35rem;}
+.fb .keyline em{font-family:var(--mono);font-style:normal;}
+.fb .why{font-size:0.85rem;color:var(--text-2);}
+.fb .calib{font-size:0.76rem;font-weight:600;margin-top:0.45rem;color:var(--warn);}
+
+/* ── Progress tab ────────────────────────────────── */
+.bigstat{display:flex;gap:0.4rem;margin-bottom:0.75rem;}
+.bigstat>div{flex:1 1 0;min-width:0;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:0.6rem 0.35rem;text-align:center;box-shadow:var(--shadow);}
+.bigstat .v{font-family:var(--mono);font-size:1.35rem;font-weight:800;line-height:1.15;overflow-wrap:anywhere;}
+.bigstat .l{font-size:0.62rem;text-transform:uppercase;letter-spacing:0.03em;color:var(--muted);font-weight:700;line-height:1.25;overflow-wrap:anywhere;}
+.catrow{margin-bottom:0.6rem;}
+.catrow .top{display:flex;justify-content:space-between;align-items:baseline;font-size:0.8rem;margin-bottom:0.2rem;gap:0.5rem;}
+.catrow .nm{font-weight:600;}
+.catrow .fr{font-family:var(--mono);font-size:0.74rem;color:var(--muted);white-space:nowrap;}
+.track{height:8px;border-radius:4px;background:var(--surface-3);overflow:hidden;}
+.track i{display:block;height:100%;border-radius:4px;transition:width .3s ease;}
+.kv{display:flex;justify-content:space-between;gap:0.75rem;font-size:0.84rem;padding:0.3rem 0;border-bottom:1px solid var(--border);}
+.kv:last-child{border-bottom:none;}
+.kv .k{color:var(--text-2);}
+.kv .v{font-family:var(--mono);font-weight:700;}
+.verdictline{font-size:0.86rem;font-weight:600;margin-top:0.5rem;padding:0.5rem 0.6rem;border-radius:var(--radius-sm);background:var(--surface-2);color:var(--text-2);}
+.empty-state{text-align:center;padding:2rem 1rem;color:var(--muted);font-size:0.9rem;}
+.empty-state b{display:block;color:var(--text);font-size:1rem;margin-bottom:0.35rem;}
+.pill{display:inline-block;font-family:var(--mono);font-size:0.7rem;padding:0.1rem 0.4rem;border-radius:4px;background:var(--surface-2);border:1px solid var(--border);color:var(--text-2);}
+.warnbar{font-size:0.74rem;color:var(--warn);background:var(--warn-soft);border-radius:var(--radius-sm);padding:0.4rem 0.6rem;margin-bottom:0.6rem;}
+@media (min-width:700px){
+  .stem{font-size:1.06rem;}
+  .opt{font-size:0.92rem;}
+}
+</style>
+</head>
+<body>
+
+<header class="hdr">
+  <div class="hdr-in">
+    <div class="hdr-row">
+      <h1>PMP Crunch Kit <span id="hdrSub">&middot; facts drill</span></h1>
+      <span class="hdr-stat" id="hdrStat">&mdash;</span>
+    </div>
+    <div class="strip" id="strip"><i class="s-todo" style="width:100%"></i></div>
+    <div class="strip-label"><span id="stripL">ready</span><span id="stripR"></span></div>
+  </div>
+</header>
+
+<div class="wrap">
+  <nav class="tabs" id="tabs" role="tablist">
+    <button role="tab" data-tab="drill" aria-selected="true">Drill</button>
+    <button role="tab" data-tab="review" aria-selected="false">Review Deck</button>
+    <button role="tab" data-tab="progress" aria-selected="false">Progress</button>
+  </nav>
+  <main id="view"></main>
+</div>
+
+<script>
+"use strict";
+
+/* =====================================================================
+   ITEM BANK — facts only. Every key is verifiable from PMBOK 6/7
+   doctrine. No situational-judgement items.
+   Schema: {id, cat, type: "mc"|"num"|"seq", stem, options?, key, why}
+   - mc  : key = exact string from options
+   - num : key = number (graded to +/- 0.01)
+   - seq : options = pool, key = array in the correct order
+   ===================================================================== */
+const ITEM_BANK = [
+
+/* ---------- evm-calc (18) ---------- */
+{id:"evm01",cat:"evm-calc",type:"num",stem:"PV = 250,000. EV = 220,000. AC = 240,000. Compute CV. (Minus sign if unfavourable.)",key:-20000,
+ why:"CV = EV − AC = 220,000 − 240,000 = −20,000. Hook: every variance is EV minus something; every index is EV over something. Negative is always bad."},
+{id:"evm02",cat:"evm-calc",type:"num",stem:"PV = 250,000. EV = 220,000. AC = 240,000. Compute SV. (Minus sign if unfavourable.)",key:-30000,
+ why:"SV = EV − PV = 220,000 − 250,000 = −30,000. Schedule variance pairs EV with PV (the plan); cost variance pairs EV with AC (the spend)."},
+{id:"evm03",cat:"evm-calc",type:"num",stem:"EV = 180,000. AC = 200,000. Compute CPI (2 decimal places).",key:0.9,
+ why:"CPI = EV / AC = 180,000 / 200,000 = 0.90. Below 1.0 means you are getting less than a pound of value per pound spent."},
+{id:"evm04",cat:"evm-calc",type:"num",stem:"EV = 180,000. PV = 225,000. Compute SPI (2 decimal places).",key:0.8,
+ why:"SPI = EV / PV = 180,000 / 225,000 = 0.80. Only 80% of the planned work has been earned, so the project is behind schedule."},
+{id:"evm05",cat:"evm-calc",type:"num",stem:"BAC = 400,000. The project is 40% complete. AC = 200,000. Compute CPI (2 decimal places).",key:0.8,
+ why:"First EV = % complete × BAC = 0.40 × 400,000 = 160,000. Then CPI = 160,000 / 200,000 = 0.80. Percent-complete questions always hide an EV step."},
+{id:"evm06",cat:"evm-calc",type:"num",stem:"BAC = 600,000. The project is 30% complete. PV = 200,000. Compute SV. (Minus sign if unfavourable.)",key:-20000,
+ why:"EV = 0.30 × 600,000 = 180,000; SV = EV − PV = 180,000 − 200,000 = −20,000. Earned less than planned means behind schedule."},
+{id:"evm07",cat:"evm-calc",type:"num",stem:"BAC = 500,000. EV = 200,000. AC = 250,000. Compute EAC assuming current cost performance continues (the typical / CPI-based assumption).",key:625000,
+ why:"CPI = 200,000 / 250,000 = 0.80; EAC = BAC / CPI = 500,000 / 0.80 = 625,000. 'Typical' variances mean the burn rate persists, so divide by CPI."},
+{id:"evm08",cat:"evm-calc",type:"num",stem:"BAC = 300,000. EV = 120,000. AC = 150,000. Compute EAC assuming the past variance was atypical and will not recur.",key:330000,
+ why:"EAC = AC + (BAC − EV) = 150,000 + 180,000 = 330,000. Atypical means remaining work is done at the planned rate, so add the sunk AC to the budgeted remainder."},
+{id:"evm09",cat:"evm-calc",type:"num",stem:"BAC = 100,000. PV = 50,000. EV = 40,000. AC = 50,000. Compute EAC assuming remaining work is performed against BOTH the current CPI and SPI.",key:143750,
+ why:"CPI = 0.80, SPI = 0.80, so EAC = AC + (BAC − EV) / (CPI × SPI) = 50,000 + 60,000 / 0.64 = 143,750. When both indices are below 1.0, as here, this formula gives the highest (most pessimistic) EAC."},
+{id:"evm10",cat:"evm-calc",type:"num",stem:"BAC = 800,000. EV = 400,000. AC = 500,000. Compute ETC assuming current cost performance continues.",key:500000,
+ why:"CPI = 0.80 so EAC = 800,000 / 0.80 = 1,000,000; ETC = EAC − AC = 1,000,000 − 500,000 = 500,000. ETC is always 'what is left of the forecast'."},
+{id:"evm11",cat:"evm-calc",type:"num",stem:"BAC = 250,000. EV = 100,000. AC = 125,000. Using the CPI-based EAC, compute VAC. (Minus sign if unfavourable.)",key:-62500,
+ why:"CPI = 0.80 so EAC = 250,000 / 0.80 = 312,500; VAC = BAC − EAC = 250,000 − 312,500 = −62,500. VAC is the forecast overrun at completion."},
+{id:"evm12",cat:"evm-calc",type:"num",stem:"BAC = 1,000,000. EV = 400,000. AC = 500,000. Compute the TCPI required to still finish at BAC (2 decimal places).",key:1.2,
+ why:"TCPI(BAC) = (BAC − EV) / (BAC − AC) = 600,000 / 500,000 = 1.20. Work remaining over money remaining; above 1.0 means you must outperform the plan."},
+{id:"evm13",cat:"evm-calc",type:"num",stem:"BAC = 500,000. EV = 200,000. AC = 250,000. Management has approved an EAC of 625,000. Compute the TCPI to that EAC (2 decimal places).",key:0.8,
+ why:"TCPI(EAC) = (BAC − EV) / (EAC − AC) = 300,000 / 375,000 = 0.80. Swap the denominator to EAC once the original budget is abandoned."},
+{id:"evm14",cat:"evm-calc",type:"num",stem:"BAC = 120,000. The project is 25% complete. AC = 25,000. Compute CPI (2 decimal places).",key:1.2,
+ why:"EV = 0.25 × 120,000 = 30,000; CPI = 30,000 / 25,000 = 1.20. Above 1.0 is under budget — you earned 1.20 of value per 1.00 spent."},
+{id:"evm15",cat:"evm-calc",type:"num",stem:"BAC = 90,000. The project is 50% complete. PV = 50,000. Compute SPI (2 decimal places).",key:0.9,
+ why:"EV = 0.50 × 90,000 = 45,000; SPI = 45,000 / 50,000 = 0.90. Behind schedule by 10% of planned value."},
+{id:"evm16",cat:"evm-calc",type:"num",stem:"PV = 60,000. EV = 72,000. AC = 66,000. Compute CV.",key:6000,
+ why:"CV = EV − AC = 72,000 − 66,000 = +6,000. Positive variance is favourable: more value earned than cash spent."},
+{id:"evm17",cat:"evm-calc",type:"num",stem:"BAC = 1,000,000. The project is 45% complete. AC = 500,000. Compute EAC assuming the variance is atypical.",key:1050000,
+ why:"EV = 0.45 × 1,000,000 = 450,000; EAC = AC + (BAC − EV) = 500,000 + 550,000 = 1,050,000. Atypical = remaining work at budgeted rate."},
+{id:"evm18",cat:"evm-calc",type:"num",stem:"BAC = 750,000. EV = 300,000. AC = 380,000. Compute ETC assuming the past variance was atypical.",key:450000,
+ why:"Atypical ETC = BAC − EV = 750,000 − 300,000 = 450,000. AC is irrelevant here: the remaining work is simply the unearned budget."},
+
+/* ---------- formulas (10) ---------- */
+{id:"frm01",cat:"formulas",type:"num",stem:"A project team has 12 people. How many communication channels are there?",key:66,
+ why:"n(n − 1) / 2 = 12 × 11 / 2 = 66. Hook: channels grow with the square of headcount — doubling a team roughly quadruples the noise."},
+{id:"frm02",cat:"formulas",type:"num",stem:"A team grows from 6 people to 8 people. How many NEW communication channels are created?",key:13,
+ why:"28 − 15 = 13. Always compute both totals and subtract; the exam's favourite trap is answering with the new total (28) instead of the increment."},
+{id:"frm03",cat:"formulas",type:"num",stem:"Optimistic = 10 days, Most Likely = 14 days, Pessimistic = 24 days. Compute the PERT (beta) expected duration.",key:15,
+ why:"(O + 4M + P) / 6 = (10 + 56 + 24) / 6 = 15. Beta weights the most likely estimate four times; note the answer exceeds M because P is skewed."},
+{id:"frm04",cat:"formulas",type:"num",stem:"Optimistic = 12 days, Pessimistic = 36 days. Compute the PERT standard deviation.",key:4,
+ why:"σ = (P − O) / 6 = 24 / 6 = 4. Standard deviation ignores the most likely estimate entirely — it measures spread, not centre."},
+{id:"frm05",cat:"formulas",type:"num",stem:"Optimistic = 8 days, Most Likely = 12 days, Pessimistic = 22 days. Compute the triangular (simple average) estimate.",key:14,
+ why:"(O + M + P) / 3 = 42 / 3 = 14. Triangular gives all three points equal weight, so it sits above the beta answer when P is skewed."},
+{id:"frm06",cat:"formulas",type:"num",stem:"An activity has ES = 5, EF = 10, LS = 8, LF = 13. Compute its total float.",key:3,
+ why:"Float = LS − ES = 8 − 5 = 3 (equivalently LF − EF = 13 − 10 = 3). Both subtractions must agree; if they do not, the network data is inconsistent."},
+{id:"frm07",cat:"formulas",type:"num",stem:"Risk A: 60% chance of a 80,000 gain. Risk B: 25% chance of a 120,000 loss. Compute the total EMV of the two risks.",key:18000,
+ why:"EMV = Σ(P × impact) = (0.60 × 80,000) + (0.25 × −120,000) = 48,000 − 30,000 = 18,000. Opportunities are positive, threats negative."},
+{id:"frm08",cat:"formulas",type:"mc",stem:"Total float is calculated as:",
+ options:["LS − ES (or equivalently LF − EF)","EF − ES","LF − LS","EF − LS"],key:"LS − ES (or equivalently LF − EF)",
+ why:"Float is the gap between the late and early dates of the SAME point on the activity. EF − ES is the activity's duration, not its float."},
+{id:"frm09",cat:"formulas",type:"mc",stem:"The PERT variance of an activity equals:",
+ options:["((P − O) / 6)²","(P − O) / 6","(P + 4M + O) / 6","(P − O) / 3"],key:"((P − O) / 6)²",
+ why:"Variance is the square of the standard deviation, and σ = (P − O) / 6. Variances add across activities on a path; standard deviations do not."},
+{id:"frm10",cat:"formulas",type:"mc",stem:"A single risk has a 30% probability of causing a 50,000 cost overrun. Its EMV is:",
+ options:["−15,000","+15,000","−50,000","−35,000"],key:"−15,000",
+ why:"EMV = 0.30 × (−50,000) = −15,000. A threat carries a negative impact, so its EMV is negative."},
+
+/* ---------- contract-types (10) ---------- */
+{id:"ctr01",cat:"contract-types",type:"mc",stem:"In which contract type does the SELLER bear the greatest cost risk?",
+ options:["Firm Fixed Price (FFP)","Cost Plus Fixed Fee (CPFF)","Time and Materials (T&M)","Cost Plus Incentive Fee (CPIF)"],key:"Firm Fixed Price (FFP)",
+ why:"With FFP the price is locked, so every pound of overrun comes out of the seller's margin. Hook: fixed price = fixed buyer, exposed seller."},
+{id:"ctr02",cat:"contract-types",type:"mc",stem:"Among the cost-reimbursable contract types, which gives the seller the LEAST incentive to control costs, leaving the buyer with the most cost risk?",
+ options:["Cost Plus Fixed Fee (CPFF)","Cost Plus Incentive Fee (CPIF)","Cost Plus Award Fee (CPAF)","Fixed Price Incentive Fee (FPIF)"],key:"Cost Plus Fixed Fee (CPFF)",
+ why:"The CPFF fee is a fixed amount paid regardless of actual cost, so the seller gains nothing by being efficient. CPIF and CPAF both attach the fee to performance."},
+{id:"ctr03",cat:"contract-types",type:"mc",stem:"The Point of Total Assumption (PTA) is a feature of which contract type?",
+ options:["Fixed Price Incentive Fee (FPIF)","Cost Plus Fixed Fee (CPFF)","Time and Materials (T&M)","Firm Fixed Price (FFP)"],key:"Fixed Price Incentive Fee (FPIF)",
+ why:"PTA exists only where a ceiling price and a sharing ratio coexist — that is FPIF. FFP has no sharing ratio; cost-plus contracts have no ceiling price of this kind."},
+{id:"ctr04",cat:"contract-types",type:"mc",stem:"The Point of Total Assumption is defined as the cost level above which:",
+ options:["the seller bears all additional cost","the buyer bears all additional cost","the incentive fee is doubled","the contract is automatically terminated"],key:"the seller bears all additional cost",
+ why:"Beyond the PTA the buyer pays no more than the ceiling price, so the seller absorbs 100% of further overrun. Hook: PTA = the seller's pain threshold."},
+{id:"ctr05",cat:"contract-types",type:"mc",stem:"The PTA formula is:",
+ options:["((Ceiling Price − Target Price) / Buyer's share ratio) + Target Cost","((Ceiling Price − Target Cost) / Seller's share ratio) + Target Price","(Target Cost × Buyer's share ratio) + Ceiling Price","((Target Price − Target Cost) / Ceiling Price) + Target Cost"],
+ key:"((Ceiling Price − Target Price) / Buyer's share ratio) + Target Cost",
+ why:"Ceiling minus target price is the buyer's remaining exposure; dividing by the buyer's share converts it to cost, then you add target cost to locate the point."},
+{id:"ctr06",cat:"contract-types",type:"mc",stem:"Which contract type is a hybrid of fixed-price and cost-reimbursable, is typically used for staff augmentation or expert acquisition, and is usually capped with a not-to-exceed value?",
+ options:["Time and Materials (T&M)","Firm Fixed Price (FFP)","Cost Plus Award Fee (CPAF)","Fixed Price with Economic Price Adjustment (FP-EPA)"],key:"Time and Materials (T&M)",
+ why:"T&M fixes the unit rate (fixed-price element) but leaves quantity open (cost-reimbursable element). PMBOK recommends a not-to-exceed ceiling to cap growth."},
+{id:"ctr07",cat:"contract-types",type:"mc",stem:"Which contract type is used for multi-year agreements to protect both parties against inflation or commodity price swings via a predefined index?",
+ options:["Fixed Price with Economic Price Adjustment (FP-EPA)","Firm Fixed Price (FFP)","Cost Plus Fixed Fee (CPFF)","Fixed Price Incentive Fee (FPIF)"],key:"Fixed Price with Economic Price Adjustment (FP-EPA)",
+ why:"FP-EPA holds a fixed price but allows adjustment tied to an agreed financial index. Hook: EPA = Escalation Protection Attached."},
+{id:"ctr08",cat:"contract-types",type:"mc",stem:"A purchase order for 500 identical units at a set unit price is an example of which contract type?",
+ options:["Firm Fixed Price (FFP)","Time and Materials (T&M)","Cost Plus Incentive Fee (CPIF)","Fixed Price Incentive Fee (FPIF)"],key:"Firm Fixed Price (FFP)",
+ why:"A purchase order is the simplest form of unilateral fixed-price contract: defined commodity, defined price, no fee structure."},
+{id:"ctr09",cat:"contract-types",type:"num",stem:"CPIF contract. Target cost 100,000; target fee 10,000; sharing ratio 80/20 (buyer/seller). Actual cost comes in at 90,000. What is the total amount the buyer pays the seller?",key:102000,
+ why:"Underrun = 10,000; seller's 20% share = 2,000, so fee = 12,000 and total = 90,000 + 12,000 = 102,000. Sharing ratios always read buyer first."},
+{id:"ctr10",cat:"contract-types",type:"seq",stem:"Order these contract types from HIGHEST buyer cost risk to LOWEST.",
+ options:["Fixed Price Incentive Fee (FPIF)","Cost Plus Fixed Fee (CPFF)","Firm Fixed Price (FFP)","Cost Plus Incentive Fee (CPIF)"],
+ key:["Cost Plus Fixed Fee (CPFF)","Cost Plus Incentive Fee (CPIF)","Fixed Price Incentive Fee (FPIF)","Firm Fixed Price (FFP)"],
+ why:"Risk slides from buyer to seller as you move from cost-reimbursable to fixed-price. Hook: CPFF → CPIF → FPIF → FFP is the standard risk continuum."},
+
+/* ---------- conflict-modes (7) ---------- */
+{id:"cfl01",cat:"conflict-modes",type:"mc",stem:"Which conflict-resolution mode produces a win-win, permanent resolution by incorporating multiple viewpoints and insights?",
+ options:["Collaborate / problem solve","Compromise / reconcile","Smooth / accommodate","Force / direct"],key:"Collaborate / problem solve",
+ why:"Collaborating is the only mode that resolves the underlying cause rather than the symptom, which is why PMI ranks it first. Hook: collaborate = confront the problem, not the person."},
+{id:"cfl02",cat:"conflict-modes",type:"mc",stem:"Which mode searches for solutions that bring some degree of satisfaction to all parties, with each side giving something up (lose-lose)?",
+ options:["Compromise / reconcile","Collaborate / problem solve","Withdraw / avoid","Smooth / accommodate"],key:"Compromise / reconcile",
+ why:"Compromise trades concessions, so nobody is fully satisfied — the classic lose-lose label. It resolves temporarily, not permanently."},
+{id:"cfl03",cat:"conflict-modes",type:"mc",stem:"Which mode emphasises areas of agreement rather than areas of difference, conceding one's position to maintain harmony?",
+ options:["Smooth / accommodate","Compromise / reconcile","Force / direct","Collaborate / problem solve"],key:"Smooth / accommodate",
+ why:"Smoothing papers over the difference to preserve the relationship; the conflict remains unresolved beneath the surface."},
+{id:"cfl04",cat:"conflict-modes",type:"mc",stem:"Which mode pushes one party's viewpoint at the expense of others, offering only win-lose solutions, usually enforced through a power position?",
+ options:["Force / direct","Smooth / accommodate","Withdraw / avoid","Compromise / reconcile"],key:"Force / direct",
+ why:"Forcing is win-lose by definition and is legitimate only in emergencies or when a decision must be imposed. It damages relationships otherwise."},
+{id:"cfl05",cat:"conflict-modes",type:"mc",stem:"Which mode involves retreating from an actual or potential conflict situation, postponing the issue to be better prepared or resolved by others?",
+ options:["Withdraw / avoid","Smooth / accommodate","Compromise / reconcile","Collaborate / problem solve"],key:"Withdraw / avoid",
+ why:"Withdrawing defers the conflict entirely. It is the only mode that guarantees no resolution, which is why PMI ranks it last."},
+{id:"cfl06",cat:"conflict-modes",type:"mc",stem:"Which conflict-resolution mode does PMI regard as the most effective?",
+ options:["Collaborate / problem solve","Compromise / reconcile","Force / direct","Smooth / accommodate"],key:"Collaborate / problem solve",
+ why:"Collaborating yields consensus and commitment, and permanently removes the cause. On the exam, 'confront the problem' language points here."},
+{id:"cfl07",cat:"conflict-modes",type:"mc",stem:"Which conflict-resolution mode does PMI regard as the least effective?",
+ options:["Withdraw / avoid","Force / direct","Compromise / reconcile","Smooth / accommodate"],key:"Withdraw / avoid",
+ why:"Avoidance leaves the conflict entirely unaddressed, so it is ranked bottom. Forcing at least produces a decision, however costly."},
+
+/* ---------- team-stages (6) ---------- */
+{id:"tkm01",cat:"team-stages",type:"mc",stem:"Tuckman stage: the team meets and learns about the project and their formal roles; members tend to be independent and not open with one another.",
+ options:["Forming","Storming","Norming","Performing"],key:"Forming",
+ why:"Forming is the polite, guarded introduction stage. Hook: forming = names and roles, no friction yet."},
+{id:"tkm02",cat:"team-stages",type:"mc",stem:"Tuckman stage: the team begins to address the work, technical decisions and the approach, but members are not collaborative or open to differing ideas.",
+ options:["Storming","Forming","Norming","Adjourning"],key:"Storming",
+ why:"Storming is where the real disagreements surface. If the team is not collaborative here, the environment can become counterproductive."},
+{id:"tkm03",cat:"team-stages",type:"mc",stem:"Tuckman stage: members begin to work together, adjusting their work habits and behaviours to support the team, and learn to trust each other.",
+ options:["Norming","Storming","Performing","Forming"],key:"Norming",
+ why:"Norming is where behavioural norms and trust settle in. Hook: norming = norms, i.e. agreed ways of working."},
+{id:"tkm04",cat:"team-stages",type:"mc",stem:"Tuckman stage: the team functions as a well-organised unit, is interdependent, and works through issues smoothly and effectively.",
+ options:["Performing","Norming","Storming","Adjourning"],key:"Performing",
+ why:"Performing is peak productivity and interdependence. Teams reaching it are the exception, not the default."},
+{id:"tkm05",cat:"team-stages",type:"seq",stem:"Place Tuckman's five stages of team development in order.",
+ options:["Norming","Adjourning","Forming","Performing","Storming"],
+ key:["Forming","Storming","Norming","Performing","Adjourning"],
+ why:"Forming, Storming, Norming, Performing, Adjourning. Teams can regress a stage when membership changes — the order still holds."},
+{id:"tkm06",cat:"team-stages",type:"mc",stem:"In the situational leadership model commonly mapped to Tuckman, which leadership style corresponds to the Performing stage?",
+ options:["Delegating","Directing","Coaching","Supporting"],key:"Delegating",
+ why:"Mapping: Forming = Directing, Storming = Coaching, Norming = Supporting, Performing = Delegating. Leader involvement falls as team maturity rises."},
+
+/* ---------- risk-responses (10) ---------- */
+{id:"rsk01",cat:"risk-responses",type:"mc",stem:"Threat response defined as eliminating the threat entirely or protecting the project from its impact, for example by removing the cause.",
+ options:["Avoid","Mitigate","Transfer","Accept"],key:"Avoid",
+ why:"Avoidance drives the probability to zero, typically by changing the plan. Its opportunity mirror is Exploit, which drives probability to 100%."},
+{id:"rsk02",cat:"risk-responses",type:"mc",stem:"Threat response defined as shifting ownership of the threat to a third party, who manages the risk and bears the impact if it occurs.",
+ options:["Transfer","Mitigate","Avoid","Escalate"],key:"Transfer",
+ why:"Insurance, warranties and performance bonds are transfers. Transfer moves the impact, not the risk itself — and it always costs a premium."},
+{id:"rsk03",cat:"risk-responses",type:"mc",stem:"Threat response defined as reducing the probability of occurrence or the impact of the threat to an acceptable level.",
+ options:["Mitigate","Avoid","Accept","Transfer"],key:"Mitigate",
+ why:"Mitigation shrinks the risk but leaves it in play; whatever remains is residual risk. Its opportunity mirror is Enhance."},
+{id:"rsk04",cat:"risk-responses",type:"mc",stem:"Opportunity response defined as ensuring the opportunity is definitely realised, raising its probability to 100%.",
+ options:["Exploit","Enhance","Share","Accept"],key:"Exploit",
+ why:"Exploit is the mirror image of Avoid. Hook: Exploit makes it certain, Enhance only makes it likelier."},
+{id:"rsk05",cat:"risk-responses",type:"mc",stem:"Opportunity response defined as increasing the probability or the positive impact of an opportunity.",
+ options:["Enhance","Exploit","Share","Escalate"],key:"Enhance",
+ why:"Enhance mirrors Mitigate: both nudge probability or impact without guaranteeing an outcome."},
+{id:"rsk06",cat:"risk-responses",type:"mc",stem:"Opportunity response defined as allocating ownership to a third party best able to capture the benefit, for example through a joint venture or partnership.",
+ options:["Share","Transfer","Exploit","Accept"],key:"Share",
+ why:"Share mirrors Transfer. Hook: you Transfer a threat to someone else's risk, you Share an opportunity for someone else's capability."},
+{id:"rsk07",cat:"risk-responses",type:"mc",stem:"Which response is used for both threats and opportunities when the risk is outside the project's scope or the PM's authority, and is moved to a higher organisational level?",
+ options:["Escalate","Accept","Transfer","Avoid"],key:"Escalate",
+ why:"Escalate appears in both lists in PMBOK 6. Once escalated the risk is no longer monitored by the project team, though it may stay in the risk register for information."},
+{id:"rsk08",cat:"risk-responses",type:"mc",stem:"Which statement about contingency reserve is correct?",
+ options:["It is part of the cost baseline and covers identified (known) risks; the PM can authorise its use","It sits outside the cost baseline and covers unknown risks","It requires senior management approval before any use","It is calculated as a fixed 10% of the budget at completion"],
+ key:"It is part of the cost baseline and covers identified (known) risks; the PM can authorise its use",
+ why:"Contingency = known-unknowns, inside the cost baseline, PM-controlled. Hook: contingency for what you can name, management reserve for what you cannot."},
+{id:"rsk09",cat:"risk-responses",type:"mc",stem:"Which statement about management reserve is correct?",
+ options:["It is outside the cost baseline but inside the total project budget, and covers unknown-unknowns","It is inside the cost baseline and covers identified risks","It is outside the project budget entirely","It is spent automatically whenever CPI falls below 1.0"],
+ key:"It is outside the cost baseline but inside the total project budget, and covers unknown-unknowns",
+ why:"Cost baseline + management reserve = project budget. Using management reserve requires management approval and results in a change to the cost baseline."},
+{id:"rsk10",cat:"risk-responses",type:"mc",stem:"A risk that arises as a direct result of implementing a risk response is called a:",
+ options:["Secondary risk","Residual risk","Trigger condition","Workaround"],key:"Secondary risk",
+ why:"Secondary risk = created by your response; residual risk = what is left over after your response. Both must be documented in the risk register."},
+
+/* ---------- change-control (7) ---------- */
+{id:"chg02",cat:"change-control",type:"mc",stem:"Who has the authority to approve or reject change requests?",
+ options:["The change control board (CCB), per the change management plan","The project manager, in all cases","The functional manager of the requesting department","The project team by consensus"],
+ key:"The change control board (CCB), per the change management plan",
+ why:"The CCB is the formally chartered body; its composition and authority are defined in the change management plan. A PM may sit on it but does not unilaterally approve."},
+{id:"chg03",cat:"change-control",type:"mc",stem:"Per the Perform Integrated Change Control process, the project manager's FIRST action on a change request is to:",
+ options:["Assess its impact on scope, schedule, cost, quality, resources and risk","Implement it if it is small enough to absorb","Notify all stakeholders that scope has changed","Update the project management plan"],
+ key:"Assess its impact on scope, schedule, cost, quality, resources and risk",
+ why:"Impact analysis precedes any decision or action. Hook: no impact assessment, no informed decision — and no change is ever absorbed silently."},
+{id:"chg04",cat:"change-control",type:"mc",stem:"Perform Integrated Change Control belongs to which knowledge area and process group?",
+ options:["Project Integration Management / Monitoring and Controlling","Project Scope Management / Monitoring and Controlling","Project Integration Management / Executing","Project Scope Management / Planning"],
+ key:"Project Integration Management / Monitoring and Controlling",
+ why:"Only Integration Management can weigh cross-constraint trade-offs, which is why change control lives there rather than in Scope."},
+{id:"chg05",cat:"change-control",type:"mc",stem:"Approved change requests are executed in which process?",
+ options:["Direct and Manage Project Work","Perform Integrated Change Control","Monitor and Control Project Work","Control Scope"],key:"Direct and Manage Project Work",
+ why:"Approved change requests are an input to Direct and Manage Project Work — the process that produces deliverables. Approval and execution are deliberately separated."},
+{id:"chg06",cat:"change-control",type:"mc",stem:"Which document records the status of every change request, including those rejected?",
+ options:["Change log","Issue log","Risk register","Assumption log"],key:"Change log",
+ why:"The change log captures each request and its disposition — approved, rejected or deferred. Rejections are recorded so the decision is not relitigated."},
+{id:"chg07",cat:"change-control",type:"mc",stem:"Once a baseline has been approved, changes to it may be made:",
+ options:["Only through the formal change control process","By the project manager when the variance is under 10%","By the sponsor verbally at any time","At the start of each new phase without approval"],
+ key:"Only through the formal change control process",
+ why:"That is the definition of a baseline: an approved version changeable only by formal change control, retained for comparison against actual results."},
+{id:"chg08",cat:"change-control",type:"mc",stem:"Corrective action, preventive action, defect repair and updates are the four categories of:",
+ options:["Change requests","Work performance data","Quality metrics","Organisational process assets"],key:"Change requests",
+ why:"Corrective fixes present performance, preventive addresses future performance, defect repair fixes a nonconforming component, and updates amend documents."},
+
+/* ---------- agile-facts (12) ---------- */
+{id:"agl01",cat:"agile-facts",type:"mc",stem:"Per the Scrum Guide, the maximum length of a Sprint is:",
+ options:["One month","Two weeks","Six weeks","Three months"],key:"One month",
+ why:"Sprints are fixed-length events of one month or less. Longer sprints let the definition of the goal go stale and increase risk between inspection points."},
+{id:"agl02",cat:"agile-facts",type:"mc",stem:"The Daily Scrum is timeboxed to:",
+ options:["15 minutes","30 minutes","10 minutes","1 hour"],key:"15 minutes",
+ why:"15 minutes regardless of sprint length or team size. Hook: it is a planning event for the Developers, not a status report to the Scrum Master."},
+{id:"agl03",cat:"agile-facts",type:"mc",stem:"For a one-month Sprint, Sprint Planning is timeboxed to a maximum of:",
+ options:["8 hours","4 hours","3 hours","2 hours"],key:"8 hours",
+ why:"Planning 8, Review 4, Retrospective 3 for a one-month sprint; all are proportionally shorter for shorter sprints. Hook: 8-4-3 descending."},
+{id:"agl04",cat:"agile-facts",type:"mc",stem:"For a one-month Sprint, the Sprint Review is timeboxed to a maximum of:",
+ options:["4 hours","8 hours","3 hours","2 hours"],key:"4 hours",
+ why:"The Review is the working session with stakeholders on the Increment. It is a working session, not a formal presentation or a gate."},
+{id:"agl05",cat:"agile-facts",type:"mc",stem:"For a one-month Sprint, the Sprint Retrospective is timeboxed to a maximum of:",
+ options:["3 hours","4 hours","8 hours","1 hour"],key:"3 hours",
+ why:"The Retrospective closes the Sprint and inspects people, interactions, processes and tools — not the product."},
+{id:"agl06",cat:"agile-facts",type:"mc",stem:"Who is accountable for ordering the items in the Product Backlog?",
+ options:["The Product Owner","The Scrum Master","The Developers","The project sponsor"],key:"The Product Owner",
+ why:"The Product Owner is accountable for maximising product value, which includes ordering the backlog. Others may influence it, but only the PO decides."},
+{id:"agl07",cat:"agile-facts",type:"mc",stem:"Per the Scrum Guide, the Scrum Master is accountable for:",
+ options:["The Scrum Team's effectiveness","Delivering the Sprint's scope on time","Estimating the backlog items","Approving the Increment for release"],key:"The Scrum Team's effectiveness",
+ why:"The Scrum Master is a true leader who serves the team; the accountability is effectiveness, not delivery. Estimation belongs to the Developers."},
+{id:"agl08",cat:"agile-facts",type:"mc",stem:"The Definition of Done is:",
+ options:["A shared, formal description of the quality state an Increment must meet to be releasable","A checklist of criteria an item must meet before entering a Sprint","The acceptance criteria written on a single user story","The Product Owner's sign-off at the Sprint Review"],
+ key:"A shared, formal description of the quality state an Increment must meet to be releasable",
+ why:"DoD applies to every Increment and is set by the Scrum Team (or the organisation, as a minimum). Acceptance criteria are per-story; DoD is universal."},
+{id:"agl09",cat:"agile-facts",type:"mc",stem:"The Definition of Ready describes:",
+ options:["The criteria a backlog item must meet before the team commits to it in a Sprint","The quality bar an Increment must clear to be shippable","The point at which the team can hold a retrospective","The state of the environment before a release"],
+ key:"The criteria a backlog item must meet before the team commits to it in a Sprint",
+ why:"DoR gates entry into a Sprint; DoD gates exit from it. Hook: Ready is the door in, Done is the door out."},
+{id:"agl10",cat:"agile-facts",type:"mc",stem:"Which chart plots completed work accumulating upward toward a separate total-scope line, making scope changes visible?",
+ options:["Burnup chart","Burndown chart","Cumulative flow diagram","Control chart"],key:"Burnup chart",
+ why:"The burnup carries two lines — work done and total scope — so added scope shows as the top line moving. A burndown hides scope change inside one falling line."},
+{id:"agl11",cat:"agile-facts",type:"mc",stem:"Velocity is correctly defined as:",
+ options:["The sum of story points of items fully completed in an iteration, used to forecast that team's future capacity","The number of story points the team committed to at the start of an iteration","A productivity measure for comparing teams against each other","The number of stories moved to In Progress each iteration"],
+ key:"The sum of story points of items fully completed in an iteration, used to forecast that team's future capacity",
+ why:"Only work meeting the Definition of Done counts, and points are team-relative, so cross-team velocity comparison is meaningless."},
+{id:"agl12",cat:"agile-facts",type:"num",stem:"A Kanban team has 20 items in progress and a throughput of 5 items per week. Using Little's Law, what is the average cycle time in weeks?",key:4,
+ why:"Cycle time = WIP / throughput = 20 / 5 = 4 weeks. This is why WIP limits work: cutting WIP cuts cycle time proportionally, with no change in capacity."},
+
+/* ---------- artifacts (10) ---------- */
+{id:"art01",cat:"artifacts",type:"mc",stem:"Which document formally authorises the existence of the project and gives the project manager authority to apply organisational resources?",
+ options:["Project charter","Project management plan","Project scope statement","Business case"],key:"Project charter",
+ why:"The charter creates the project and empowers the PM. Without it the PM has responsibility but no authority."},
+{id:"art02",cat:"artifacts",type:"mc",stem:"Who issues the project charter?",
+ options:["The sponsor or initiator, at a level able to fund and commit resources","The project manager who will run the project","The change control board","The lead functional manager"],
+ key:"The sponsor or initiator, at a level able to fund and commit resources",
+ why:"The charter must come from outside the project so the authority it confers is real. The PM may draft it, but the sponsor signs it."},
+{id:"art03",cat:"artifacts",type:"mc",stem:"Which document describes the project scope, major deliverables, assumptions and constraints in detail, and provides a common understanding of scope among stakeholders?",
+ options:["Project scope statement","Project charter","Scope management plan","Requirements traceability matrix"],key:"Project scope statement",
+ why:"The charter states scope at a high level; the scope statement elaborates it, including explicit exclusions. Hook: charter authorises, scope statement defines."},
+{id:"art04",cat:"artifacts",type:"mc",stem:"The hierarchical decomposition of the total scope of work to be carried out by the project team is the:",
+ options:["Work breakdown structure (WBS)","Organisational breakdown structure (OBS)","Resource breakdown structure (RBS)","Product backlog"],key:"Work breakdown structure (WBS)",
+ why:"The WBS decomposes deliverables, not activities — activities come later, in Define Activities. It captures 100% of the project scope."},
+{id:"art05",cat:"artifacts",type:"mc",stem:"The lowest level of the WBS is called a:",
+ options:["Work package","Activity","Control account","Planning package"],key:"Work package",
+ why:"Work packages sit at the bottom of the WBS and are where cost and duration are estimated. A control account sits above them as a management control point."},
+{id:"art06",cat:"artifacts",type:"mc",stem:"Which document provides detailed deliverable, activity and scheduling information about each component in the WBS?",
+ options:["WBS dictionary","Scope management plan","Project scope statement","Milestone list"],key:"WBS dictionary",
+ why:"The WBS shows the boxes; the WBS dictionary explains what is inside each box — acceptance criteria, assumptions, responsible party."},
+{id:"art07",cat:"artifacts",type:"mc",stem:"In a RACI chart, how many people should be Accountable for a given activity?",
+ options:["Exactly one","At least two","One per functional department","As many as are consulted"],key:"Exactly one",
+ why:"Single-point accountability is the rule: one A per row, though many R, C and I are allowed. Two accountable parties means nobody is accountable."},
+{id:"art08",cat:"artifacts",type:"mc",stem:"A RACI chart is a specific example of which broader tool?",
+ options:["Responsibility assignment matrix (RAM)","Resource histogram","Stakeholder engagement assessment matrix","Organisational breakdown structure"],key:"Responsibility assignment matrix (RAM)",
+ why:"A RAM maps work packages to resources; RACI is the most common RAM format. Hook: RACI is a flavour of RAM."},
+{id:"art09",cat:"artifacts",type:"mc",stem:"Which document integrates and consolidates all subsidiary management plans and baselines?",
+ options:["Project management plan","Project charter","Project scope statement","Configuration management plan"],key:"Project management plan",
+ why:"The project management plan is the single parent document defining how the project is executed, monitored and closed. Hook: charter starts it, plan runs it."},
+{id:"art10",cat:"artifacts",type:"mc",stem:"The performance measurement baseline is the integrated combination of which three baselines?",
+ options:["Scope, schedule and cost baselines","Scope, quality and cost baselines","Schedule, cost and risk baselines","Scope, schedule and resource baselines"],
+ key:"Scope, schedule and cost baselines",
+ why:"Scope + schedule + cost = the performance measurement baseline used for earned value comparison. Quality and risk have plans, not baselines."},
+
+/* ---------- quality (8) ---------- */
+{id:"qly01",cat:"quality",type:"mc",stem:"Inspecting and measuring completed deliverables to verify they conform to requirements is:",
+ options:["Quality control (Control Quality)","Quality assurance (Manage Quality)","Quality planning (Plan Quality Management)","Validate Scope"],key:"Quality control (Control Quality)",
+ why:"QC is product-oriented and inspection-based; QA is process-oriented and audit-based. Hook: QC touches the deliverable, QA touches the process."},
+{id:"qly02",cat:"quality",type:"mc",stem:"Auditing whether the correct processes and standards are being followed, to build confidence that quality requirements will be met, is:",
+ options:["Quality assurance (Manage Quality)","Quality control (Control Quality)","Validate Scope","Control Scope"],key:"Quality assurance (Manage Quality)",
+ why:"Manage Quality audits processes and finds improvement opportunities; it does not inspect individual deliverables. Quality audits are its signature tool."},
+{id:"qly03",cat:"quality",type:"mc",stem:"Prevention costs and appraisal costs are both categories of:",
+ options:["Cost of conformance","Cost of non-conformance","Internal failure costs","Opportunity cost"],key:"Cost of conformance",
+ why:"Conformance = money spent to prevent failure (training, testing, inspection). Non-conformance = money spent because failure happened."},
+{id:"qly04",cat:"quality",type:"mc",stem:"Warranty claims and lost business from a defective product delivered to a customer are examples of:",
+ options:["External failure costs (cost of non-conformance)","Internal failure costs (cost of conformance)","Appraisal costs","Prevention costs"],
+ key:"External failure costs (cost of non-conformance)",
+ why:"Failure found by the customer is external; failure found in-house (rework, scrap) is internal. Both sit under cost of non-conformance."},
+{id:"qly05",cat:"quality",type:"mc",stem:"The rule of seven on a control chart states that:",
+ options:["Seven or more consecutive points on one side of the mean signal a process that should be investigated, even if no point breaches a control limit","Seven consecutive points outside the control limits require stopping the process","A process is out of control after seven defects in a batch","Control limits should be set at seven standard deviations"],
+ key:"Seven or more consecutive points on one side of the mean signal a process that should be investigated, even if no point breaches a control limit",
+ why:"A run of seven is statistically improbable by chance, so it indicates assignable cause. Hook: out of control does not require crossing a line."},
+{id:"qly06",cat:"quality",type:"mc",stem:"Which tool is a vertical bar chart that ranks causes by frequency in descending order to isolate the vital few from the trivial many?",
+ options:["Pareto chart","Control chart","Histogram","Scatter diagram"],key:"Pareto chart",
+ why:"A Pareto chart is a histogram ordered by frequency, expressing the 80/20 principle: roughly 80% of problems come from 20% of causes."},
+{id:"qly07",cat:"quality",type:"mc",stem:"The purpose of an Ishikawa (fishbone / cause-and-effect) diagram is to:",
+ options:["Trace an undesirable effect back to its potential root causes","Show the correlation between two variables","Display the distribution of a data set","Show the sequence of steps in a process"],
+ key:"Trace an undesirable effect back to its potential root causes",
+ why:"The effect sits at the head; causes branch off the spine by category. Correlation belongs to scatter diagrams, distribution to histograms."},
+{id:"qly08",cat:"quality",type:"mc",stem:"On a control chart, control limits are:",
+ options:["Determined by the process itself, typically at plus or minus three standard deviations","Set by the customer in the contract","Always identical to the specification limits","Set at the mean plus or minus one standard deviation"],
+ key:"Determined by the process itself, typically at plus or minus three standard deviations",
+ why:"Control limits describe what the process actually does; specification limits describe what the customer demands. Specification limits should sit outside control limits."},
+
+/* ---------- estimating (7) ---------- */
+{id:"est01",cat:"estimating",type:"mc",stem:"Which estimating technique uses historical data from a similar past project plus expert judgment, is the fastest and least accurate, and is also called top-down estimating?",
+ options:["Analogous estimating","Parametric estimating","Bottom-up estimating","Three-point estimating"],key:"Analogous estimating",
+ why:"Analogous estimating scales a similar past project's actuals using expert judgment; it needs the least data, so it is fast but the least accurate. Hook: analogous = top-down, whole-project comparison."},
+{id:"est02",cat:"estimating",type:"mc",stem:"Which technique multiplies a statistical unit rate by a quantity, for example cost per square metre times area?",
+ options:["Parametric estimating","Analogous estimating","Bottom-up estimating","Three-point estimating"],key:"Parametric estimating",
+ why:"Parametric estimating applies a statistical relationship between historical data and a variable to calculate the estimate. Hook: parametric = rate × quantity; accuracy depends on the data behind the rate."},
+{id:"est03",cat:"estimating",type:"mc",stem:"Which technique aggregates the estimates of individual work packages up through the WBS, and is the most accurate but the most time-consuming?",
+ options:["Bottom-up estimating","Analogous estimating","Parametric estimating","Three-point estimating"],key:"Bottom-up estimating",
+ why:"Bottom-up estimates each work package individually, then rolls the numbers up the WBS, trading time for accuracy. Hook: bottom-up = build the estimate from the smallest piece upward."},
+{id:"est04",cat:"estimating",type:"mc",stem:"Which technique uses optimistic, most likely and pessimistic values to address estimating uncertainty?",
+ options:["Three-point estimating","Analogous estimating","Parametric estimating","Bottom-up estimating"],key:"Three-point estimating",
+ why:"Three-point (triangular or PERT/beta) estimating blends O, M and P into a single estimate that prices in uncertainty. Hook: three points in, one number out."},
+{id:"est05",cat:"estimating",type:"seq",stem:"Order Analogous, Parametric and Bottom-up estimating from LEAST accurate (fastest) to MOST accurate (slowest), per the standard PMP-prep accuracy spectrum.",
+ options:["Bottom-up estimating","Analogous estimating","Parametric estimating"],
+ key:["Analogous estimating","Parametric estimating","Bottom-up estimating"],
+ why:"Less data and time in means less accuracy out: analogous compares whole projects, parametric applies a data-driven rate, bottom-up sums every work package. Hook: analogous → parametric → bottom-up, accuracy rising each step."},
+{id:"est06",cat:"estimating",type:"mc",stem:"Rolling wave planning is best described as:",
+ options:["Progressive elaboration — near-term work is planned in detail, future work at a higher level","Compressing the schedule by adding resources to critical path activities","Planning the entire project in full detail before execution begins, with no later elaboration","Levelling resource demand by shifting activities within their float"],key:"Progressive elaboration — near-term work is planned in detail, future work at a higher level",
+ why:"Rolling wave plans the near term in detail and leaves distant work at a summary level, refining it as it approaches — a form of progressive elaboration. Hook: the wave rolls forward; detail rolls in behind it."},
+{id:"est07",cat:"estimating",type:"mc",stem:"An early cost estimate stated with a range of −25% to +75% is called a:",
+ options:["Rough order of magnitude (ROM) estimate","Definitive estimate","Budget estimate","Parametric estimate"],key:"Rough order of magnitude (ROM) estimate",
+ why:"ROM is the earliest, widest-range estimate, conventionally −25%/+75%, given near initiation before scope is well defined; the definitive estimate narrows to roughly −5%/+10% later on. Hook: ROM is rough by name and by range."},
+
+/* ---------- adaptive-vocab (6) ---------- */
+{id:"adp01",cat:"adaptive-vocab",type:"mc",stem:"An approach that REFINES the product through repeated cycles of feedback — build, get feedback, improve the same thing — is called:",
+ options:["Iterative","Incremental","Predictive","Extreme"],key:"Iterative",
+ why:"Iterative development revisits and refines the same product repeatedly using feedback, rather than adding new pieces. Hook: iterate = do it again, better."},
+{id:"adp02",cat:"adaptive-vocab",type:"mc",stem:"An approach that delivers the product in usable PIECES, each one adding new working functionality, is called:",
+ options:["Incremental","Iterative","Predictive","Waterfall"],key:"Incremental",
+ why:"Incremental development delivers successive, usable slices, each adding functionality to what came before. Hook: iterate to refine, increment to add — agile lifecycles typically use both together."},
+{id:"adp03",cat:"adaptive-vocab",type:"mc",stem:"A lifecycle that combines predictive elements for well-understood components with adaptive elements for components still evolving is called:",
+ options:["Hybrid","Iterative","Incremental","Agile"],key:"Hybrid",
+ why:"A hybrid lifecycle deliberately mixes predictive (plan-driven) and adaptive (agile) methods within one project, applying each to the part of scope it suits best. Hook: hybrid = predictive plus adaptive, on purpose."},
+{id:"adp04",cat:"adaptive-vocab",type:"mc",stem:"When a team's velocity drops for two consecutive sprints, per agile convention the forecast is:",
+ options:["Re-planned using the observed (empirical) velocity","Kept unchanged, since velocity always recovers on its own","Escalated to the sponsor for more resources","Corrected by requiring the team to work overtime"],key:"Re-planned using the observed (empirical) velocity",
+ why:"Agile forecasting is empirical: the plan is re-based on what velocity has actually been, not on the original assumption. Hook: empirical process control means the plan follows the data."},
+{id:"adp05",cat:"adaptive-vocab",type:"mc",stem:"The primary purpose of a timebox is to:",
+ options:["Limit work in progress and force prioritization within a fixed period","Penalize a team that fails to finish its committed work","Eliminate the need for any estimation","Extend automatically until all planned scope is complete"],key:"Limit work in progress and force prioritization within a fixed period",
+ why:"A timebox fixes the period and forces scope and priority to fit inside it, rather than letting the period stretch to fit the scope. Hook: the clock is fixed; the scope flexes."},
+{id:"adp06",cat:"adaptive-vocab",type:"mc",stem:"In agile, product scope is baselined:",
+ options:["It is not baselined — the backlog stays living and is reprioritized by value","At project start, in the initial backlog","At each sprint's end, through a change control board","Once the team's velocity stabilizes"],key:"It is not baselined — the backlog stays living and is reprioritized by value",
+ why:"Adaptive approaches deliberately avoid a fixed scope baseline; the backlog is continuously reordered as new information and value emerge. Hook: predictive baselines scope; adaptive baselines nothing but the current sprint goal."},
+
+/* ---------- routing (4) ---------- */
+{id:"rte01",cat:"routing",type:"mc",stem:"A deliverable fails inspection during execution — a defect is found. This is recorded and managed through:",
+ options:["Quality control processes (inspection results, defect repair via change request)","The risk register, as a realized risk","The lessons-learned repository, immediately","The stakeholder register"],key:"Quality control processes (inspection results, defect repair via change request)",
+ why:"A defect already found in a completed deliverable is a Control Quality matter — inspected, logged and corrected through a defect-repair change request. Hook: already happened, in a deliverable → quality control, not the risk register."},
+{id:"rte02",cat:"routing",type:"mc",stem:"The risk register records:",
+ options:["Uncertain FUTURE events that may affect objectives","Defects already found during inspection","Issues that have already occurred","Change requests that have already been implemented"],key:"Uncertain FUTURE events that may affect objectives",
+ why:"The risk register is forward-looking: it holds things that might happen, not things that already have. Hook: already happened → issue log or Control Quality; might happen → risk register."},
+{id:"rte03",cat:"routing",type:"mc",stem:"A metric measures activity (e.g., test cases run) but stakeholders need outcome insight (e.g., defect escape rate). The orthodox move is to:",
+ options:["Replace or correct the metric so it measures the outcome","Keep the activity metric and report it more frequently","Add a dashboard summarizing the activity metric","Survey stakeholders monthly about the metric"],key:"Replace or correct the metric so it measures the outcome",
+ why:"A metric measuring the wrong thing is a measurement-design defect, not a communication gap — fix the metric itself rather than publishing it louder. Hook: fix the ruler; don't add more readings from a bent one."},
+{id:"rte04",cat:"routing",type:"mc",stem:"Work performance DATA becomes work performance INFORMATION when it is:",
+ options:["Analyzed and compared against the plan or baselines","Emailed to the relevant stakeholders","Stored in the project archive","Approved by the change control board"],key:"Analyzed and compared against the plan or baselines",
+ why:"Data flows to information flows to reports: raw observations become information only once analyzed in context, and information becomes a report once formatted and distributed. Hook: analysis is the step that changes the label."}
+
+];
+
+/* Filled later with the candidate's missed official-practice items. Same schema. */
+const REVIEW_DECK = [
+
+/* ---------- opa-eef (4) ---------- */
+{id:"rd01",cat:"opa-eef",type:"mc",stem:"Which of the following is an organizational process asset (OPA) rather than an enterprise environmental factor (EEF)?",
+ options:["The lessons-learned repository maintained across past projects","The organization's reporting structure and hierarchy","Government regulations governing the product","Current market conditions in the target region"],
+ key:"The lessons-learned repository maintained across past projects",
+ why:"OPAs are what the organization has built and can change: plans, processes, procedures, templates and knowledge bases. EEFs are the conditions the project must work within, whether internal (structure, culture) or external (regulation, market)."},
+{id:"rd02",cat:"opa-eef",type:"mc",stem:"Which of the following is an enterprise environmental factor (EEF) rather than an organizational process asset (OPA)?",
+ options:["Organizational culture and management style","The organization's change control procedure","A standard risk category template","The corporate project archive"],
+ key:"Organizational culture and management style",
+ why:"Hook: assets are authored, factors are inherited. Culture, structure, regulation and market conditions are inherited; procedures, templates and archives were authored by the organization."},
+{id:"rd03",cat:"opa-eef",type:"mc",stem:"An organization's code of ethics and its conduct policies are classified as:",
+ options:["Organizational process assets, which are used to build the governance framework","Enterprise environmental factors, because they constrain behaviour","Standard operating procedures authored by the project team","Components of the project charter"],
+ key:"Organizational process assets, which are used to build the governance framework",
+ why:"Policies, including ethics codes, are OPAs, and a governance framework emphasising integrity, transparency and accountability is assembled from them. SOPs give execution consistency but do not define ethics; the charter authorises the project."},
+{id:"rd05",cat:"opa-eef",type:"mc",stem:"How does an organizational knowledge repository differ from a lessons-learned register?",
+ options:["The repository holds knowledge accumulated across the organization's past projects; the register holds lessons captured during the current project","The repository holds financial data; the register holds risk data","The repository is an EEF; the register is an OPA","The register replaces the repository once a project closes"],
+ key:"The repository holds knowledge accumulated across the organization's past projects; the register holds lessons captured during the current project",
+ why:"Hook: repository = organizational and cumulative, register = project-level and live. The repository is an OPA; the register is a project document whose contents transfer into the repository at closure, which is why the repository is the search target when a plan must reflect organizational experience."},
+
+/* ---------- governance (4) ---------- */
+{id:"rd06",cat:"governance",type:"mc",stem:"A project governance framework primarily defines:",
+ options:["Roles, responsibilities, decision authority and escalation thresholds","The sequence of activities that produce the deliverables","The acceptance criteria for each deliverable","The estimating techniques used for cost and duration"],
+ key:"Roles, responsibilities, decision authority and escalation thresholds",
+ why:"Governance answers who decides what, within what limits, and when a matter must move upward. It is an authority structure, not a work plan or a quality standard."},
+{id:"rd07",cat:"governance",type:"mc",stem:"An issue that exceeds the project manager's delegated authority is decided by:",
+ options:["The steering committee or equivalent governance body","The project team at its next retrospective","The project management office's template library","The functional manager of whichever department raised it"],
+ key:"The steering committee or equivalent governance body",
+ why:"The steering committee is the standing decision authority above the project manager. Escalation runs to the body the governance framework names, not to whoever is nearest to the problem."},
+{id:"rd08",cat:"governance",type:"mc",stem:"In governance terms, a tolerance (or threshold) is:",
+ options:["The permitted deviation from the plan before escalation is required","The largest contingency reserve the project is allowed to hold","The confidence interval produced by a simulation","The defect rate the customer has agreed to accept"],
+ key:"The permitted deviation from the plan before escalation is required",
+ why:"Tolerances turn judgement into a rule: inside the band the project manager manages, outside it the matter is escalated as the plan prescribes."},
+{id:"rd09",cat:"governance",type:"mc",stem:"Who authorizes the use of management reserve?",
+ options:["Management, because the reserve sits outside the cost baseline and outside the PM's control","The project manager, who controls all project funds","The risk owner for the event that triggered the need","No one; it is drawn automatically when contingency runs out"],
+ key:"Management, because the reserve sits outside the cost baseline and outside the PM's control",
+ why:"Split the two reserves by owner: contingency reserve is inside the cost baseline and the project manager releases it for identified risks; management reserve is outside the baseline, held for unknown-unknowns, and released by management."},
+
+/* ---------- money-rules (4) ---------- */
+{id:"rd10",cat:"money-rules",type:"mc",stem:"Contingency reserve is available to fund:",
+ options:["Identified risks that were analyzed and provisioned for this project","General cost overruns on any activity, whatever the cause","Unknown-unknown events outside the project's risk analysis","Scope added to the project after the baseline was approved"],
+ key:"Identified risks that were analyzed and provisioned for this project",
+ why:"Contingency covers known-unknowns and is ring-fenced to the risks it was sized for, so it is not a general overrun buffer and cannot be diverted to unrelated work. Unknown-unknowns are management reserve's job and new scope goes through change control."},
+{id:"rd11",cat:"money-rules",type:"mc",stem:"Approved use of management reserve affects the cost baseline in that:",
+ options:["The baseline is increased through an approved change request","The baseline is unchanged, because the reserve was always inside it","The baseline is reduced by the amount released","Only the funding requirement moves; the baseline is never touched"],
+ key:"The baseline is increased through an approved change request",
+ why:"Management reserve is inside the project budget but outside the cost baseline, so moving money into the baseline is a baseline change and needs a change request."},
+{id:"rd12",cat:"money-rules",type:"mc",stem:"Per PMP exam convention, in procurement closure, formal verification of deliverables against the contract:",
+ options:["Precedes final payment","Follows final payment, as a receipt check","Removes the need for a procurement audit","Happens only if the seller requests it"],
+ key:"Precedes final payment",
+ why:"Verify, then pay. Paying before contractual verification surrenders the buyer's leverage and bypasses the acceptance mechanism the contract already defines. Real contracts schedule progress payments on their own terms; the exam asks only about the final payment at closure."},
+{id:"rd13",cat:"money-rules",type:"mc",stem:"A disputed invoice under an active contract is resolved through:",
+ options:["The claims administration and dispute-resolution mechanism written into the contract","An informal joint inspection arranged between the parties","The project issue log's internal escalation path","Immediate arbitration, since the parties disagree"],
+ key:"The claims administration and dispute-resolution mechanism written into the contract",
+ why:"A contract is a legal instrument: its own claims clause governs, and negotiated settlement is attempted inside that mechanism before arbitration or litigation."},
+
+/* ---------- tool-purpose (5) ---------- */
+{id:"rd14",cat:"tool-purpose",type:"mc",stem:"Which technique converts actual performance data into a forecast of future schedule and cost outcomes?",
+ options:["Trend analysis","A risk assessment workshop","A risk breakdown structure","Variance analysis"],
+ key:"Trend analysis",
+ why:"Trend analysis extends actuals forward, so it is the answer whenever the ask is how late or how far over budget the project will end up. Variance analysis measures the gap that has already opened; only trend analysis projects it forward, and a workshop forecasts nothing."},
+{id:"rd15",cat:"tool-purpose",type:"mc",stem:"The purpose of a risk workshop is to:",
+ options:["Identify and assess risks with the relevant participants","Forecast completion dates from performance data","Verify deliverables against contractual obligations","Measure work performed against the cost baseline"],
+ key:"Identify and assess risks with the relevant participants",
+ why:"Workshops surface and evaluate uncertainty; they produce no forecast of actual performance. Identify-and-assess and forecast are different jobs and different tools."},
+{id:"rd16",cat:"tool-purpose",type:"mc",stem:"A risk breakdown structure (RBS) is:",
+ options:["A hierarchical categorization of potential sources of risk","A prioritized ranking of risks by exposure","A diagnostic technique for finding why a problem occurred","A record of risk responses and their owners"],
+ key:"A hierarchical categorization of potential sources of risk",
+ why:"The RBS is the risk world's WBS: it sorts where risk comes from. Prioritization belongs to qualitative analysis in the risk register, diagnosis to root cause analysis, and response ownership to the register."},
+{id:"rd17",cat:"tool-purpose",type:"mc",stem:"Which technique establishes WHY a shared statement, such as a project vision, is being interpreted differently by different groups?",
+ options:["Root cause analysis","A risk breakdown structure","Earned value analysis","Monte Carlo simulation"],
+ key:"Root cause analysis",
+ why:"Root cause analysis answers why, whether the problem is technical, procedural or interpretive. Categorizing risk, measuring performance and modelling uncertainty are not diagnosis."},
+{id:"rd18",cat:"tool-purpose",type:"mc",stem:"A complete impact analysis of a proposed change assesses its effect on:",
+ options:["Scope, schedule and cost together","Cost alone, using detailed cost analytics","The earned value indices for the current period","Critical path float alone"],
+ key:"Scope, schedule and cost together",
+ why:"Impact analysis is never single-dimension; a change moves all three baselines and approvers need all three figures. Earned value analysis measures performance already delivered against the baseline, so it cannot price a change that has not happened yet."},
+
+/* ---------- first-response (4) ---------- */
+{id:"rd19",cat:"first-response",type:"seq",stem:"Per PMP exam convention, order the four rungs of the standard first-response ladder, from first move to last resort.",
+ options:["Gather information and assess the situation","Consult the relevant plan or artifact","Act within your authority, following the defined process","Escalate"],
+ key:["Gather information and assess the situation","Consult the relevant plan or artifact","Act within your authority, following the defined process","Escalate"],
+ why:"Assess, consult, act, escalate. Acting before consulting the plan skips the governing document, and escalation is the last rung rather than the opening move."},
+{id:"rd20",cat:"first-response",type:"mc",stem:"Per PMP exam convention, when a stakeholder's role and information needs change, what is the FIRST step before the communications management plan is updated?",
+ options:["Stakeholder analysis of the changed needs and influence","Submitting a change request to the change control board","Redistributing the existing reports to a wider list","Correcting the stakeholder register's contact details"],
+ key:"Stakeholder analysis of the changed needs and influence",
+ why:"Analysis produces the input; the plan update records its conclusion. Updating the artifact before the analysis that justifies it is the classic one-step-early trap. A change request may still be required to change a baselined plan, but it cannot be written before the analysis that justifies it."},
+{id:"rd21",cat:"first-response",type:"mc",stem:"Per PMP exam convention, when a product owner is chronically unavailable, what precedes escalation?",
+ options:["Assessing the capacity constraint and negotiating dedicated support directly","Replacing the product owner with a team proxy","Pausing the affected stories until availability improves","Logging the unavailability as an accepted risk"],
+ key:"Assessing the capacity constraint and negotiating dedicated support directly",
+ why:"Understand the constraint and offer a workable arrangement first; escalation is held back until direct engagement has failed. Engage before escalate."},
+{id:"rd22",cat:"first-response",type:"mc",stem:"Escalation to senior management or a governance body is warranted when:",
+ options:["The matter exceeds the project manager's authority or breaches a defined tolerance","The project manager's preferred solution is meeting resistance","A stakeholder is difficult to reach","The issue is technically complex"],
+ key:"The matter exceeds the project manager's authority or breaches a defined tolerance",
+ why:"Escalation has a defined trigger: an authority limit or a tolerance breach, not friction or difficulty. Same rule read forwards and backwards as the ladder's last rung."},
+{id:"rd23",cat:"first-response",type:"mc",stem:"Per PMP exam convention, when a defined tolerance or threshold has been breached, the project manager:",
+ options:["Escalates per the governance plan — the trigger converts engagement into escalation","Continues engaging the stakeholders informally until the matter resolves itself","Widens the tolerance to accommodate the deviation","Documents the breach and waits for the next status meeting"],
+ key:"Escalates per the governance plan — the trigger converts engagement into escalation",
+ why:"A breached tolerance is a defined trigger, not a judgement call — it converts ordinary engagement into a mandatory escalation under the governance plan. Hook: the threshold is the tripwire; once tripped, the PM does not renegotiate it."},
+{id:"rd24",cat:"first-response",type:"mc",stem:"Per PMP exam convention, when a vendor violates an explicit contract clause, the response is to:",
+ options:["Administer the contract — apply the remedy the clause defines","Schedule a relationship-building meeting before taking any action","Absorb the violation to preserve the vendor relationship","Renegotiate the entire contract from scratch"],
+ key:"Administer the contract — apply the remedy the clause defines",
+ why:"A contract violation is governed by the contract itself; Control Procurements applies the remedy the breached clause specifies rather than treating it as a relationship issue. Hook: a written clause beats an unwritten conversation."},
+{id:"rd25",cat:"first-response",type:"mc",stem:"The first-response ladder ends in escalation. Escalation at the RIGHT time is:",
+ options:["Correct and expected — after assessment, when authority or tolerance is exceeded","Always a sign that the project manager has failed","Appropriate only for budget-related issues","A last resort that should, in practice, never be used"],
+ key:"Correct and expected — after assessment, when authority or tolerance is exceeded",
+ why:"Escalation is a legitimate rung of the ladder, not an admission of failure — it is the correct move once assessment shows the matter is genuinely outside the PM's authority or tolerance. Hook: the last rung is still a rung, not a fall."},
+
+/* ---------- money-rules, batch 2 — vendor & contract enforcement (4) ---------- */
+{id:"rd26",cat:"money-rules",type:"mc",stem:"Per PMP exam convention, a seller that no longer holds a certification the contract requires is treated as:",
+ options:["In breach of contract — the requirement is enforced, not temporarily waived","Compliant, provided the renewal application has been submitted","A risk to be logged and monitored until the certification is reissued","A quality matter for the seller's own quality department to resolve"],
+ key:"In breach of contract — the requirement is enforced, not temporarily waived",
+ why:"A contractual requirement binds regardless of schedule pressure, and letting work continue on an assumed renewal puts deliverable acceptance and the audit trail at risk. Hook: partial compliance is non-compliance."},
+{id:"rd27",cat:"money-rules",type:"mc",stem:"Per PMP exam convention, what authorizes payment of a seller's invoice under an active contract?",
+ options:["Verified performance — the work is inspected against the contract before payment is released","The seller's own progress report stating the work is complete","The sponsor's confidence in the vendor relationship","Elapsed time since the previous payment was made"],
+ key:"Verified performance — the work is inspected against the contract before payment is released",
+ why:"An invoice is a claim for money, not evidence that the work conforms; Control Procurements pays against inspected performance. Hook: the invoice never verifies itself."},
+{id:"rd28",cat:"money-rules",type:"mc",stem:"In procurement, a claim is:",
+ options:["A contested change on which buyer and seller cannot agree that compensation is due, or on how much","Any change request the seller submits","A defect found when inspecting the seller's work","An insurance policy bought to transfer a threat to a third party"],
+ key:"A contested change on which buyer and seller cannot agree that compensation is due, or on how much",
+ why:"Claims administration documents, processes and monitors contested changes, and unresolved claims move to the contract's dispute-resolution clause with negotiated settlement preferred. Hook: a claim is a disagreement about money, not a fault report."},
+{id:"rd29",cat:"money-rules",type:"mc",stem:"Which process monitors contract performance, manages contract changes, and applies the remedies for nonperformance?",
+ options:["Control Procurements","Conduct Procurements","Plan Procurement Management","Validate Scope"],
+ key:"Control Procurements",
+ why:"Plan chooses the strategy, Conduct awards the contract, Control administers it — enforcement of remedies included. Hook: administer the contract always lands in Control Procurements."},
+
+/* ---------- governance, batch 2 — what a decision body receives (5) ---------- */
+{id:"rd30",cat:"governance",type:"mc",stem:"Per PMP exam convention, a change request submitted to the change control board should carry:",
+ options:["The rationale and a full impact analysis, leaving the decision to the board","A statement, agreed with the customer in advance, of who will pay for the change","The project manager's recommendation to reject any change that raises cost","A note that implementation has already started to protect the schedule"],
+ key:"The rationale and a full impact analysis, leaving the decision to the board",
+ why:"The submission supplies the information the board needs; the board decides the outcome, including who bears the cost. Hook: hand the body data and options, never a verdict."},
+{id:"rd31",cat:"governance",type:"mc",stem:"Per PMP exam convention, while a change request is awaiting the board's decision, the project manager must NOT:",
+ options:["Commit funds, promise the outcome to the customer, or begin implementing the change","Analyze the change's effect on scope, schedule and cost","Record the request and its status in the change log","Consult affected stakeholders to gather impact data"],
+ key:"Commit funds, promise the outcome to the customer, or begin implementing the change",
+ why:"Pre-committing strips the board of the authority the governance framework gives it, while analysis, logging and consultation are all legitimate preparation. Hook: prepare the decision, do not pre-empt it."},
+{id:"rd32",cat:"governance",type:"mc",stem:"Per PMP exam convention, when a matter is escalated to a steering committee, the project manager brings:",
+ options:["An assessment of the situation with viable options and their impacts","A decision already taken, for the committee to endorse","A commitment already given to the customer","A request that the committee gather the facts first"],
+ key:"An assessment of the situation with viable options and their impacts",
+ why:"Governance bodies own the decision; the project manager owns the analysis that makes the decision possible, and gathering the facts is never delegated upward. Hook: options up, decision down."},
+{id:"rd33",cat:"governance",type:"mc",stem:"Per PMP exam convention, when local practice in a delivery country falls below the organization's ethical or compliance standard, the governance plan should:",
+ options:["Define escalation procedures for the conflict while holding the corporate standard","Adjust the corporate standard to local practice for cultural alignment","Delegate ethics exceptions to local leadership","Substitute ethics training for the standard"],
+ key:"Define escalation procedures for the conflict while holding the corporate standard",
+ why:"Cultural sensitivity governs how you communicate, never where the ethical floor sits, and a defined escalation route is a core element of the governance plan. Hook: adapt the style, never the standard."},
+{id:"rd34",cat:"governance",type:"mc",stem:"Per PMP exam convention, when a plan or framework is found to lack a mechanism — for example, no structured way to capture stakeholder input — the response is to:",
+ options:["Request a change to the plan so the mechanism is built into it","Add more meetings to the schedule","Ask the PMO to monitor the gap","Record the gap in the risk register"],
+ key:"Request a change to the plan so the mechanism is built into it",
+ why:"A missing mechanism is a structural gap in a controlled artifact, so the fix amends the artifact and puts the new practice under governance; extra meetings add workload without closing anything. Hook: change the structure, not the meeting rhythm."},
+
+/* ---------- tool-purpose, batch 2 — which instrument answers which question (4) ---------- */
+{id:"rd35",cat:"tool-purpose",type:"mc",stem:"Per PMP exam convention, when candidate solutions to a problem already exist and stakeholders disagree on priorities, what comes before engaging them?",
+ options:["An impact analysis of each candidate option","An emergency stakeholder meeting to choose collaboratively","Escalation to the sponsor for a ruling","A search of the lessons-learned repository"],
+ key:"An impact analysis of each candidate option",
+ why:"Stakeholders already in conflict need comparable data, and a forum convened without impact figures invites premature commitments. Hook: analyze the options, then convene."},
+{id:"rd36",cat:"tool-purpose",type:"mc",stem:"Which analysis establishes whether a buyer may release a contracted vendor resource before the agreed end date?",
+ options:["A review of the contract's terms and obligations","A stakeholder impact analysis","An earned value analysis of the vendor's work","A procurement audit of the vendor's past performance"],
+ key:"A review of the contract's terms and obligations",
+ why:"When the question is what a party is entitled to do, the governing document answers it; impact analysis can price a change but cannot say whether the change is permitted. Hook: obligation question — read the contract, then negotiate."},
+{id:"rd37",cat:"tool-purpose",type:"mc",stem:"Per PMP exam convention, before return on investment can be calculated for a proposed change, the project must first:",
+ options:["Define measurable benefits and the criteria for evaluating them","Calculate ROI and then infer the benefits from it","Review scope and objectives for organizational alignment","Collect customer feedback after delivery"],
+ key:"Define measurable benefits and the criteria for evaluating them",
+ why:"ROI is arithmetic performed on benefits, so it is premature until those benefits exist in measurable form with agreed evaluation criteria. Hook: define the benefit before you divide by it."},
+{id:"rd38",cat:"tool-purpose",type:"mc",stem:"Per PMP exam convention, an analysis of why a project failed to meet its objectives is conducted in order to:",
+ options:["Document findings so future projects benefit","Assign responsibility for the failure","Justify the resources already consumed","Build a case against the vendors involved"],
+ key:"Document findings so future projects benefit",
+ why:"Post-project analysis is a learning instrument feeding the lessons-learned repository, and PMI never keys blame allocation. Hook: the words assign responsibility inside an option are a disqualifier."},
+
+/* ---------- first-response, batch 2 — enable, respond, and answer the item asked (4) ---------- */
+{id:"rd39",cat:"first-response",type:"mc",stem:"Per PMP exam convention, when a team member's performance drops or they cannot get what they need from an existing artifact, the FIRST response is to:",
+ options:["Support the individual — close the capability or understanding gap","Remind them that the current format or process was already agreed","Reassign the work to someone who can already do it","Escalate the shortfall to their functional manager"],
+ key:"Support the individual — close the capability or understanding gap",
+ why:"An unmet need is a capability gap, and defending the existing agreement leaves it unmet; support and coaching precede any citation of process. Hook: enable the person before you quote the rule."},
+{id:"rd40",cat:"first-response",type:"mc",stem:"Per PMP exam convention, when a team resists a required step because they believe it adds no value, the project manager should:",
+ options:["Explain the impact that skipping the step has on the project","Send recurring reminders until compliance improves","Escalate the non-compliance to the PMO","Drop the step to protect team morale"],
+ key:"Explain the impact that skipping the step has on the project",
+ why:"The obstacle is a belief, and reminders, escalation and abandonment all leave that belief untouched. Hook: fix the understanding, not the nagging cadence."},
+{id:"rd41",cat:"first-response",type:"mc",stem:"Per PMP exam convention, when credible reporting indicates that a key vendor may become insolvent, the project manager:",
+ options:["Initiates contingency planning with procurement and explores alternative suppliers","Meets the vendor to establish whether the reports are accurate","Waits for the vendor to raise the matter formally","Cuts project scope to what the vendor can still deliver"],
+ key:"Initiates contingency planning with procurement and explores alternative suppliers",
+ why:"A vendor's solvency is a threat to respond to, not a condition for the project manager to diagnose; contingency planning and alternative sourcing sit inside the PM's remit, the vendor's finances do not. Hook: protect your project, not the vendor's balance sheet."},
+{id:"rd42",cat:"first-response",type:"mc",stem:"Per PMP exam convention, on an item instructing you to choose exactly two (or three) responses, the correct method is to:",
+ options:["Judge each option independently against the stem and select exactly the number requested","Pick the single best option, then whichever option supports it","Select the options that fit together as a matching pair","Select fewer than requested when only one option looks clearly right"],
+ key:"Judge each option independently against the stem and select exactly the number requested",
+ why:"The options need not relate to one another — each is separately right or wrong against the stem, and some multi-response items award partial credit, so every correct selection counts. Hook: N independent verdicts, not one answer plus a companion."},
+
+/* ---------- named-techniques — the vocabulary his misses turned on (7) ---------- */
+{id:"rd43",cat:"named-techniques",type:"mc",stem:"Per PMP exam convention, when there is doubt that all scope has been captured, the WBS should be built:",
+ options:["Bottom-up with the team, rolling identified work up into deliverables","Top-down with the functional managers, for speed","By decomposing the approved schedule into work packages","By reusing a similar project's WBS unchanged"],
+ key:"Bottom-up with the team, rolling identified work up into deliverables",
+ why:"Bottom-up surfaces work that a top-down view never names and secures team ownership, which is exactly what a completeness worry calls for. Hook: completeness in doubt means bottom-up, known deliverables plus time pressure means top-down, and the schedule never drives the WBS."},
+{id:"rd44",cat:"named-techniques",type:"mc",stem:"Which stakeholder classification model ranks stakeholders by power, urgency and legitimacy?",
+ options:["The salience model","The power/interest grid","The directions-of-influence model","The prioritization model"],
+ key:"The salience model",
+ why:"Salience adds urgency and legitimacy to raw power, which is why it is the model named for large, complex stakeholder communities while the power/interest grid suits small, simple projects. Hook: three words — power, urgency, legitimacy."},
+{id:"rd45",cat:"named-techniques",type:"mc",stem:"A measure chosen because it anticipates a future outcome before that outcome materializes is a:",
+ options:["Leading indicator","Lagging indicator","Key performance threshold","Baseline measure"],
+ key:"Leading indicator",
+ why:"Leading indicators predict, lagging indicators confirm after the fact. Hook: the stem's verb is the tell — anticipate, predict or early warning all mean leading."},
+{id:"rd46",cat:"named-techniques",type:"mc",stem:"Per PMP exam convention, which of these is a LEADING indicator of delivery risk?",
+ options:["Team satisfaction and engagement scores","Defect density measured at the end of each iteration","Customer satisfaction survey results collected after release","Social-media sentiment after launch"],
+ key:"Team satisfaction and engagement scores",
+ why:"Engagement falls before delivery does, whereas defects, surveys and sentiment all report on work already delivered. Hook: anything measured after the release is lagging, however technical it sounds."},
+{id:"rd47",cat:"named-techniques",type:"mc",stem:"A large, always-visible display of key information, placed so the team absorbs it without having to ask anyone, is called:",
+ options:["An information radiator","A project status report","A communications management plan","A milestone list"],
+ key:"An information radiator",
+ why:"A radiator pushes information continuously into the team's field of view, replacing pull with ambient visibility, which is why it is the keyed way to reinforce knowledge without adding meetings. Hook: it radiates — nobody has to request it."},
+{id:"rd48",cat:"named-techniques",type:"mc",stem:"In Kanban, the purpose of a work-in-progress (WIP) limit is to:",
+ options:["Cap the items allowed in a stage so flow improves and bottlenecks become visible","Explain why a particular item is blocked","Set the length of the team's iteration","Order the backlog by business value"],
+ key:"Cap the items allowed in a stage so flow improves and bottlenecks become visible",
+ why:"WIP limits manage flow — by Little's Law, cutting WIP cuts cycle time at unchanged throughput — but they diagnose nothing about any specific blocker. Hook: WIP limits control the traffic; they do not investigate the crash."},
+{id:"rd49",cat:"named-techniques",type:"mc",stem:"Per PMP exam convention, blocked items on an adaptive team's board are surfaced and worked through:",
+ options:["With the team, at the daily coordination meeting","With stakeholders, at a specially convened meeting","With the item's owner privately, after the meeting","At the next iteration review, with the sponsor present"],
+ key:"With the team, at the daily coordination meeting",
+ why:"Blockers are team-level fact-finding and the daily meeting exists precisely to raise them; stakeholders are told later if the blocker persists. Hook: fact-finding starts with the team, not with the audience."}
+
+];
+
+/* =====================================================================
+   State + storage (guarded so file:// and private mode never crash)
+   ===================================================================== */
+const LS_KEY = "pmp-crunch-kit-v1";
+const CATS = ["evm-calc","formulas","contract-types","conflict-modes","team-stages","risk-responses","change-control","agile-facts","artifacts","quality","estimating","adaptive-vocab","routing"];
+const CAT_LABEL = {
+  "evm-calc":"EVM calculations","formulas":"Formulas","contract-types":"Contract types","conflict-modes":"Conflict modes",
+  "team-stages":"Team stages","risk-responses":"Risk responses","change-control":"Change control","agile-facts":"Agile facts",
+  "artifacts":"Artifacts","quality":"Quality","estimating":"Estimating methods","adaptive-vocab":"Adaptive vocab","routing":"Routing & metrics"
+};
+let storageOK = true;
+
+function defaultState(){
+  return {v:1, cats:{}, items:{}, calib:{sureRight:0,sureWrong:0,unsureRight:0,unsureWrong:0}, tab:"drill"};
+}
+function loadState(){
+  try{
+    const raw = localStorage.getItem(LS_KEY);
+    if(!raw) return defaultState();
+    const p = JSON.parse(raw);
+    const d = defaultState();
+    if(!p || typeof p !== "object") return d;
+    d.cats = (p.cats && typeof p.cats === "object") ? p.cats : {};
+    d.items = (p.items && typeof p.items === "object") ? p.items : {};
+    if(p.calib && typeof p.calib === "object"){
+      ["sureRight","sureWrong","unsureRight","unsureWrong"].forEach(function(k){
+        d.calib[k] = typeof p.calib[k] === "number" ? p.calib[k] : 0;
+      });
+    }
+    if(p.tab === "drill" || p.tab === "review" || p.tab === "progress") d.tab = p.tab;
+    return d;
+  }catch(e){
+    storageOK = false;
+    return defaultState();
+  }
+}
+function saveState(){
+  try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }
+  catch(e){ storageOK = false; }
+}
+let state = loadState();
+try{ if(typeof localStorage === "undefined") storageOK = false; }catch(e){ storageOK = false; }
+
+/* =====================================================================
+   Helpers
+   ===================================================================== */
+function esc(s){
+  return String(s).replace(/[&<>"']/g, function(c){
+    return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];
+  });
+}
+function shuffle(arr){
+  const a = arr.slice();
+  for(let i=a.length-1;i>0;i--){ const j = Math.floor(Math.random()*(i+1)); const t=a[i]; a[i]=a[j]; a[j]=t; }
+  return a;
+}
+function fmtNum(n){
+  if(typeof n !== "number" || !isFinite(n)) return String(n);
+  if(Math.abs(n) >= 1000) return n.toLocaleString("en-US");
+  return String(n);
+}
+function parseNum(raw){
+  if(raw == null) return NaN;
+  const cleaned = String(raw).replace(/[,\s $£€%]/g, "").replace(/−/g, "-");
+  if(cleaned === "" || cleaned === "-" ) return NaN;
+  if(!/^-?\d*\.?\d+$/.test(cleaned)) return NaN;
+  return parseFloat(cleaned);
+}
+function pct(c, a){ return a > 0 ? Math.round((c/a)*100) : 0; }
+function catStat(cat){ const s = state.cats[cat]; return {a:(s&&s.a)||0, c:(s&&s.c)||0}; }
+function totals(){
+  let a=0,c=0;
+  CATS.forEach(function(k){ const s=catStat(k); a+=s.a; c+=s.c; });
+  return {a:a, c:c};
+}
+const BY_ID = {};
+ITEM_BANK.forEach(function(it){ BY_ID[it.id] = it; });
+REVIEW_DECK.forEach(function(it){ BY_ID[it.id] = it; });
+
+/* Bank integrity check — warns in console, never throws. */
+(function auditBank(){
+  const seen = {};
+  ITEM_BANK.concat(REVIEW_DECK).forEach(function(it){
+    if(seen[it.id]) console.warn("Duplicate item id:", it.id);
+    seen[it.id] = true;
+    if(it.type === "mc"){
+      if(!Array.isArray(it.options) || it.options.indexOf(it.key) === -1) console.warn("MC key not in options:", it.id);
+    }else if(it.type === "num"){
+      if(typeof it.key !== "number") console.warn("NUM key not a number:", it.id);
+    }else if(it.type === "seq"){
+      if(!Array.isArray(it.options) || !Array.isArray(it.key) || it.options.length !== it.key.length) console.warn("SEQ length mismatch:", it.id);
+      else it.key.forEach(function(k){ if(it.options.indexOf(k) === -1) console.warn("SEQ key member missing from options:", it.id, k); });
+    }else{
+      console.warn("Unknown type:", it.id, it.type);
+    }
+  });
+})();
+
+/* =====================================================================
+   Session engine
+   ===================================================================== */
+let session = null;
+
+function buildQueue(bank, n){
+  const scored = bank.map(function(it){
+    const cs = catStat(it.cat);
+    let w;
+    if(cs.a < 3){ w = 1.6; }                       // unseen categories get a mild boost
+    else { w = 0.6 + 2.4 * (1 - cs.c/cs.a); }      // low accuracy -> heavier weight
+    const is = state.items[it.id];
+    if(is && is.a > 0){ w *= (0.7 + 1.3 * (1 - is.c/is.a)); }  // previously missed items favoured
+    if(w < 0.05) w = 0.05;
+    return {it:it, k: Math.pow(Math.random(), 1/w)};   // weighted sampling without replacement
+  });
+  scored.sort(function(a,b){ return b.k - a.k; });
+  return scored.slice(0, Math.min(n, scored.length)).map(function(x){ return x.it; });
+}
+
+function startSession(source, len){
+  const bank = source === "review" ? REVIEW_DECK : ITEM_BANK;
+  if(!bank.length) return;
+  const n = (len === "all" || len > bank.length) ? bank.length : len;
+  session = {
+    source: source,
+    queue: buildQueue(bank, n),
+    idx: 0,
+    planned: n,
+    inSweep: false,
+    sweepIds: [],
+    rq: {},
+    done: false,
+    log: [],
+    conf: null,
+    phase: "ask",
+    cur: null,
+    curOpts: null,
+    picked: [],
+    lastCorrect: null,
+    lastAnswer: ""
+  };
+  prepareCurrent();
+  render();
+}
+
+function prepareCurrent(){
+  if(!session || session.done) return;
+  const it = session.queue[session.idx];
+  session.cur = it;
+  session.conf = null;
+  session.phase = "ask";
+  session.picked = [];
+  session.lastCorrect = null;
+  session.lastAnswer = "";
+  session.curOpts = (it && (it.type === "mc" || it.type === "seq")) ? shuffle(it.options) : null;
+}
+
+function recordResult(item, correct){
+  const cs = state.cats[item.cat] || (state.cats[item.cat] = {a:0,c:0});
+  cs.a += 1; if(correct) cs.c += 1;
+  const is = state.items[item.id] || (state.items[item.id] = {a:0,c:0});
+  is.a += 1; if(correct) is.c += 1;
+  if(session.conf === "sure"){ if(correct) state.calib.sureRight++; else state.calib.sureWrong++; }
+  else if(session.conf === "unsure"){ if(correct) state.calib.unsureRight++; else state.calib.unsureWrong++; }
+  session.log.push({id:item.id, correct:correct, conf:session.conf});
+  saveState();
+}
+
+function grade(answerDisplay, correct){
+  const item = session.cur;
+  session.lastCorrect = correct;
+  session.lastAnswer = answerDisplay;
+  session.phase = "feedback";
+  recordResult(item, correct);
+  if(!correct){
+    if(session.sweepIds.indexOf(item.id) === -1 && !session.inSweep) session.sweepIds.push(item.id);
+    const used = session.rq[item.id] || 0;
+    if(used < 2){
+      session.rq[item.id] = used + 1;
+      const offset = 3 + Math.floor(Math.random()*4);            // 3-6 positions later
+      const pos = Math.min(session.queue.length, session.idx + offset);
+      session.queue.splice(pos, 0, item);
+    }
+  }
+  render();
+}
+
+function advance(){
+  session.idx += 1;
+  if(session.idx >= session.queue.length){
+    const sweep = session.sweepIds.map(function(id){ return BY_ID[id]; }).filter(Boolean);
+    if(!session.inSweep && sweep.length){
+      session.inSweep = true;
+      session.queue = shuffle(sweep);
+      session.sweepIds = [];
+      session.idx = 0;
+      session.rq = {};
+    }else{
+      session.done = true;
+    }
+  }
+  prepareCurrent();
+  render();
+}
+
+function sessionScore(){
+  let a=0,c=0;
+  session.log.forEach(function(r){ a++; if(r.correct) c++; });
+  return {a:a, c:c};
+}
+
+/* =====================================================================
+   Render
+   ===================================================================== */
+const view = document.getElementById("view");
+const tabsEl = document.getElementById("tabs");
+
+function renderHeader(){
+  const t = totals();
+  document.getElementById("hdrStat").textContent = t.a > 0 ? (pct(t.c,t.a) + "%  ·  " + t.c + "/" + t.a) : "no data yet";
+  const strip = document.getElementById("strip");
+  const L = document.getElementById("stripL");
+  const R = document.getElementById("stripR");
+
+  if(session && !session.done){
+    const s = sessionScore();
+    const total = session.queue.length;
+    const goodW = (s.c/total)*100;
+    const badW = ((s.a-s.c)/total)*100;
+    strip.innerHTML = '<i class="s-good" style="width:'+goodW.toFixed(2)+'%"></i>'
+                    + '<i class="s-bad" style="width:'+badW.toFixed(2)+'%"></i>'
+                    + '<i class="s-todo" style="width:'+Math.max(0,100-goodW-badW).toFixed(2)+'%"></i>';
+    L.textContent = (session.inSweep ? "review sweep " : "session ") + (session.idx+1) + " / " + total;
+    R.textContent = s.a ? (pct(s.c,s.a) + "% this session") : "";
+  }else{
+    const overall = t.a > 0 ? pct(t.c,t.a) : 0;
+    strip.innerHTML = '<i class="s-good" style="width:'+overall+'%"></i><i class="s-todo" style="width:'+(100-overall)+'%"></i>';
+    L.textContent = t.a > 0 ? "lifetime accuracy" : "ready";
+    R.textContent = ITEM_BANK.length + " items in bank";
+  }
+}
+
+function render(){
+  renderHeader();
+  Array.prototype.forEach.call(tabsEl.querySelectorAll("button"), function(b){
+    b.setAttribute("aria-selected", b.dataset.tab === state.tab ? "true" : "false");
+  });
+  if(state.tab === "drill") renderDrill();
+  else if(state.tab === "review") renderReview();
+  else renderProgress();
+}
+
+function storageWarn(){
+  return storageOK ? "" : '<div class="warnbar">Local storage is unavailable, so progress will not persist after you close this tab. Everything else works.</div>';
+}
+
+function renderDrill(){
+  if(!session || session.source !== "drill"){
+    view.innerHTML = storageWarn() +
+      '<div class="card">' +
+      '<h2 class="sec">Facts drill</h2>' +
+      '<p class="lede">' + ITEM_BANK.length + ' one-right-answer items across ' + CATS.length + ' categories. The queue is weighted toward your weakest categories. Miss one and it comes back a few questions later, then again in a review sweep at the end.</p>' +
+      '<div class="btnrow">' +
+      '<button class="btn primary" data-start="20">20 items</button>' +
+      '<button class="btn primary" data-start="40">40 items</button>' +
+      '<button class="btn" data-start="all">Full bank</button>' +
+      '</div></div>' + weakSpotCard();
+    Array.prototype.forEach.call(view.querySelectorAll("[data-start]"), function(b){
+      b.addEventListener("click", function(){
+        const v = b.dataset.start;
+        startSession("drill", v === "all" ? "all" : parseInt(v,10));
+      });
+    });
+    return;
+  }
+  if(session.done){ renderDone(); return; }
+  view.innerHTML = questionHTML() + (session.phase === "feedback" ? feedbackHTML() : "");
+  wireQuestion();
+}
+
+function weakSpotCard(){
+  const rows = CATS.map(function(k){ return {k:k, s:catStat(k)}; }).filter(function(r){ return r.s.a >= 3; });
+  if(!rows.length) return "";
+  rows.sort(function(a,b){ return (a.s.c/a.s.a) - (b.s.c/b.s.a); });
+  const worst = rows.slice(0,3);
+  return '<div class="card"><h2 class="sec">Current weak spots</h2>' +
+    worst.map(function(r){
+      return '<div class="kv"><span class="k">' + esc(CAT_LABEL[r.k]) + '</span><span class="v">' + pct(r.s.c,r.s.a) + '%</span></div>';
+    }).join("") +
+    '<p class="hint" style="margin-top:0.5rem;margin-bottom:0">These get drawn more often in the next session.</p></div>';
+}
+
+function questionHTML(){
+  const it = session.cur;
+  const locked = session.phase === "feedback";
+  let body = "";
+
+  if(it.type === "mc"){
+    const letters = ["A","B","C","D","E","F"];
+    body = '<div class="opts">' + session.curOpts.map(function(o,i){
+      let cls = "opt";
+      let tag = "";
+      if(locked){
+        if(o === it.key){ cls += " is-key"; tag = '<span class="tagr">Correct</span>'; }
+        else if(o === session.lastAnswer){ cls += " is-wrong"; tag = '<span class="tagr">You</span>'; }
+        else cls += " dim";
+      }
+      return '<button class="' + cls + '" data-opt="' + esc(o) + '"' + (locked ? " disabled" : "") + '>' +
+             '<span class="k">' + letters[i] + '</span><span>' + esc(o) + '</span>' + tag + '</button>';
+    }).join("") + '</div>';
+
+  }else if(it.type === "num"){
+    body = '<div class="numrow">' +
+      '<input class="numin" id="numin" type="text" inputmode="decimal" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="answer" ' +
+      (locked ? 'disabled value="' + esc(session.lastAnswer) + '"' : "") + '>' +
+      '<button class="btn primary" id="numCheck"' + (locked ? " disabled" : "") + '>Check</button></div>' +
+      '<p class="hint" style="margin:0.45rem 0 0">Graded to ±0.01. Commas and currency symbols are ignored.</p>';
+
+  }else{ // seq
+    const remaining = session.curOpts.filter(function(o){ return session.picked.indexOf(o) === -1; });
+    const pickedHTML = session.picked.length
+      ? session.picked.map(function(o,i){ return '<div class="seqpick"><b>' + (i+1) + '.</b><span>' + esc(o) + '</span></div>'; }).join("")
+      : '<span class="empty">Tap the options below in the correct order.</span>';
+    body = '<div class="seqbox">' + pickedHTML + '</div>';
+    if(!locked){
+      body += '<div class="opts">' + remaining.map(function(o){
+        return '<button class="opt" data-seq="' + esc(o) + '"><span class="k">+</span><span>' + esc(o) + '</span></button>';
+      }).join("") + '</div>';
+      body += '<div class="btnrow">' +
+        '<button class="btn" id="seqUndo"' + (session.picked.length ? "" : " disabled") + '>Undo</button>' +
+        '<button class="btn primary" id="seqCheck"' + (session.picked.length === session.curOpts.length ? "" : " disabled") + '>Check order</button>' +
+        '</div>';
+    }
+  }
+
+  const confHTML = locked ? "" :
+    '<div class="conf"><span class="lab">Confidence</span>' +
+    '<button data-conf="sure" aria-pressed="' + (session.conf === "sure") + '">Sure</button>' +
+    '<button data-conf="unsure" aria-pressed="' + (session.conf === "unsure") + '">Unsure</button>' +
+    '<span class="hint" style="margin:0">optional</span></div>';
+
+  const typeLabel = it.type === "mc" ? "Multiple choice" : (it.type === "num" ? "Numeric" : "Order the steps");
+
+  return storageWarn() + '<div class="card">' +
+    '<div class="meta"><span class="chip cat">' + esc(CAT_LABEL[it.cat] || it.cat) + '</span>' +
+    '<span class="chip">' + typeLabel + '</span>' +
+    (session.inSweep ? '<span class="chip sweep">Review sweep</span>' : "") +
+    ((state.items[it.id] && state.items[it.id].a > 0 && session.phase === "ask") ? '<span class="chip">Seen ' + state.items[it.id].a + 'x</span>' : "") +
+    '</div>' +
+    '<p class="stem">' + esc(it.stem) + '</p>' +
+    confHTML + body + '</div>';
+}
+
+function feedbackHTML(){
+  const it = session.cur;
+  const ok = session.lastCorrect;
+  let keyText;
+  if(it.type === "num") keyText = fmtNum(it.key);
+  else if(it.type === "seq") keyText = it.key.join("  →  ");
+  else keyText = it.key;
+
+  let calibNote = "";
+  if(session.conf === "sure" && !ok) calibNote = 'You marked this SURE and missed it. That is the dangerous kind of gap — it will not feel wrong on exam day.';
+  else if(session.conf === "unsure" && ok) calibNote = 'You marked this UNSURE and got it right. Knowledge is there; trust it and stop second-guessing.';
+
+  return '<div class="fb ' + (ok ? "good" : "bad") + '">' +
+    '<div class="verdict">' + (ok ? "Correct" : "Not quite") + '</div>' +
+    '<div class="keyline">Key: <em>' + esc(keyText) + '</em></div>' +
+    '<div class="why">' + esc(it.why) + '</div>' +
+    (calibNote ? '<div class="calib">' + esc(calibNote) + '</div>' : "") +
+    '<div class="btnrow"><button class="btn primary wide" id="nextBtn">Next →</button></div>' +
+    '</div>';
+}
+
+function wireQuestion(){
+  const it = session.cur;
+
+  Array.prototype.forEach.call(view.querySelectorAll("[data-conf]"), function(b){
+    b.addEventListener("click", function(){
+      session.conf = (session.conf === b.dataset.conf) ? null : b.dataset.conf;
+      render();
+    });
+  });
+
+  if(session.phase === "feedback"){
+    const nb = document.getElementById("nextBtn");
+    if(nb){ nb.addEventListener("click", advance); nb.focus(); }
+    return;
+  }
+
+  if(it.type === "mc"){
+    Array.prototype.forEach.call(view.querySelectorAll("[data-opt]"), function(b){
+      b.addEventListener("click", function(){
+        const val = b.dataset.opt;
+        grade(val, val === it.key);
+      });
+    });
+  }else if(it.type === "num"){
+    const input = document.getElementById("numin");
+    const btn = document.getElementById("numCheck");
+    function submitNum(){
+      const raw = input.value;
+      const val = parseNum(raw);
+      if(isNaN(val)){ input.focus(); return; }
+      grade(raw.trim(), Math.abs(val - it.key) <= 0.01 + 1e-9);
+    }
+    btn.addEventListener("click", submitNum);
+    input.addEventListener("keydown", function(e){
+      if(e.key === "Enter"){
+        e.preventDefault();
+        e.stopPropagation();   // otherwise the same Enter bubbles up and skips the feedback
+        submitNum();
+      }
+    });
+    input.focus();
+  }else{
+    Array.prototype.forEach.call(view.querySelectorAll("[data-seq]"), function(b){
+      b.addEventListener("click", function(){
+        session.picked.push(b.dataset.seq);
+        render();
+      });
+    });
+    const undo = document.getElementById("seqUndo");
+    if(undo) undo.addEventListener("click", function(){ session.picked.pop(); render(); });
+    const chk = document.getElementById("seqCheck");
+    if(chk) chk.addEventListener("click", function(){
+      const ok = session.picked.length === it.key.length && session.picked.every(function(v,i){ return v === it.key[i]; });
+      grade(session.picked.join("  →  "), ok);
+    });
+  }
+}
+
+function renderDone(){
+  const s = sessionScore();
+  const cal = session.log.reduce(function(acc,r){
+    if(r.conf === "sure" && !r.correct) acc.sw++;
+    if(r.conf === "unsure" && r.correct) acc.ur++;
+    return acc;
+  }, {sw:0, ur:0});
+  const missed = {};
+  session.log.forEach(function(r){ if(!r.correct){ const it = BY_ID[r.id]; if(it) missed[it.cat] = (missed[it.cat]||0)+1; } });
+  const missedRows = Object.keys(missed).sort(function(a,b){ return missed[b]-missed[a]; }).map(function(k){
+    return '<div class="kv"><span class="k">' + esc(CAT_LABEL[k]||k) + '</span><span class="v">' + missed[k] + ' missed</span></div>';
+  }).join("");
+
+  view.innerHTML = '<div class="card">' +
+    '<h2 class="sec">Session complete</h2>' +
+    '<div class="bigstat">' +
+      '<div><div class="v">' + pct(s.c,s.a) + '%</div><div class="l">accuracy</div></div>' +
+      '<div><div class="v">' + s.c + '/' + s.a + '</div><div class="l">answers</div></div>' +
+      '<div><div class="v">' + cal.sw + '</div><div class="l">sure &amp; wrong</div></div>' +
+    '</div>' +
+    (missedRows ? '<h2 class="sec" style="margin-top:0.5rem">Where you leaked points</h2>' + missedRows : '<p class="lede">Clean sweep — nothing missed.</p>') +
+    (cal.ur ? '<div class="verdictline">' + cal.ur + ' item(s) you called unsure and got right. You know more than you think.</div>' : "") +
+    '<div class="btnrow">' +
+      '<button class="btn primary" id="again">Drill again</button>' +
+      '<button class="btn" id="toProgress">See progress</button>' +
+    '</div></div>';
+  document.getElementById("again").addEventListener("click", function(){ session = null; render(); });
+  document.getElementById("toProgress").addEventListener("click", function(){ state.tab = "progress"; saveState(); render(); });
+}
+
+function renderReview(){
+  if(!REVIEW_DECK.length){
+    view.innerHTML = storageWarn() + '<div class="card"><div class="empty-state">' +
+      '<b>Deck empty — will fill after your calibration</b>' +
+      'Your missed items from official practice go here. Same schema as the main bank, drilled with the same engine.' +
+      '</div></div>';
+    return;
+  }
+  if(!session || session.source !== "review"){
+    view.innerHTML = storageWarn() + '<div class="card">' +
+      '<h2 class="sec">Review deck</h2>' +
+      '<p class="lede">' + REVIEW_DECK.length + ' item(s) from your missed official-practice questions.</p>' +
+      '<div class="btnrow"><button class="btn primary wide" id="startReview">Drill the deck</button></div></div>';
+    document.getElementById("startReview").addEventListener("click", function(){ startSession("review","all"); });
+    return;
+  }
+  if(session.done){ renderDone(); return; }
+  view.innerHTML = questionHTML() + (session.phase === "feedback" ? feedbackHTML() : "");
+  wireQuestion();
+}
+
+function renderProgress(){
+  const t = totals();
+  const c = state.calib;
+  const sureTotal = c.sureRight + c.sureWrong;
+  const unsureTotal = c.unsureRight + c.unsureWrong;
+
+  let verdict;
+  if(sureTotal + unsureTotal < 5){
+    verdict = "Tap Sure / Unsure on a few more items to get a calibration read.";
+  }else{
+    const sureAcc = sureTotal ? c.sureRight/sureTotal : null;
+    const unsureAcc = unsureTotal ? c.unsureRight/unsureTotal : null;
+    if(sureAcc !== null && sureAcc < 0.85 && c.sureWrong >= 2){
+      verdict = "Overconfident: you missed " + c.sureWrong + " item(s) you called Sure (" + Math.round(sureAcc*100) + "% accuracy when sure). Slow down on the categories below.";
+    }else if(unsureAcc !== null && unsureAcc > 0.7 && c.unsureRight >= 3){
+      verdict = "Underconfident: " + c.unsureRight + " of " + unsureTotal + " items you called Unsure were right (" + Math.round(unsureAcc*100) + "%). Your gut is better than your self-assessment.";
+    }else{
+      verdict = "Well calibrated: Sure " + (sureTotal ? Math.round(sureAcc*100) : 0) + "% vs Unsure " + (unsureTotal ? Math.round(unsureAcc*100) : 0) + "%. Keep trusting the split.";
+    }
+  }
+
+  const bars = CATS.map(function(k){
+    const s = catStat(k);
+    const p = pct(s.c, s.a);
+    const col = s.a === 0 ? "var(--surface-3)" : (p >= 80 ? "var(--good)" : (p >= 60 ? "var(--warn)" : "var(--bad)"));
+    const bankCount = ITEM_BANK.filter(function(i){ return i.cat === k; }).length;
+    return '<div class="catrow"><div class="top">' +
+      '<span class="nm">' + esc(CAT_LABEL[k]) + ' <span class="pill">' + bankCount + '</span></span>' +
+      '<span class="fr">' + (s.a ? s.c + "/" + s.a + "  ·  " + p + "%" : "not attempted") + '</span>' +
+      '</div><div class="track"><i style="width:' + (s.a ? p : 0) + '%;background:' + col + '"></i></div></div>';
+  }).join("");
+
+  view.innerHTML = storageWarn() +
+    '<div class="bigstat">' +
+      '<div><div class="v">' + (t.a ? pct(t.c,t.a) : 0) + '%</div><div class="l">overall</div></div>' +
+      '<div><div class="v">' + t.a + '</div><div class="l">attempted</div></div>' +
+      '<div><div class="v">' + t.c + '</div><div class="l">correct</div></div>' +
+    '</div>' +
+    '<div class="card"><h2 class="sec">Accuracy by category</h2>' + bars + '</div>' +
+    '<div class="card"><h2 class="sec">Calibration</h2>' +
+      '<div class="kv"><span class="k">Sure and right</span><span class="v">' + c.sureRight + '</span></div>' +
+      '<div class="kv"><span class="k">Sure and wrong (overconfidence)</span><span class="v">' + c.sureWrong + '</span></div>' +
+      '<div class="kv"><span class="k">Unsure and right (underconfidence)</span><span class="v">' + c.unsureRight + '</span></div>' +
+      '<div class="kv"><span class="k">Unsure and wrong</span><span class="v">' + c.unsureWrong + '</span></div>' +
+      '<div class="verdictline">' + esc(verdict) + '</div>' +
+    '</div>' +
+    '<div class="card"><h2 class="sec">Reset</h2>' +
+      '<p class="lede">Clears every attempt, category stat and calibration count on this device.</p>' +
+      '<button class="btn danger wide" id="resetBtn">Reset all progress</button></div>';
+
+  document.getElementById("resetBtn").addEventListener("click", function(){
+    let ok = false;
+    try{ ok = window.confirm("Reset all progress? This cannot be undone."); }catch(e){ ok = false; }
+    if(!ok) return;
+    state = defaultState();
+    state.tab = "progress";
+    session = null;
+    try{ localStorage.removeItem(LS_KEY); }catch(e){ /* ignore */ }
+    saveState();
+    render();
+  });
+}
+
+/* =====================================================================
+   Wiring
+   ===================================================================== */
+Array.prototype.forEach.call(tabsEl.querySelectorAll("button"), function(b){
+  b.addEventListener("click", function(){
+    state.tab = b.dataset.tab;
+    saveState();
+    render();
+  });
+});
+
+document.addEventListener("keydown", function(e){
+  if(state.tab === "progress") return;
+  if(!session || session.done || !session.cur) return;
+  const tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : "";
+  if(tag === "input") return;   // never let a keypress inside the answer field drive the queue
+  if(session.phase === "feedback"){
+    if(e.key === "Enter" || e.key === " "){ e.preventDefault(); advance(); }
+    return;
+  }
+  if(session.cur.type === "mc" && /^[1-6]$/.test(e.key)){
+    const i = parseInt(e.key,10) - 1;
+    if(i < session.curOpts.length){
+      e.preventDefault();
+      const val = session.curOpts[i];
+      grade(val, val === session.cur.key);
+    }
+  }
+});
+
+render();
+</script>
+
+<!-- ITEM_BANK_EXPORT
+TOTAL ITEMS: 115   (cfl08 and chg01 removed in content QA — contested / non-single-defensible ordering)
+
+Per category (id prefix):
+  evm-calc         18   (evm01-evm18)
+  formulas         10   (frm01-frm10)
+  contract-types   10   (ctr01-ctr10)
+  conflict-modes    7   (cfl01-cfl07)
+  team-stages       6   (tkm01-tkm06)
+  risk-responses   10   (rsk01-rsk10)
+  change-control    7   (chg02-chg08)
+  agile-facts      12   (agl01-agl12)
+  artifacts        10   (art01-art10)
+  quality           8   (qly01-qly08)
+  estimating        7   (est01-est07)
+  adaptive-vocab    6   (adp01-adp06)
+  routing           4   (rte01-rte04)
+
+Per question type:
+  mc    85
+  num   27   (evm-calc 18, formulas 7, contract-types 1 [ctr09], agile-facts 1 [agl12])
+  seq    3   (ctr10, tkm05, est05)
+
+REVIEW_DECK: 48 items (rd01-rd49 less rd04), authored post-calibration from the sprint miss analyses.
+  Batch 1 (rd01-rd25 less rd04) from the sprint-1 misses, including a second pass (rd23-rd25) on
+  first-response/escalation vocabulary.
+  (rd04 removed in content QA — ranking of OPA sources by "authority" is not PMBOK doctrine and the
+   middle two positions were not single-defensible.)
+  Batch 2 (rd26-rd49, 24 items) from the sprint-2 + sprint-3 misses: vendor/contract enforcement,
+  governance-body protocol, analysis-tool selection, named techniques, enable-before-cite,
+  and multi-response mechanics.
+  opa-eef           4   (rd01-rd03, rd05)
+  governance        9   (rd06-rd09, rd30-rd34)
+  money-rules       8   (rd10-rd13, rd26-rd29)
+  tool-purpose      9   (rd14-rd18, rd35-rd38)
+  first-response   11   (rd19-rd25, rd39-rd42)
+  named-techniques  7   (rd43-rd49)
+  Types: mc 47, seq 1 (rd19), num 0.
+
+Numeric grading tolerance: +/- 0.01 absolute. Commas, spaces and currency symbols stripped before parse.
+All keys are single-answer facts drawn from PMBOK 6/7 doctrine and the Scrum Guide. No situational-judgement items.
+-->

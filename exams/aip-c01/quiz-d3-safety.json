@@ -1,0 +1,348 @@
+{
+  "domain_id": "D3",
+  "domain_title": "AI Safety, Security, and Governance",
+  "questions": [
+    {
+      "id": "D3-Q001",
+      "type": "single_choice",
+      "difficulty": "hard",
+      "tags": ["guardrails", "contextual-grounding"],
+      "scenario": "A RAG application using Bedrock Knowledge Bases occasionally returns answers that confidently invent facts not supported by retrieved chunks. The team wants the FM to REFUSE to answer when its response isn't grounded in retrieved context.",
+      "stem": "Which Bedrock Guardrails policy MOST directly addresses this?",
+      "options": [
+        {"letter": "A", "text": "Content filters — Hate, Insults, Sexual, Violence categories.", "correct": false, "why": "Content filters block toxic content, not hallucinations."},
+        {"letter": "B", "text": "Contextual Grounding check — groundedness and relevance thresholds.", "correct": true, "why": "Contextual Grounding scores the FM's response against retrieved context; below the threshold, the response is blocked. The exact tool for ungrounded answers."},
+        {"letter": "C", "text": "Denied Topics policy.", "correct": false, "why": "Denied Topics blocks subjects (e.g., legal advice) — not hallucinations."},
+        {"letter": "D", "text": "Word filters.", "correct": false, "why": "Word filters blocklist specific tokens — irrelevant to grounding."}
+      ],
+      "knowledge_point": "Guardrails Contextual Grounding has TWO thresholds: groundedness (response supported by retrieved context) and relevance (retrieved context relevant to query). Both 0–1; tune per app.",
+      "trap_alert": "When the question signature is 'reduce hallucinations on RAG', the answer is Contextual Grounding — not Content filters or Denied Topics.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails-contextual-grounding-check.html"]
+    },
+    {
+      "id": "D3-Q002",
+      "type": "multiple_response",
+      "difficulty": "hard",
+      "tags": ["guardrails", "policy-types"],
+      "stem": "Which of the following are policy types available in Amazon Bedrock Guardrails? (Select THREE)",
+      "scenario": "",
+      "options": [
+        {"letter": "A", "text": "Content filters (Hate, Insults, Sexual, Violence, Misconduct, Prompt Attack).", "correct": true, "why": "Native content-filter categories."},
+        {"letter": "B", "text": "Denied topics (natural-language defined).", "correct": true, "why": "Block conversations on specific subjects via natural-language definitions."},
+        {"letter": "C", "text": "Contextual grounding check (groundedness + relevance).", "correct": true, "why": "Native policy for RAG-style grounding scoring."},
+        {"letter": "D", "text": "Network ACL filter.", "correct": false, "why": "NACL is a VPC networking control — not a Guardrails policy."},
+        {"letter": "E", "text": "Outbound IP filter.", "correct": false, "why": "Not a Guardrails policy. Network egress is controlled by VPC/security groups."},
+        {"letter": "F", "text": "AWS WAF managed rules.", "correct": false, "why": "WAF is for web application traffic, not FM content policies."}
+      ],
+      "knowledge_point": "Six Guardrails policy types: Content filters, Denied topics, Word filters, Sensitive information (PII), Contextual grounding, Image content filter. (Independent ApplyGuardrail API also available.)",
+      "trap_alert": "Network controls (WAF, NACL, IP filters) are NOT Guardrails policies. Guardrails sit at the FM I/O layer.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails-components.html"]
+    },
+    {
+      "id": "D3-Q003",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["guardrails", "thresholds"],
+      "scenario": "A team configures the Hate content filter at HIGH on the INPUT side and LOW on the OUTPUT side.",
+      "stem": "Which statement is TRUE?",
+      "options": [
+        {"letter": "A", "text": "Guardrails apply the same threshold for input and output — the configuration will be rejected.", "correct": false, "why": "Input and output thresholds can be set INDEPENDENTLY per content category."},
+        {"letter": "B", "text": "Input filter blocks at the HIGH sensitivity (most strict for user input); output filter is less strict at LOW.", "correct": true, "why": "Each filter category has separate INPUT and OUTPUT thresholds with values NONE / LOW / MEDIUM / HIGH."},
+        {"letter": "C", "text": "HIGH means the filter blocks low-confidence detections; LOW means it blocks high-confidence only.", "correct": false, "why": "HIGH = block aggressively (low threshold for detection); LOW = only block strongest detections."},
+        {"letter": "D", "text": "Thresholds are numeric 0–1, not LOW/MEDIUM/HIGH.", "correct": false, "why": "Content filters use NONE/LOW/MEDIUM/HIGH categorical thresholds. Contextual Grounding uses numeric 0–1."}
+      ],
+      "knowledge_point": "Content filters: per-category, per-direction (input/output), four levels NONE/LOW/MEDIUM/HIGH. HIGH = most aggressive blocking.",
+      "trap_alert": "Don't confuse content-filter LEVELS (NONE..HIGH) with Contextual Grounding NUMERIC thresholds (0..1).",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails-content-filters.html"]
+    },
+    {
+      "id": "D3-Q004",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["guardrails", "prompt-attack"],
+      "scenario": "An assistant must defend against prompts that try to override the system prompt with 'Ignore previous instructions and …'.",
+      "stem": "Which Guardrails component MOST directly defends against this?",
+      "options": [
+        {"letter": "A", "text": "Content filter category PROMPT ATTACK applied on the input side.", "correct": true, "why": "Prompt Attack is a content-filter category specifically designed to detect prompt-injection / jailbreak attempts on user input."},
+        {"letter": "B", "text": "Denied Topics with 'jailbreak' listed.", "correct": false, "why": "Denied Topics blocks subject matter, not adversarial prompt patterns."},
+        {"letter": "C", "text": "Word filter with 'ignore' and 'previous instructions' blocked.", "correct": false, "why": "Brittle and easily bypassed by paraphrasing."},
+        {"letter": "D", "text": "Sensitive information filter.", "correct": false, "why": "PII filter — unrelated to prompt injection."}
+      ],
+      "knowledge_point": "Prompt Attack is its own content-filter category in Bedrock Guardrails — apply on INPUT side to detect injection/jailbreak patterns.",
+      "trap_alert": "Word filters with hand-coded patterns are brittle. Use the dedicated Prompt Attack category.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails-content-filters.html"]
+    },
+    {
+      "id": "D3-Q005",
+      "type": "single_choice",
+      "difficulty": "hard",
+      "tags": ["iam", "least-privilege"],
+      "scenario": "A development team's IAM role currently allows bedrock:InvokeModel on Resource: \"*\". Security wants least-privilege: the role should only call Claude 3 Sonnet.",
+      "stem": "Which IAM policy resource specification is MOST appropriate?",
+      "options": [
+        {"letter": "A", "text": "Resource: \"arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-3-sonnet-20240229-v1:0\".", "correct": true, "why": "Scope the resource to the specific FM ARN — the canonical least-privilege pattern."},
+        {"letter": "B", "text": "Resource: \"*\" with a Condition StringEquals on the User-Agent.", "correct": false, "why": "User-Agent is spoofable; not a security control."},
+        {"letter": "C", "text": "Resource: \"arn:aws:bedrock:*:*:*\".", "correct": false, "why": "Wildcard across all regions and accounts is not least-privilege."},
+        {"letter": "D", "text": "Remove the InvokeModel permission entirely.", "correct": false, "why": "Removes ALL access, blocking the team from operating."}
+      ],
+      "knowledge_point": "IAM for Bedrock InvokeModel: scope by foundation-model ARN. Each model has a region-qualified ARN; combine with the correct region.",
+      "trap_alert": "User-Agent / IP conditions are weak controls. ARN-scoping is the correct lever.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/security-iam.html"]
+    },
+    {
+      "id": "D3-Q006",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["iam", "model-access"],
+      "scenario": "A new account holder tries to call Anthropic Claude 3 Sonnet on Bedrock and receives an AccessDeniedException despite an IAM policy allowing bedrock:InvokeModel.",
+      "stem": "What is the MOST LIKELY missing step?",
+      "options": [
+        {"letter": "A", "text": "The account has not requested/enabled access to Anthropic Claude 3 Sonnet via the Bedrock Model Access page.", "correct": true, "why": "Each Bedrock model requires explicit Model Access enablement per account (and per region). IAM alone is not sufficient."},
+        {"letter": "B", "text": "Service Quotas request for Bedrock has not been raised.", "correct": false, "why": "Quotas affect rate, not initial access enablement."},
+        {"letter": "C", "text": "An NLB is required in front of Bedrock.", "correct": false, "why": "Bedrock is an AWS service endpoint; an NLB is not part of the access path."},
+        {"letter": "D", "text": "The user must be an AWS Organizations management account user.", "correct": false, "why": "No such requirement for Bedrock model access."}
+      ],
+      "knowledge_point": "Two-layer access on Bedrock: (1) Model Access enablement per account/region (one-time), (2) IAM bedrock:InvokeModel permission. Both required.",
+      "trap_alert": "An AccessDenied on a 'new' Bedrock account is almost always Model Access — easy to miss.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/model-access.html"]
+    },
+    {
+      "id": "D3-Q007",
+      "type": "single_choice",
+      "difficulty": "hard",
+      "tags": ["kms", "encryption", "cmk"],
+      "scenario": "A regulated financial firm requires customer-managed encryption keys (CMK) for Amazon Bedrock prompts/completions logs, fine-tuned custom model artifacts, and Bedrock Knowledge Base data.",
+      "stem": "Which statement is TRUE?",
+      "options": [
+        {"letter": "A", "text": "Bedrock supports customer-managed KMS keys for model invocation logs (S3 or CloudWatch destinations), custom model artifacts, and KB ingested documents/storage.", "correct": true, "why": "Customer-managed KMS keys are supported for these data-at-rest scopes."},
+        {"letter": "B", "text": "Bedrock only supports AWS-managed keys; CMKs are not supported.", "correct": false, "why": "False — CMKs are supported."},
+        {"letter": "C", "text": "Encryption is impossible because Bedrock is a multi-tenant service.", "correct": false, "why": "Multi-tenancy does not preclude CMK; data at rest can still be encrypted with customer keys."},
+        {"letter": "D", "text": "CMKs are only used for the Guardrail policy storage, nothing else.", "correct": false, "why": "Scope of CMK support is broader."}
+      ],
+      "knowledge_point": "Bedrock supports customer-managed KMS keys (CMKs) for stored data: invocation logs, custom model artifacts, KB documents, Agent/Prompt resources. Useful for compliance.",
+      "trap_alert": "Multi-tenant ≠ no-encryption. Customer keys are widely supported at the AT-REST layer.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/encryption.html"]
+    },
+    {
+      "id": "D3-Q008",
+      "type": "single_choice",
+      "difficulty": "hard",
+      "tags": ["privatelink", "vpc-endpoints"],
+      "scenario": "An application in a private VPC must call Bedrock without sending traffic over the public internet, and must use Bedrock Agents.",
+      "stem": "Which combination of VPC interface endpoints is REQUIRED?",
+      "options": [
+        {"letter": "A", "text": "bedrock-runtime AND bedrock-agent-runtime.", "correct": true, "why": "bedrock-runtime serves InvokeModel/InvokeModelWithResponseStream; bedrock-agent-runtime serves InvokeAgent. Both data-plane endpoints are needed for FM + Agent calls."},
+        {"letter": "B", "text": "Only bedrock (control plane).", "correct": false, "why": "Control-plane endpoint is for management APIs, not data-plane invocations."},
+        {"letter": "C", "text": "Only s3.", "correct": false, "why": "S3 endpoint is unrelated to Bedrock data plane."},
+        {"letter": "D", "text": "A NAT Gateway plus a public subnet.", "correct": false, "why": "NAT Gateway sends traffic via the public internet — not private."}
+      ],
+      "knowledge_point": "Four Bedrock VPC interface endpoints: bedrock, bedrock-runtime, bedrock-agent, bedrock-agent-runtime. -runtime endpoints handle data-plane invocations.",
+      "trap_alert": "Pick the data-plane endpoints (-runtime) for invocation paths. Control-plane endpoints alone won't carry InvokeModel/InvokeAgent calls.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/vpc-interface-endpoints.html"]
+    },
+    {
+      "id": "D3-Q009",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["data-isolation", "model-providers"],
+      "scenario": "A customer asks whether Anthropic or any other third-party model provider can access the customer's prompts when calling Bedrock.",
+      "stem": "Which statement is TRUE?",
+      "options": [
+        {"letter": "A", "text": "Third-party model providers cannot access customer prompts or completions when running on Amazon Bedrock; data stays within the customer's AWS account boundary.", "correct": true, "why": "Bedrock isolates customer data from third-party model providers — a documented data-privacy guarantee."},
+        {"letter": "B", "text": "Anthropic receives prompts to improve Claude.", "correct": false, "why": "False — Anthropic does not access customer Bedrock prompts/completions."},
+        {"letter": "C", "text": "Cohere uses customer prompts only on opt-in for product improvement.", "correct": false, "why": "No such opt-in exists; data is not shared with providers."},
+        {"letter": "D", "text": "Meta accesses customer data for Llama improvement.", "correct": false, "why": "False; same isolation guarantee."}
+      ],
+      "knowledge_point": "Bedrock isolates customer data from model providers. Customer prompts/completions are not shared back to the providers.",
+      "trap_alert": "Don't conflate consumer-LLM data practices with Bedrock's enterprise data isolation.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/data-protection.html"]
+    },
+    {
+      "id": "D3-Q010",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["model-invocation-logging"],
+      "scenario": "A team needs to capture each Bedrock model invocation's full request body (including prompt) and full response body for retroactive analysis.",
+      "stem": "Which configuration is REQUIRED?",
+      "options": [
+        {"letter": "A", "text": "Enable Amazon Bedrock model invocation logging, choose S3 and/or CloudWatch Logs as the destination, and select to log REQUEST and RESPONSE.", "correct": true, "why": "Model invocation logging is the native feature for capturing full prompt/response payloads."},
+        {"letter": "B", "text": "Enable CloudTrail data events for Bedrock.", "correct": false, "why": "CloudTrail records API metadata, not full request/response bodies for FM invocations."},
+        {"letter": "C", "text": "Enable VPC Flow Logs on the Bedrock interface endpoint.", "correct": false, "why": "Flow Logs capture network metadata, not application payloads."},
+        {"letter": "D", "text": "Enable AWS Config.", "correct": false, "why": "Config tracks resource configuration, not invocations."}
+      ],
+      "knowledge_point": "Model invocation logging = data-plane prompt/response capture. CloudTrail = control-plane API metadata. Different layers, both useful, used together.",
+      "trap_alert": "Don't expect CloudTrail to contain prompt/response text. It doesn't.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/model-invocation-logging.html"]
+    },
+    {
+      "id": "D3-Q011",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["ai-service-cards", "responsible-ai"],
+      "scenario": "A product team wants official AWS documentation that describes a model's intended use cases, limitations, and design choices for a Bedrock-available model.",
+      "stem": "Where is this published?",
+      "options": [
+        {"letter": "A", "text": "AWS AI Service Cards.", "correct": true, "why": "AI Service Cards are AWS's published transparency documents describing AI service / model intended uses, design choices, and performance considerations."},
+        {"letter": "B", "text": "AWS Config rules.", "correct": false, "why": "Config rules are for compliance posture, not service transparency docs."},
+        {"letter": "C", "text": "Bedrock Knowledge Bases default index.", "correct": false, "why": "KBs are customer-defined; not AWS published transparency."},
+        {"letter": "D", "text": "AWS WAF managed rule sets.", "correct": false, "why": "Unrelated."}
+      ],
+      "knowledge_point": "AWS AI Service Cards: official transparency documentation for AWS AI services and Bedrock models — intended use, limitations, design choices.",
+      "trap_alert": "Don't confuse Service Cards (transparency docs) with Service Quotas or Service Catalog. Names sound similar; purposes differ.",
+      "doc_refs": ["https://aws.amazon.com/machine-learning/responsible-ai/"]
+    },
+    {
+      "id": "D3-Q012",
+      "type": "single_choice",
+      "difficulty": "hard",
+      "tags": ["bias-detection", "clarify"],
+      "scenario": "An ML team fine-tuned a Llama model on internal hiring screening data and must validate the model for bias before deployment.",
+      "stem": "Which AWS service is MOST appropriate?",
+      "options": [
+        {"letter": "A", "text": "Amazon SageMaker Clarify.", "correct": true, "why": "Clarify provides bias detection (pre/post-training) and explainability for ML and custom GenAI models. The native tool for fairness analysis."},
+        {"letter": "B", "text": "Amazon Macie.", "correct": false, "why": "Macie is for sensitive-data discovery in S3, not model bias."},
+        {"letter": "C", "text": "Amazon GuardDuty.", "correct": false, "why": "GuardDuty is threat detection in AWS environment, not model fairness."},
+        {"letter": "D", "text": "Amazon Comprehend.", "correct": false, "why": "Comprehend extracts entities/sentiment — not bias analysis."}
+      ],
+      "knowledge_point": "Bias and explainability: SageMaker Clarify (pre/post-training metrics, SHAP values, feature attribution). Used for fine-tuned/custom models.",
+      "trap_alert": "Macie, GuardDuty, Comprehend are AI-adjacent services but not bias-detection tools. Clarify is the answer.",
+      "doc_refs": ["https://docs.aws.amazon.com/sagemaker/latest/dg/clarify-fairness-and-explainability.html"]
+    },
+    {
+      "id": "D3-Q013",
+      "type": "single_choice",
+      "difficulty": "hard",
+      "tags": ["guardrails", "image-content"],
+      "scenario": "An image-understanding workflow on Claude 3 Sonnet must block requests that include inappropriate images on the input side.",
+      "stem": "Which Guardrails feature is required?",
+      "options": [
+        {"letter": "A", "text": "Image content filter — Bedrock Guardrails image policy that classifies and blocks inappropriate input images.", "correct": true, "why": "Guardrails has an image content filter for input-side images."},
+        {"letter": "B", "text": "Amazon Rekognition Content Moderation in a Lambda preprocessor.", "correct": false, "why": "Workable but adds custom code when Guardrails has a native image policy."},
+        {"letter": "C", "text": "Sensitive information policy.", "correct": false, "why": "PII policy applies to text, not image content moderation."},
+        {"letter": "D", "text": "Word filters.", "correct": false, "why": "Word filters only apply to text."}
+      ],
+      "knowledge_point": "Guardrails image content filter: blocks inappropriate input images for vision-capable models. Rekognition is the older non-Bedrock alternative.",
+      "trap_alert": "If the scenario is on Bedrock + Claude vision, Guardrails native image policy is the lowest-overhead choice.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails-image-filters.html"]
+    },
+    {
+      "id": "D3-Q014",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["scp", "organizations"],
+      "scenario": "An AWS Organizations administrator must prevent certain OUs from invoking specific Bedrock models, regardless of any IAM policies in member accounts.",
+      "stem": "Which mechanism enforces this?",
+      "options": [
+        {"letter": "A", "text": "Service Control Policy (SCP) attached to the OU denying bedrock:InvokeModel on the prohibited model ARNs.", "correct": true, "why": "SCPs set the maximum permissions across an OU; they override member-account IAM. Right enforcement layer."},
+        {"letter": "B", "text": "Add IAM policies in each member account.", "correct": false, "why": "Member-account IAM can be modified locally; SCPs are the Org-level guardrail."},
+        {"letter": "C", "text": "Bedrock Guardrails.", "correct": false, "why": "Guardrails are content policies, not access governance."},
+        {"letter": "D", "text": "AWS Config rules.", "correct": false, "why": "Config detects/reports; SCPs prevent."}
+      ],
+      "knowledge_point": "Org-level deny on AI services = Service Control Policy. Local IAM can never exceed SCP boundaries.",
+      "trap_alert": "Detective (Config) ≠ Preventive (SCP). When the question says 'prevent', think SCP.",
+      "doc_refs": ["https://docs.aws.amazon.com/organizations/latest/userguide/orgs_manage_policies_scps.html"]
+    },
+    {
+      "id": "D3-Q015",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["application-inference-profile", "cost-allocation"],
+      "scenario": "A platform team must allocate Bedrock invocation costs to multiple internal product teams using AWS-native tagging — without giving each team a separate AWS account.",
+      "stem": "Which feature is MOST appropriate?",
+      "options": [
+        {"letter": "A", "text": "Bedrock Application Inference Profiles — tag the profile per team and route invocations through the profile.", "correct": true, "why": "Application Inference Profiles are tag-able, enabling cost allocation by tags in Cost Explorer and AWS Budgets."},
+        {"letter": "B", "text": "Use the model ID directly and rely on per-request tagging.", "correct": false, "why": "InvokeModel does not natively support arbitrary per-request cost tags."},
+        {"letter": "C", "text": "Switch each team to a dedicated AWS account.", "correct": false, "why": "Account split is heavy-handed if tagging will do."},
+        {"letter": "D", "text": "Use Service Quotas to attribute cost.", "correct": false, "why": "Quotas govern limits, not cost attribution."}
+      ],
+      "knowledge_point": "Application Inference Profiles: tag-able profiles wrapping a model invocation. Tags propagate to billing for fine-grained cost allocation.",
+      "trap_alert": "Don't confuse system-defined (cross-region) inference profiles with application inference profiles (cost-allocation).",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/inference-profiles-use.html"]
+    },
+    {
+      "id": "D3-Q016",
+      "type": "single_choice",
+      "difficulty": "hard",
+      "tags": ["guardrails", "denied-topics"],
+      "scenario": "A wealth-management chatbot must NEVER provide specific buy/sell investment recommendations, but can discuss general financial concepts.",
+      "stem": "Which Guardrails policy MOST directly enforces this nuance?",
+      "options": [
+        {"letter": "A", "text": "Denied Topics — define 'Specific investment buy/sell recommendations' as a denied topic in natural language.", "correct": true, "why": "Denied Topics use natural-language definitions to block a SUBJECT area without affecting adjacent subjects (general finance education)."},
+        {"letter": "B", "text": "Word filter blocking 'buy' and 'sell'.", "correct": false, "why": "Word filters are brittle; would also block legitimate uses of those words."},
+        {"letter": "C", "text": "Content filter with Misconduct=HIGH.", "correct": false, "why": "Misconduct is for malicious behavior, not investment-advice restriction."},
+        {"letter": "D", "text": "Sensitive information policy.", "correct": false, "why": "PII policy. Unrelated."}
+      ],
+      "knowledge_point": "Guardrails Denied Topics: natural-language SUBJECT bans. Pick this when the restriction is topical rather than keyword-based.",
+      "trap_alert": "Word filters are tempting but brittle. Denied Topics are the topical-restriction primitive.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails-denied-topics.html"]
+    },
+    {
+      "id": "D3-Q017",
+      "type": "single_choice",
+      "difficulty": "hard",
+      "tags": ["guardrails", "apply-guardrail-api"],
+      "scenario": "A non-Bedrock service (a custom self-hosted LLM behind API Gateway) needs to leverage Bedrock Guardrails for content moderation on prompts BEFORE they reach the LLM.",
+      "stem": "Which approach makes this possible?",
+      "options": [
+        {"letter": "A", "text": "Call the ApplyGuardrail API directly with the prompt — Guardrails can be invoked independently of any Bedrock model.", "correct": true, "why": "ApplyGuardrail is a standalone API that runs guardrail policies against arbitrary text/image input."},
+        {"letter": "B", "text": "Guardrails are only callable as part of InvokeModel.", "correct": false, "why": "False — ApplyGuardrail standalone API exists."},
+        {"letter": "C", "text": "Add WAF managed rules.", "correct": false, "why": "WAF rules are HTTP-layer, not FM content moderation."},
+        {"letter": "D", "text": "Cannot be done unless the LLM is hosted on Bedrock.", "correct": false, "why": "False — ApplyGuardrail does not require the model to be on Bedrock."}
+      ],
+      "knowledge_point": "ApplyGuardrail API: standalone way to evaluate text/image against Guardrails policies — works for any application, not just Bedrock-hosted models.",
+      "trap_alert": "Standalone Guardrails usage is often missed. Useful for custom or third-party LLM stacks.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_ApplyGuardrail.html"]
+    },
+    {
+      "id": "D3-Q018",
+      "type": "single_choice",
+      "difficulty": "easy",
+      "tags": ["cloudtrail", "audit"],
+      "stem": "Which AWS service captures the metadata of every Bedrock control-plane API call (e.g., who created the Guardrail, who deployed the Agent)?",
+      "scenario": "",
+      "options": [
+        {"letter": "A", "text": "AWS CloudTrail.", "correct": true, "why": "CloudTrail records all AWS API calls including Bedrock control-plane operations with caller identity and timestamps."},
+        {"letter": "B", "text": "AWS Config.", "correct": false, "why": "Config snapshots resource state — not API call audit."},
+        {"letter": "C", "text": "Amazon GuardDuty.", "correct": false, "why": "Threat detection, not API audit."},
+        {"letter": "D", "text": "Amazon Macie.", "correct": false, "why": "Sensitive-data discovery in S3."}
+      ],
+      "knowledge_point": "CloudTrail = API audit; Config = configuration state; GuardDuty = threats; Macie = sensitive data. Memorize who does what.",
+      "trap_alert": "These four are common 'governance' distractors. Match the verb in the question to the service.",
+      "doc_refs": ["https://docs.aws.amazon.com/awscloudtrail/latest/userguide/cloudtrail-user-guide.html"]
+    },
+    {
+      "id": "D3-Q019",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["guardrails", "trace"],
+      "scenario": "A debugging team needs to know WHICH Guardrail policy fired when a request was blocked, to tune thresholds.",
+      "stem": "Which feature provides this?",
+      "options": [
+        {"letter": "A", "text": "Guardrail trace returned in the invocation response (when trace is enabled).", "correct": true, "why": "Guardrail trace exposes which policy/category fired and at what level — the debugging mechanism."},
+        {"letter": "B", "text": "AWS Config rule evaluation.", "correct": false, "why": "Not related to Guardrail evaluations."},
+        {"letter": "C", "text": "CloudTrail event detail.", "correct": false, "why": "CloudTrail audits the API call, not the per-policy decision detail."},
+        {"letter": "D", "text": "VPC Flow Logs.", "correct": false, "why": "Network-layer, irrelevant."}
+      ],
+      "knowledge_point": "Guardrail trace = per-invocation reasoning showing which policy fired. Enable it for debugging. Also stored in model invocation logs.",
+      "trap_alert": "Trace ≠ CloudTrail. Trace is the in-response reasoning detail.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails-trace.html"]
+    },
+    {
+      "id": "D3-Q020",
+      "type": "single_choice",
+      "difficulty": "hard",
+      "tags": ["guardrails", "pii", "regex"],
+      "scenario": "An organization needs Guardrails to block requests containing its internal Employee ID format 'EMP-XXXXXXXX' (8 digits).",
+      "stem": "Which Guardrails configuration is required?",
+      "options": [
+        {"letter": "A", "text": "Add a custom regular expression to the Sensitive Information policy with BLOCK action.", "correct": true, "why": "Guardrails Sensitive Information supports CUSTOM regexes alongside standard PII types — perfect for org-specific identifiers."},
+        {"letter": "B", "text": "Add it as a Denied Topic.", "correct": false, "why": "Denied Topics are natural-language SUBJECTS, not regex patterns."},
+        {"letter": "C", "text": "Add EMP-XXXXXXXX to the Word Filter blocklist.", "correct": false, "why": "Word filters are literal strings, not regex patterns."},
+        {"letter": "D", "text": "Use Macie scans in real time.", "correct": false, "why": "Macie scans data at rest; not a request-time filter."}
+      ],
+      "knowledge_point": "Guardrails Sensitive Information: standard PII types (Name, SSN, Address, etc.) + custom regexes for org-specific patterns. Each can DETECT/ANONYMIZE/BLOCK.",
+      "trap_alert": "Word filters are literal strings — they don't pattern-match digit sequences. Use regex in Sensitive Information for that.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails-sensitive-filters.html"]
+    }
+  ]
+}

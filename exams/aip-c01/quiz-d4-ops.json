@@ -1,0 +1,262 @@
+{
+  "domain_id": "D4",
+  "domain_title": "Operational Efficiency and Optimization for GenAI Applications",
+  "questions": [
+    {
+      "id": "D4-Q001",
+      "type": "single_choice",
+      "difficulty": "hard",
+      "tags": ["throughput", "provisioned-throughput"],
+      "scenario": "An e-commerce company runs predictable, steady inference traffic on Claude 3 Sonnet at ~500,000 tokens/minute, 24x7, for 9 months out of the year. Throttling errors during peak hours are unacceptable.",
+      "stem": "Which Bedrock throughput model is MOST cost-effective?",
+      "options": [
+        {"letter": "A", "text": "On-Demand only — pay per token at standard rate.", "correct": false, "why": "At steady high volume, On-Demand totals more than committed pricing AND offers no capacity guarantee."},
+        {"letter": "B", "text": "Provisioned Throughput with a 6-month commitment.", "correct": true, "why": "Steady high volume + capacity guarantee = Provisioned Throughput. 6-month commit gives the best per-token rate for a 9-month workload."},
+        {"letter": "C", "text": "Batch Inference only.", "correct": false, "why": "Batch is async, up to 24h SLA. Wrong for 24x7 interactive workload."},
+        {"letter": "D", "text": "Convert workload to OpenSearch.", "correct": false, "why": "OpenSearch is a search engine, not an FM."}
+      ],
+      "knowledge_point": "Provisioned Throughput (PT): 1- or 6-month commit, Model Units (MUs) guarantee capacity. Cost-effective for STEADY HIGH-VOLUME workloads. REQUIRED for hosting custom (fine-tuned) models.",
+      "trap_alert": "PT is overkill for bursty/sporadic traffic. Match commit length to workload duration.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/provisioned-throughput.html"]
+    },
+    {
+      "id": "D4-Q002",
+      "type": "single_choice",
+      "difficulty": "hard",
+      "tags": ["batch-inference", "cost"],
+      "scenario": "A pharma team must summarize 200,000 PubMed abstracts for an internal knowledge graph. The task can run overnight; per-summary latency does not matter.",
+      "stem": "Which approach is MOST cost-effective?",
+      "options": [
+        {"letter": "A", "text": "Bedrock Batch Inference — submit a JSONL file to S3 and receive results in S3 at ~50% discount.", "correct": true, "why": "Batch is purpose-built for high-volume async jobs with substantial per-token discount."},
+        {"letter": "B", "text": "Lambda fan-out calling On-Demand InvokeModel for each abstract.", "correct": false, "why": "Functional but pays full On-Demand rate AND adds Lambda invocation cost."},
+        {"letter": "C", "text": "Provision a 1-month PT commitment.", "correct": false, "why": "Overkill for a one-night job; commit duration mismatched to use."},
+        {"letter": "D", "text": "Use Bedrock Knowledge Bases.", "correct": false, "why": "KBs are for RAG retrieval; not for offline bulk processing of documents."}
+      ],
+      "knowledge_point": "Bedrock Batch Inference: ~50% lower per-token cost, async, ≤24h SLA, S3 input/output JSONL. Right tool for offline bulk jobs.",
+      "trap_alert": "If the question says 'overnight' or 'latency not important' AND 'cost matters', Batch is almost always the answer.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/batch-inference.html"]
+    },
+    {
+      "id": "D4-Q003",
+      "type": "single_choice",
+      "difficulty": "hard",
+      "tags": ["prompt-caching", "cost"],
+      "scenario": "A coding assistant repeatedly includes the same 12,000-token system prompt with engineering standards and code-style examples on every Claude invocation. Hundreds of requests per minute.",
+      "stem": "Which Bedrock feature MOST reduces cost?",
+      "options": [
+        {"letter": "A", "text": "Bedrock Prompt Caching — mark the system prompt as a cache breakpoint.", "correct": true, "why": "Repeated long prefixes are exactly what prompt caching targets. After the WRITE, subsequent reads cost ~10% of the base input price."},
+        {"letter": "B", "text": "Switch to a smaller model.", "correct": false, "why": "Doesn't address the repeated input tokens cost; may reduce per-call output cost only."},
+        {"letter": "C", "text": "Provisioned Throughput.", "correct": false, "why": "PT changes capacity/commit, not per-token cost structure for repeated prefixes."},
+        {"letter": "D", "text": "Compress the system prompt by half.", "correct": false, "why": "Helps marginally but caching offers much bigger savings for repeated content."}
+      ],
+      "knowledge_point": "Bedrock Prompt Caching (on supported Claude models): cache control breakpoints on system/tools/messages. Cache WRITE ≈ 1.25× base, READ ≈ 0.1× base, 5-min TTL.",
+      "trap_alert": "Break-even is ~2–3 reuses of the cached prefix within 5 minutes. Don't cache one-shots.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/prompt-caching.html"]
+    },
+    {
+      "id": "D4-Q004",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["prompt-caching", "ttl"],
+      "stem": "Which statement about Amazon Bedrock prompt caching is TRUE?",
+      "scenario": "",
+      "options": [
+        {"letter": "A", "text": "Cached prefixes have a roughly 5-minute TTL; cache writes cost more than non-cached input; cache reads cost a fraction of the base input price.", "correct": true, "why": "Documented pricing: write ≈ 1.25× base, read ≈ 0.1× base, ~5 min TTL."},
+        {"letter": "B", "text": "Cached prefixes persist for 24 hours.", "correct": false, "why": "TTL is roughly 5 minutes, not 24h."},
+        {"letter": "C", "text": "Cache writes are free.", "correct": false, "why": "Cache writes incur a higher per-token cost than non-cached input."},
+        {"letter": "D", "text": "Caching is automatic on all models.", "correct": false, "why": "Caching is opt-in (set cache_control breakpoints) and supported on specific models."}
+      ],
+      "knowledge_point": "Prompt cache pricing/TTL: 5-min TTL; write ~1.25× base input; read ~0.1× base input. Need ~2–3 reuses to break even.",
+      "trap_alert": "Don't expect free writes or 24h TTL — quick to misremember.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/prompt-caching.html"]
+    },
+    {
+      "id": "D4-Q005",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["model-selection", "haiku-sonnet-opus"],
+      "scenario": "A team needs to classify support tickets into 10 categories. Volume is high; precision is acceptable in the mid-90s; cost matters more than depth of reasoning.",
+      "stem": "Which Bedrock model is MOST cost-effective for this workload?",
+      "options": [
+        {"letter": "A", "text": "Anthropic Claude 3 Haiku.", "correct": true, "why": "Haiku is the cheapest/fastest in the Claude 3 family — ideal for high-volume classification where deep reasoning isn't required."},
+        {"letter": "B", "text": "Anthropic Claude 3 Opus.", "correct": false, "why": "Most expensive — overkill for classification."},
+        {"letter": "C", "text": "Stability AI SDXL.", "correct": false, "why": "Image generation model."},
+        {"letter": "D", "text": "Amazon Polly.", "correct": false, "why": "Text-to-speech."}
+      ],
+      "knowledge_point": "Match model tier to task complexity. Haiku/Nova Micro for high-volume light tasks; Sonnet/Nova Pro for balanced; Opus/Nova Premier for deep reasoning.",
+      "trap_alert": "Don't pick Opus by default. Opus's cost is multiple× of Haiku for marginal benefit on simple tasks.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html"]
+    },
+    {
+      "id": "D4-Q006",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["service-quotas", "throttling"],
+      "scenario": "A new application hits 429 ThrottlingException errors on Bedrock during peak traffic. Workload cannot be moved to async.",
+      "stem": "Which is the MOST EFFECTIVE first step?",
+      "options": [
+        {"letter": "A", "text": "Request a Service Quotas increase for the model's TPM (tokens per minute) and RPM (requests per minute), and consider a cross-region inference profile for capacity overflow.", "correct": true, "why": "Throttling = quota wall. Raise the quota; cross-region inference can spread peak load. Both are documented levers."},
+        {"letter": "B", "text": "Add exponential backoff and call it a day.", "correct": false, "why": "Helps for transient spikes but does not raise the actual ceiling."},
+        {"letter": "C", "text": "Switch to Provisioned Throughput as the first move.", "correct": false, "why": "PT solves it but is a 1mo/6mo commit — heavier than necessary as first step."},
+        {"letter": "D", "text": "Restart the Lambda function.", "correct": false, "why": "Has no effect on Bedrock-side quotas."}
+      ],
+      "knowledge_point": "Bedrock throttling levers: (1) request Service Quotas increase, (2) cross-region inference profile, (3) Provisioned Throughput for sustained high load, (4) exponential backoff to soak transient spikes.",
+      "trap_alert": "Backoff alone is not 'most effective'. Quota increase + cross-region is the documented combination.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/quotas.html"]
+    },
+    {
+      "id": "D4-Q007",
+      "type": "single_choice",
+      "difficulty": "hard",
+      "tags": ["provisioned-throughput", "custom-model"],
+      "scenario": "An ML team fine-tuned Claude 3 Haiku on customer-support transcripts. They want to serve the custom model on Bedrock for production inference.",
+      "stem": "Which configuration is REQUIRED?",
+      "options": [
+        {"letter": "A", "text": "Purchase Provisioned Throughput for the custom model — custom-model hosting requires PT.", "correct": true, "why": "Custom (fine-tuned) models on Bedrock require Provisioned Throughput to host. On-Demand is for foundation models only."},
+        {"letter": "B", "text": "Serve via On-Demand InvokeModel.", "correct": false, "why": "On-Demand does NOT support custom models. PT is required for hosting."},
+        {"letter": "C", "text": "Use Bedrock Batch Inference only.", "correct": false, "why": "Batch is for async jobs and the underlying access still requires PT for the custom model."},
+        {"letter": "D", "text": "Re-import via Custom Model Import.", "correct": false, "why": "Custom Model Import is for bringing external fine-tuned weights into Bedrock — orthogonal to PT requirement for hosting."}
+      ],
+      "knowledge_point": "Hosting custom models on Bedrock = Provisioned Throughput required. Base FMs run On-Demand; custom (fine-tuned) ones require PT.",
+      "trap_alert": "If the question mentions 'fine-tuned' AND 'serve', think PT immediately.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/prov-thru-purchase.html"]
+    },
+    {
+      "id": "D4-Q008",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["latency", "optimization"],
+      "scenario": "A chat UI has high p99 latency on Bedrock responses. The workload is interactive (one user at a time) and uses Claude 3 Sonnet.",
+      "stem": "Which change is LIKELY to reduce p99 latency the MOST?",
+      "options": [
+        {"letter": "A", "text": "Switch to InvokeModelWithResponseStream and a smaller-tier model (Haiku) where quality permits.", "correct": true, "why": "Streaming reduces perceived latency dramatically; smaller-tier model reduces true latency. Combo addresses both."},
+        {"letter": "B", "text": "Increase max_tokens to 8192.", "correct": false, "why": "Cap is not the actual length; doesn't reduce latency."},
+        {"letter": "C", "text": "Add CloudFront in front of Bedrock.", "correct": false, "why": "CloudFront cannot proxy Bedrock invocations as a cache."},
+        {"letter": "D", "text": "Provision a larger Lambda memory size.", "correct": false, "why": "Marginal; Bedrock call latency dominates."}
+      ],
+      "knowledge_point": "Latency levers for Bedrock: smaller model, streaming, regional proximity, prompt brevity, prompt caching, provisioned throughput (reduces queueing).",
+      "trap_alert": "max_tokens is a CAP, not the actual output length. Doesn't reduce latency by itself.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/inference-streaming.html"]
+    },
+    {
+      "id": "D4-Q009",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["cross-region-inference", "capacity"],
+      "scenario": "A team in us-east-1 is hitting Claude 3.5 Sonnet capacity limits during business hours. Migrating to another region is not acceptable.",
+      "stem": "Which feature MOST helps without changing the home region?",
+      "options": [
+        {"letter": "A", "text": "Use a cross-region inference profile that allows Bedrock to route invocations to additional regions while keeping the home region as us-east-1.", "correct": true, "why": "Cross-region inference profiles let you scale capacity across regions transparently while keeping callers in one home region."},
+        {"letter": "B", "text": "Migrate to eu-west-1.", "correct": false, "why": "Question excludes home-region change."},
+        {"letter": "C", "text": "Switch to On-Demand for SDXL.", "correct": false, "why": "Different model family; doesn't address Claude capacity."},
+        {"letter": "D", "text": "Disable Guardrails.", "correct": false, "why": "Unrelated to capacity."}
+      ],
+      "knowledge_point": "Cross-region inference profile = capacity + resilience by routing to multiple regions. Quotas tracked at the home region; data movement implications must be considered.",
+      "trap_alert": "Cross-region inference can violate data residency. Read the scenario carefully if EU/regulatory.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html"]
+    },
+    {
+      "id": "D4-Q010",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["cost-monitoring", "cost-anomaly-detection"],
+      "scenario": "A finance team wants automated alerts when Bedrock spend spikes unexpectedly versus historical patterns.",
+      "stem": "Which AWS service MOST DIRECTLY supports this?",
+      "options": [
+        {"letter": "A", "text": "AWS Cost Anomaly Detection scoped to the Amazon Bedrock service.", "correct": true, "why": "Cost Anomaly Detection uses ML to detect unexpected spend changes per service / linked account / tag. Native fit."},
+        {"letter": "B", "text": "AWS Budgets with a fixed monthly threshold.", "correct": false, "why": "Useful but threshold-based, not anomaly-aware."},
+        {"letter": "C", "text": "AWS Trusted Advisor.", "correct": false, "why": "Cost-optimization recommendations, not anomaly detection on Bedrock."},
+        {"letter": "D", "text": "CloudWatch Logs Insights.", "correct": false, "why": "Log queries, not cost analytics."}
+      ],
+      "knowledge_point": "AWS Cost Anomaly Detection = ML-based anomaly alerts per service/account/tag. Use for Bedrock to catch unexpected spend changes.",
+      "trap_alert": "Budgets ≠ Anomaly Detection. Budgets are threshold rules; Cost Anomaly Detection is ML-based pattern monitoring.",
+      "doc_refs": ["https://docs.aws.amazon.com/cost-management/latest/userguide/manage-ad.html"]
+    },
+    {
+      "id": "D4-Q011",
+      "type": "single_choice",
+      "difficulty": "hard",
+      "tags": ["hybrid", "throughput-strategy"],
+      "scenario": "A SaaS product has a predictable baseline load 24x7 plus 4× spikes during product launches twice a year.",
+      "stem": "Which throughput strategy is MOST cost-effective?",
+      "options": [
+        {"letter": "A", "text": "Use Provisioned Throughput sized to the baseline, and let On-Demand absorb the launch spikes (hybrid).", "correct": true, "why": "Hybrid pattern: PT for the steady floor (cheap per token); On-Demand for the rare peaks. Avoids over-committing for occasional spikes."},
+        {"letter": "B", "text": "Provision for peak load year-round.", "correct": false, "why": "Wastes capacity 99% of the year."},
+        {"letter": "C", "text": "All On-Demand.", "correct": false, "why": "Pays full per-token cost on the steady high baseline — leaves savings on the table."},
+        {"letter": "D", "text": "All Batch.", "correct": false, "why": "Batch is async; assume the workload is interactive."}
+      ],
+      "knowledge_point": "Hybrid throughput pattern: PT for baseline (committed cheap rate) + On-Demand for bursts (no commit). Best of both for variable load.",
+      "trap_alert": "Don't provision for peak — that's the classic over-commit mistake. Provision for floor.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/provisioned-throughput.html"]
+    },
+    {
+      "id": "D4-Q012",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["tokens", "cost"],
+      "scenario": "A pricing experiment found that switching from Claude 3 Opus to Claude 3 Sonnet for a content generation pipeline reduced costs by ~80% with negligible quality drop.",
+      "stem": "Which principle does this MOST illustrate?",
+      "options": [
+        {"letter": "A", "text": "Right-size the model: pick the smallest model in the family that meets quality requirements.", "correct": true, "why": "Model right-sizing is the highest-ROI single lever for GenAI cost optimization."},
+        {"letter": "B", "text": "Always use the largest available model.", "correct": false, "why": "Opposite principle — usually wasteful."},
+        {"letter": "C", "text": "Prompt brevity is always more impactful than model choice.", "correct": false, "why": "Brevity helps but model tier change generally has a larger absolute impact."},
+        {"letter": "D", "text": "Provisioned Throughput is always cheapest.", "correct": false, "why": "Only when utilization justifies the commit."}
+      ],
+      "knowledge_point": "Cost optimization first move: right-size the MODEL. Then prompt brevity, caching, batch, PT — in roughly that order of expected ROI.",
+      "trap_alert": "Don't reflexively pick Opus or Premier. The exam rewards model right-sizing.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/cost-optimization.html"]
+    },
+    {
+      "id": "D4-Q013",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["budgets", "alerts"],
+      "scenario": "A team must receive an email when monthly Bedrock spend crosses $5,000.",
+      "stem": "Which service is MOST appropriate?",
+      "options": [
+        {"letter": "A", "text": "AWS Budgets with a cost budget scoped to the Bedrock service and an SNS-email subscriber on the threshold.", "correct": true, "why": "Budgets are the threshold-alert primitive in AWS Billing — scope to Bedrock and notify via SNS."},
+        {"letter": "B", "text": "AWS Cost Anomaly Detection.", "correct": false, "why": "Anomaly Detection is for unexpected pattern changes, not fixed thresholds."},
+        {"letter": "C", "text": "AWS Cost Explorer.", "correct": false, "why": "Explorer is for analysis; no alerting."},
+        {"letter": "D", "text": "Trusted Advisor.", "correct": false, "why": "Advisory checks; not threshold alerts."}
+      ],
+      "knowledge_point": "Cost thresholds = AWS Budgets. Anomaly patterns = Cost Anomaly Detection. Analysis = Cost Explorer. Pick by intent.",
+      "trap_alert": "Threshold alert vs anomaly alert — different products. Read the verb in the scenario.",
+      "doc_refs": ["https://docs.aws.amazon.com/cost-management/latest/userguide/budgets-create.html"]
+    },
+    {
+      "id": "D4-Q014",
+      "type": "multiple_response",
+      "difficulty": "hard",
+      "tags": ["batch-inference", "constraints"],
+      "stem": "Which statements about Amazon Bedrock Batch Inference are TRUE? (Select TWO)",
+      "scenario": "",
+      "options": [
+        {"letter": "A", "text": "Input and output are JSONL files in Amazon S3.", "correct": true, "why": "Documented Batch I/O format and storage."},
+        {"letter": "B", "text": "Per-token pricing is reduced by approximately 50% versus On-Demand.", "correct": true, "why": "Documented ~50% discount for batch."},
+        {"letter": "C", "text": "Batch jobs complete in under 1 minute regardless of size.", "correct": false, "why": "Up to 24h SLA — not sub-minute."},
+        {"letter": "D", "text": "Batch supports streaming responses to the caller.", "correct": false, "why": "Batch is asynchronous; results are written to S3, not streamed."},
+        {"letter": "E", "text": "Batch invocations bypass IAM checks.", "correct": false, "why": "IAM still applies."}
+      ],
+      "knowledge_point": "Batch Inference: ~50% discount, JSONL S3 in/out, up to 24h SLA, async only. IAM enforced as normal.",
+      "trap_alert": "If the scenario needs streaming or sub-minute responses, Batch is the WRONG answer regardless of cost benefit.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/batch-inference.html"]
+    },
+    {
+      "id": "D4-Q015",
+      "type": "single_choice",
+      "difficulty": "easy",
+      "tags": ["throughput-mode-decision"],
+      "scenario": "A team builds an unpredictable, rarely-used internal tool that may sit idle for weeks and suddenly process a few prompts.",
+      "stem": "Which Bedrock throughput model is MOST appropriate?",
+      "options": [
+        {"letter": "A", "text": "On-Demand.", "correct": true, "why": "Pay-per-use with no commitment is the right fit for sporadic, low-utilization workloads."},
+        {"letter": "B", "text": "Provisioned Throughput with 1-month commit.", "correct": false, "why": "Paying for idle capacity for weeks — wasteful."},
+        {"letter": "C", "text": "Batch Inference.", "correct": false, "why": "Async with up to 24h SLA — wrong if the tool is interactive."},
+        {"letter": "D", "text": "Cross-region inference profile only.", "correct": false, "why": "Capacity routing, not a throughput model on its own."}
+      ],
+      "knowledge_point": "Throughput-mode decision rule: sporadic/low → On-Demand; steady high → Provisioned; offline bulk → Batch.",
+      "trap_alert": "PT is overkill for sporadic workloads. The cheapest mode for idle-with-spikes is On-Demand.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/inference.html"]
+    }
+  ]
+}

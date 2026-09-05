@@ -1,0 +1,262 @@
+{
+  "domain_id": "D5",
+  "domain_title": "Testing, Validation, and Troubleshooting",
+  "questions": [
+    {
+      "id": "D5-Q001",
+      "type": "single_choice",
+      "difficulty": "hard",
+      "tags": ["model-evaluation", "llm-as-judge"],
+      "scenario": "A team needs to benchmark 4 candidate FMs across 5,000 custom prompts on subjective writing quality. Hiring human raters is too slow and expensive; standard metrics like BLEU don't fit because there is no single reference output.",
+      "stem": "Which Bedrock Model Evaluation job type is MOST appropriate?",
+      "options": [
+        {"letter": "A", "text": "Automated evaluation with built-in datasets only.", "correct": false, "why": "Built-in datasets don't match the team's custom prompts; standard metrics like BLEU don't fit subjective quality."},
+        {"letter": "B", "text": "Human evaluation with an in-house team.", "correct": false, "why": "Too slow and expensive at 5,000 prompts × 4 models."},
+        {"letter": "C", "text": "LLM-as-a-judge evaluation in Bedrock Model Evaluation.", "correct": true, "why": "Uses another FM (e.g., Claude or Nova) to score subjective qualities at scale — faster and cheaper than human raters, with documented metrics."},
+        {"letter": "D", "text": "Skip evaluation and choose by gut feel.", "correct": false, "why": "Not a valid engineering answer."}
+      ],
+      "knowledge_point": "Bedrock Model Evaluation job types: Automated (built-in/custom datasets, standard metrics), Human (your team, custom criteria), LLM-as-a-Judge (FM scores at scale, faster than human).",
+      "trap_alert": "Don't pick Human eval when 'scale + speed + cost' all matter. LLM-as-a-Judge is the scale answer.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/model-evaluation.html"]
+    },
+    {
+      "id": "D5-Q002",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["metrics", "rouge"],
+      "scenario": "A team evaluates a summarization model with built-in metrics.",
+      "stem": "Which metric is MOST appropriate for summarization quality?",
+      "options": [
+        {"letter": "A", "text": "BLEU.", "correct": false, "why": "BLEU is traditionally for machine TRANSLATION (precision of n-gram matches)."},
+        {"letter": "B", "text": "ROUGE (ROUGE-1, ROUGE-2, ROUGE-L).", "correct": true, "why": "ROUGE is the canonical RECALL-oriented metric family for summarization — measures n-gram overlap with reference summaries."},
+        {"letter": "C", "text": "Perplexity.", "correct": false, "why": "Perplexity measures model confidence on a held-out set; not a summarization-quality task metric."},
+        {"letter": "D", "text": "Exact Match.", "correct": false, "why": "Strict equality is unrealistic for summarization."}
+      ],
+      "knowledge_point": "Metric ↔ task: BLEU=translation; ROUGE=summarization; BERTScore=semantic similarity; F1/Exact Match=classification/QA; Perplexity=LM confidence.",
+      "trap_alert": "BLEU vs ROUGE is a frequent swap-trap. Don't pick BLEU for summarization.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/model-evaluation-automated.html"]
+    },
+    {
+      "id": "D5-Q003",
+      "type": "single_choice",
+      "difficulty": "hard",
+      "tags": ["retrieval-quality", "rag-metrics"],
+      "scenario": "A RAG application's accuracy depends on whether the right chunks are in the top-K retrieved results. The team needs a metric that captures whether the gold-standard chunk appears within the top-K results.",
+      "stem": "Which retrieval metric is MOST appropriate?",
+      "options": [
+        {"letter": "A", "text": "Recall@K.", "correct": true, "why": "Recall@K is exactly 'is the gold chunk in the top-K returned'. Canonical retrieval recall measure."},
+        {"letter": "B", "text": "BLEU.", "correct": false, "why": "BLEU is for translation, not retrieval ranking."},
+        {"letter": "C", "text": "Perplexity.", "correct": false, "why": "Perplexity measures LM uncertainty, not retrieval quality."},
+        {"letter": "D", "text": "Exact Match.", "correct": false, "why": "Doesn't measure ranking; only equality of full string."}
+      ],
+      "knowledge_point": "RAG retrieval metrics: Recall@K (gold in top-K), Precision@K (fraction of top-K that's relevant), MRR (Mean Reciprocal Rank of first relevant), NDCG (graded relevance with position discount), Hit Rate.",
+      "trap_alert": "Retrieval metrics ≠ generation metrics. Don't pick BLEU/ROUGE for retrieval quality.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/knowledge-base-evaluate.html"]
+    },
+    {
+      "id": "D5-Q004",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["cloudwatch", "bedrock-metrics"],
+      "scenario": "A team must alarm when Bedrock model invocation client errors (4xx) spike for the Claude 3 Sonnet model.",
+      "stem": "Which CloudWatch metric is MOST appropriate?",
+      "options": [
+        {"letter": "A", "text": "Bedrock InvocationClientErrors metric, dimensioned by model.", "correct": true, "why": "CloudWatch publishes Bedrock metrics including InvocationClientErrors per model — alarmable directly."},
+        {"letter": "B", "text": "Lambda Errors metric.", "correct": false, "why": "That's a Lambda-side metric and would only catch errors at the Lambda layer."},
+        {"letter": "C", "text": "ConcurrentExecutions metric.", "correct": false, "why": "Concurrency, not errors."},
+        {"letter": "D", "text": "API Gateway 5XX metric.", "correct": false, "why": "API Gateway-side; doesn't reflect Bedrock-side 4xx behavior."}
+      ],
+      "knowledge_point": "Bedrock CloudWatch metrics: Invocations, InputTokenCount, OutputTokenCount, InvocationLatency, InvocationThrottles, InvocationClientErrors, InvocationServerErrors. Dimension by model.",
+      "trap_alert": "Pick the BEDROCK service metric, not the proxy-layer (Lambda / API Gateway) metric.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/monitoring-cw.html"]
+    },
+    {
+      "id": "D5-Q005",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["throttling", "troubleshoot"],
+      "scenario": "Production logs show frequent ThrottlingException (429) errors on Claude 3 Sonnet invocations during business hours.",
+      "stem": "Which is the MOST APPROPRIATE first action?",
+      "options": [
+        {"letter": "A", "text": "Add exponential backoff with jitter on 429, then evaluate Service Quotas for TPM/RPM increase or use a cross-region inference profile.", "correct": true, "why": "Standard pattern: absorb transient throttles with backoff+jitter; then address ceiling with quota increase or cross-region capacity."},
+        {"letter": "B", "text": "Immediately disable Guardrails.", "correct": false, "why": "Unrelated to throttling."},
+        {"letter": "C", "text": "Switch model family to a different vendor without analysis.", "correct": false, "why": "Knee-jerk; doesn't solve the actual capacity ceiling."},
+        {"letter": "D", "text": "Increase max_tokens.", "correct": false, "why": "Per-call cap, not a capacity setting."}
+      ],
+      "knowledge_point": "429 troubleshooting playbook: backoff with jitter → Service Quotas request → cross-region inference profile → Provisioned Throughput for sustained loads.",
+      "trap_alert": "Backoff alone is insufficient if the workload genuinely exceeds quotas. Need a structural fix.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/quotas.html"]
+    },
+    {
+      "id": "D5-Q006",
+      "type": "single_choice",
+      "difficulty": "hard",
+      "tags": ["hallucination", "evaluation"],
+      "scenario": "A RAG pipeline occasionally returns answers not actually supported by retrieved chunks. The team needs to flag and reject low-grounded responses automatically at runtime.",
+      "stem": "Which approach is MOST DIRECT?",
+      "options": [
+        {"letter": "A", "text": "Bedrock Guardrails Contextual Grounding check applied to each response.", "correct": true, "why": "Native runtime grounding check: scores groundedness/relevance and can block on threshold. The runtime tool for this signature."},
+        {"letter": "B", "text": "Run an offline RAGAS evaluation.", "correct": false, "why": "RAGAS is useful for OFFLINE evaluation; doesn't reject low-grounded responses at runtime."},
+        {"letter": "C", "text": "Increase temperature so the model says 'I don't know'.", "correct": false, "why": "Higher temperature INCREASES variability; doesn't enforce grounding."},
+        {"letter": "D", "text": "Switch from RAG to fine-tuning.", "correct": false, "why": "Fine-tuning doesn't reliably reduce hallucinations on changing facts."}
+      ],
+      "knowledge_point": "Runtime hallucination rejection on RAG = Contextual Grounding (groundedness threshold + relevance threshold). RAGAS = offline RAG evaluation framework.",
+      "trap_alert": "Runtime vs offline matters. Pick Contextual Grounding for runtime; RAGAS for offline batch evaluation.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails-contextual-grounding-check.html"]
+    },
+    {
+      "id": "D5-Q007",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["a-b-testing", "models"],
+      "scenario": "A product team wants to ship a new model variant to 10% of users and compare quality metrics versus the existing model.",
+      "stem": "Which pattern MOST appropriately implements this?",
+      "options": [
+        {"letter": "A", "text": "A/B test via traffic-splitting at the application layer (or via SageMaker variant traffic shifting); collect outcome metrics into CloudWatch / S3 and compare.", "correct": true, "why": "Standard A/B test pattern: deterministic split, collect metrics, compare. App-layer routing is the simplest path."},
+        {"letter": "B", "text": "Replace the model for all users immediately and review next quarter.", "correct": false, "why": "Big-bang switch contradicts the gradual-evaluation intent."},
+        {"letter": "C", "text": "Use Bedrock Knowledge Bases to A/B test.", "correct": false, "why": "KBs don't do model variant traffic splitting."},
+        {"letter": "D", "text": "Disable model invocation logging during the test.", "correct": false, "why": "Logging is needed to measure outcomes."}
+      ],
+      "knowledge_point": "A/B testing patterns: app-layer split with deterministic hash on user_id, log outcomes, compare. For SageMaker-hosted models, variant traffic shifting is built in.",
+      "trap_alert": "Don't pick KBs or Guardrails as A/B mechanisms — they don't split traffic.",
+      "doc_refs": ["https://docs.aws.amazon.com/sagemaker/latest/dg/model-ab-testing.html"]
+    },
+    {
+      "id": "D5-Q008",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["shadow-testing"],
+      "scenario": "A team wants to evaluate a new model on real production traffic without serving its responses to users.",
+      "stem": "Which testing pattern fits?",
+      "options": [
+        {"letter": "A", "text": "Shadow testing — mirror requests to the new model in parallel, but only the existing model's response is returned to the user.", "correct": true, "why": "Shadow testing is exactly this pattern: zero user impact, real-traffic comparison."},
+        {"letter": "B", "text": "Canary deployment.", "correct": false, "why": "Canary serves some real users with the new variant — user impact is non-zero."},
+        {"letter": "C", "text": "Blue/green deployment.", "correct": false, "why": "Atomic cutover, also impacts users on cutover."},
+        {"letter": "D", "text": "Chaos engineering.", "correct": false, "why": "Inject failures, unrelated to model comparison."}
+      ],
+      "knowledge_point": "Shadow testing = mirror traffic, evaluate silently. Canary = small % real users. Blue/green = atomic cutover. Pick by user-impact tolerance.",
+      "trap_alert": "Canary and shadow both reduce risk but at different tolerance levels. Shadow has zero user impact.",
+      "doc_refs": ["https://docs.aws.amazon.com/sagemaker/latest/dg/shadow-tests.html"]
+    },
+    {
+      "id": "D5-Q009",
+      "type": "single_choice",
+      "difficulty": "hard",
+      "tags": ["context-too-long", "troubleshoot"],
+      "scenario": "Production users occasionally trigger a ValidationException with message indicating the prompt exceeds the model's context window.",
+      "stem": "Which approach BEST addresses this?",
+      "options": [
+        {"letter": "A", "text": "Truncate or chunk long inputs, retrieve only top-K most relevant chunks via RAG, and pre-validate token count before InvokeModel.", "correct": true, "why": "Three-layer defense: chunk + retrieve + pre-validate. Cleanest production pattern for context-window issues."},
+        {"letter": "B", "text": "Set max_tokens higher.", "correct": false, "why": "max_tokens is OUTPUT cap, not input window."},
+        {"letter": "C", "text": "Disable Guardrails.", "correct": false, "why": "Unrelated to context length."},
+        {"letter": "D", "text": "Switch to Provisioned Throughput.", "correct": false, "why": "Throughput model doesn't change context-window limits."}
+      ],
+      "knowledge_point": "Context window exceeded → reduce input size (truncate/chunk/RAG) + pre-validate token count client-side using a tokenizer.",
+      "trap_alert": "max_tokens controls OUTPUT, not INPUT. Don't confuse the two when chasing context-window errors.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters.html"]
+    },
+    {
+      "id": "D5-Q010",
+      "type": "single_choice",
+      "difficulty": "hard",
+      "tags": ["drift-detection", "model-monitor"],
+      "scenario": "A SageMaker-hosted fine-tuned model needs continuous monitoring for data quality drift, model quality drift, and bias drift.",
+      "stem": "Which AWS service is MOST appropriate?",
+      "options": [
+        {"letter": "A", "text": "Amazon SageMaker Model Monitor.", "correct": true, "why": "Model Monitor detects four drift types — data quality, model quality, bias, and feature attribution drift — on SageMaker endpoints."},
+        {"letter": "B", "text": "Amazon CloudWatch RUM.", "correct": false, "why": "RUM is for real-user monitoring of web/mobile apps."},
+        {"letter": "C", "text": "AWS Config.", "correct": false, "why": "Config tracks AWS resource configuration, not model performance."},
+        {"letter": "D", "text": "AWS X-Ray.", "correct": false, "why": "Distributed tracing, not model drift."}
+      ],
+      "knowledge_point": "SageMaker Model Monitor: four drift types — data quality, model quality, bias, feature attribution. For Bedrock-only GenAI workloads, build custom CloudWatch metrics + scheduled Model Evaluation jobs.",
+      "trap_alert": "Model Monitor is SageMaker-specific. Bedrock-only workloads need a custom pipeline of metrics + scheduled evals.",
+      "doc_refs": ["https://docs.aws.amazon.com/sagemaker/latest/dg/model-monitor.html"]
+    },
+    {
+      "id": "D5-Q011",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["continuous-evaluation", "pipeline"],
+      "scenario": "A team wants the latest production model to be re-evaluated weekly against a frozen test set, with results stored for trend analysis.",
+      "stem": "Which AWS-native architecture is MOST appropriate?",
+      "options": [
+        {"letter": "A", "text": "EventBridge schedule → Lambda → start a Bedrock Model Evaluation job → results saved to S3 → Athena/QuickSight for trend dashboards.", "correct": true, "why": "EventBridge schedule + Lambda + Bedrock Eval is the canonical AWS-native continuous-evaluation pipeline."},
+        {"letter": "B", "text": "Run a manual evaluation every Monday morning.", "correct": false, "why": "Manual = not continuous."},
+        {"letter": "C", "text": "Use AWS Config rules.", "correct": false, "why": "Config doesn't run model evaluations."},
+        {"letter": "D", "text": "Use Amazon Macie.", "correct": false, "why": "Macie is for sensitive-data discovery."}
+      ],
+      "knowledge_point": "Continuous evaluation pattern: EventBridge (schedule) → Lambda (orchestrator) → Bedrock Evaluation → S3 (results) → Athena/QuickSight (dashboards).",
+      "trap_alert": "EventBridge is the missing piece many forget — it's the AWS-native scheduler.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/model-evaluation.html"]
+    },
+    {
+      "id": "D5-Q012",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["agent-trace", "debugging"],
+      "scenario": "An engineer is debugging why a Bedrock Agent chose to call a particular action group when a different one was expected. They need to see the FM's intermediate reasoning and tool-selection decisions.",
+      "stem": "Which feature provides this?",
+      "options": [
+        {"letter": "A", "text": "Bedrock Agent trace — captures rationale, orchestration steps, tool invocations, and KB retrievals per InvokeAgent call.", "correct": true, "why": "Agent trace is the debugging mechanism showing the orchestrator's reasoning step by step."},
+        {"letter": "B", "text": "CloudTrail event detail.", "correct": false, "why": "CloudTrail audits API calls, not the FM's reasoning."},
+        {"letter": "C", "text": "VPC Flow Logs.", "correct": false, "why": "Network-layer; no reasoning info."},
+        {"letter": "D", "text": "AWS X-Ray.", "correct": false, "why": "Distributed tracing, not Agent reasoning capture."}
+      ],
+      "knowledge_point": "Agent trace = FM rationale + steps + tool calls + KB hits per invocation. Use for production Agent debugging.",
+      "trap_alert": "Agent trace ≠ CloudTrail ≠ X-Ray. Each captures a different layer.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/trace-events.html"]
+    },
+    {
+      "id": "D5-Q013",
+      "type": "multiple_response",
+      "difficulty": "hard",
+      "tags": ["metrics", "task-mapping"],
+      "stem": "Which combinations of task and metric are CORRECT? (Select TWO)",
+      "scenario": "",
+      "options": [
+        {"letter": "A", "text": "Machine Translation → BLEU.", "correct": true, "why": "BLEU was originally designed for and remains canonical for MT n-gram precision."},
+        {"letter": "B", "text": "Summarization → ROUGE.", "correct": true, "why": "ROUGE is the standard recall-oriented metric family for summarization."},
+        {"letter": "C", "text": "Classification → BLEU.", "correct": false, "why": "BLEU is generation; classification uses F1, Accuracy, AUC."},
+        {"letter": "D", "text": "Retrieval ranking → ROUGE.", "correct": false, "why": "Retrieval uses Recall@K, Precision@K, MRR, NDCG."},
+        {"letter": "E", "text": "Image generation → Perplexity.", "correct": false, "why": "Image gen uses FID, CLIPScore — not perplexity."}
+      ],
+      "knowledge_point": "Task → metric: Translation/BLEU; Summarization/ROUGE; Classification/F1; Retrieval/Recall@K, MRR, NDCG; Semantic similarity/BERTScore; LM perplexity for LM uncertainty.",
+      "trap_alert": "Mismatch task-and-metric is the #1 metric trap. Memorize the mappings cold.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/model-evaluation-automated.html"]
+    },
+    {
+      "id": "D5-Q014",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["guardrail-trace", "logging"],
+      "scenario": "A team needs to analyze WHY specific user prompts were blocked by Guardrails over a 30-day window.",
+      "stem": "Where is the trace data persisted for retroactive analysis?",
+      "options": [
+        {"letter": "A", "text": "Enable Bedrock model invocation logging — Guardrail traces are included in the logged events stored in S3 or CloudWatch.", "correct": true, "why": "Guardrail traces are emitted as part of model invocation logs; persisted via the logging destination for retroactive analysis."},
+        {"letter": "B", "text": "AWS Config configuration history.", "correct": false, "why": "Config does not store per-invocation traces."},
+        {"letter": "C", "text": "Amazon Macie scan results.", "correct": false, "why": "Macie discovers PII in S3; unrelated to Guardrail traces."},
+        {"letter": "D", "text": "VPC Flow Logs.", "correct": false, "why": "Network metadata only."}
+      ],
+      "knowledge_point": "Guardrail traces live inside model invocation logs (S3/CloudWatch). Enable invocation logging to retain traces; query via Athena or CloudWatch Logs Insights.",
+      "trap_alert": "Don't expect a separate 'Guardrail log' product — it's embedded in model invocation logs.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails-trace.html"]
+    },
+    {
+      "id": "D5-Q015",
+      "type": "single_choice",
+      "difficulty": "hard",
+      "tags": ["latency-troubleshoot"],
+      "scenario": "p99 latency on InvokeModel calls to Claude 3 Sonnet has gradually climbed over a month. CloudWatch shows no throttles, no error increase, and token counts per request are unchanged.",
+      "stem": "Which is the MOST LIKELY NEXT investigation step?",
+      "options": [
+        {"letter": "A", "text": "Check whether requests are being routed via a cross-region inference profile and whether one of the routed regions is degraded.", "correct": true, "why": "Cross-region inference can route to a region with degraded latency; this is a known investigation lever when no other CloudWatch dimension explains the drift."},
+        {"letter": "B", "text": "Disable Guardrails.", "correct": false, "why": "Removes a feature without evidence Guardrails caused the drift."},
+        {"letter": "C", "text": "Switch to On-Demand from Provisioned Throughput.", "correct": false, "why": "Premature without root cause analysis."},
+        {"letter": "D", "text": "Rotate KMS keys.", "correct": false, "why": "Unrelated to latency."}
+      ],
+      "knowledge_point": "Latency drift root-cause checklist: cross-region inference health, region of execution, network path (PrivateLink vs internet), model version changes, prompt-size drift, output length drift, downstream Lambda cold-starts.",
+      "trap_alert": "Don't change capacity model or remove safety features without evidence. Investigate routing first.",
+      "doc_refs": ["https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html"]
+    }
+  ]
+}

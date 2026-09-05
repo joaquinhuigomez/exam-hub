@@ -1,0 +1,127 @@
+{
+  "traps": [
+    {
+      "name": "Kendra/Lex as RAG distractors",
+      "pattern": "On Bedrock-context RAG questions, Kendra and Lex appear as plausible-looking answer options.",
+      "spot_it": "If the scenario is Bedrock-centric and asks for managed RAG → answer is almost always Bedrock Knowledge Bases. Lex is for chatbot front-ends, not FM orchestration. Kendra is enterprise search, not the Bedrock-native RAG path.",
+      "source": "Greciano beta-passer notes; multiple community reports"
+    },
+    {
+      "name": "Comprehend over-emphasis in practice exams",
+      "pattern": "Third-party practice tests over-feature Comprehend; the real exam tests it lightly.",
+      "spot_it": "Don't pick Comprehend just because it sounds AI-related. Use it only for: PII detection in pipelines (where Guardrails is overkill), sentiment, entity extraction on non-FM workflows.",
+      "source": "Greciano passer notes"
+    },
+    {
+      "name": "Fine-tune vs RAG framing",
+      "pattern": "Stem describes 'company data the model should know about' — both fine-tune and RAG sound plausible.",
+      "spot_it": "Data CHANGES (weekly/daily, new docs) → RAG. Data is STATIC and you need STYLE/FORMAT/TASK adaptation → fine-tune. New DOMAIN VOCAB without labels → continued pre-training. Never fine-tune for facts that update.",
+      "source": "AWS Bedrock User Guide; Pluralsight"
+    },
+    {
+      "name": "Bedrock Agents vs Step Functions",
+      "pattern": "Both can orchestrate multi-step workflows.",
+      "spot_it": "FM reasoning decides next step → Bedrock Agents. Deterministic predefined workflow with branching → Step Functions. If the stem says 'LLM picks which tool to call', it's Agents.",
+      "source": "AWS docs; KodeKloud"
+    },
+    {
+      "name": "Provisioned Throughput trap on bursty workloads",
+      "pattern": "Stem says 'guarantee capacity' and you reach for Provisioned Throughput.",
+      "spot_it": "PT is a 1mo/6mo commit — overkill (and expensive) for bursty/seasonal workloads. For bursty: on-demand baseline + scale; for steady high volume: PT. PT is REQUIRED for custom (fine-tuned) model hosting.",
+      "source": "AWS Bedrock pricing docs"
+    },
+    {
+      "name": "PrivateLink vs VPC interface endpoints",
+      "pattern": "'Private connectivity to Bedrock' — multiple wordings appear.",
+      "spot_it": "Bedrock supports AWS PrivateLink via VPC interface endpoints for bedrock, bedrock-runtime, bedrock-agent, bedrock-agent-runtime. These are the SAME thing — different exam phrasings. NAT Gateway is NOT a private path.",
+      "source": "AWS VPC + Bedrock docs"
+    },
+    {
+      "name": "Guardrails vs IAM scoping",
+      "pattern": "Question conflates 'restrict what the model can talk about' with 'restrict who can call the model'.",
+      "spot_it": "Guardrails = CONTENT policy (what the FM may say/process). IAM = ACCESS policy (who may invoke). Need both for defense in depth. Question that says 'block topics' → Guardrails. 'Block users' → IAM.",
+      "source": "AWS Guardrails docs"
+    },
+    {
+      "name": "Multi-region inference profile vs cross-region replication",
+      "pattern": "Both involve multiple regions.",
+      "spot_it": "Inference profile = ONE ARN routes traffic across regions for resilience/capacity. Cross-region replication = COPYING data (S3, custom model weights) across regions for DR. Don't confuse them.",
+      "source": "AWS Bedrock inference profiles docs"
+    },
+    {
+      "name": "'Reduce hallucinations' signature",
+      "pattern": "Stem asks to reduce hallucinations — many options sound plausible.",
+      "spot_it": "Top 3 levers in order: (1) RAG with KBs (ground in your data), (2) Guardrails CONTEXTUAL GROUNDING check (auto-block low-grounded responses), (3) lower temperature/top_p. Fine-tuning RARELY helps with hallucinations.",
+      "source": "AWS Guardrails; Anthropic best practices"
+    },
+    {
+      "name": "Multi-response 'Select TWO/THREE' counting",
+      "pattern": "Multi-response questions state how many to pick; getting the count wrong = auto-fail of that Q.",
+      "spot_it": "Read the LAST line of the stem. Count YOUR selected boxes vs the stated number BEFORE submitting. Multi-response is partial-credit-NONE — all-or-nothing.",
+      "source": "AWS exam format; Greciano notes"
+    },
+    {
+      "name": "Lowest-latency RAG retrieval",
+      "pattern": "Multiple vector stores listed as options.",
+      "spot_it": "Sub-ms in-memory → MemoryDB. Default low-ops → OpenSearch Serverless vector. Reuse existing Postgres → Aurora pgvector. Graph + vector → Neptune Analytics. If 'low ops' AND 'integrated with Bedrock KBs', it's OpenSearch Serverless.",
+      "source": "AWS vector store docs"
+    },
+    {
+      "name": "Bedrock prompt caching cost trap",
+      "pattern": "Caching seems always cheaper.",
+      "spot_it": "Cache WRITE costs ~1.25x base; cache READ costs ~0.1x base. Break-even ≈ 2-3 reuses of the cached prefix. Don't cache prefixes that won't be reused soon. 5-min TTL.",
+      "source": "AWS Bedrock prompt caching pricing"
+    },
+    {
+      "name": "Batch inference window",
+      "pattern": "'Need responses now' option includes batch.",
+      "spot_it": "Batch is ASYNC with up to 24h SLA — never the right answer for real-time/interactive use cases. It IS the right answer for: large offline jobs, nightly summarization, eval datasets, where 50% cost saving matters.",
+      "source": "AWS Bedrock Batch Inference docs"
+    },
+    {
+      "name": "Knowledge Base chunking choice",
+      "pattern": "Options offer fixed, semantic, hierarchical, default chunking.",
+      "spot_it": "Default = quick start (300 tokens, 20% overlap). Fixed = predictable size. Semantic = group by meaning (better recall for narrative docs). Hierarchical = parent-child for long structured docs (legal, manuals). Pick by document structure, not by 'sounds advanced'.",
+      "source": "AWS Bedrock Knowledge Bases docs"
+    },
+    {
+      "name": "Model evaluation type confusion",
+      "pattern": "Bedrock Model Evaluation has Automated, Human (in-house team), LLM-as-judge.",
+      "spot_it": "Quick + reproducible + standard datasets → Automated. Subjective quality, brand voice → Human in-house team. Scale + flexible criteria + cheaper than human → LLM-as-judge. Don't pick 'Human (AWS team)' — that doesn't exist for general evaluation.",
+      "source": "AWS Bedrock Model Evaluation docs"
+    }
+  ],
+  "tips": [
+    "2.5 min/Q hard cap. Flag and move. Come back at the end.",
+    "Read the LAST line of the stem first (the actual ask), then re-read the scenario with that ask in mind.",
+    "Eliminate the 2 obviously-wrong options FAST. The remaining pair is where the real decision lives.",
+    "'Most cost-effective' + 'managed' → almost always a Bedrock-native feature, not a hand-rolled pipeline.",
+    "'Lowest latency for retrieval' → OpenSearch Serverless vector or MemoryDB; not Aurora pgvector unless DB already exists.",
+    "Multi-response: count YOUR selections vs the stated number before submitting. All-or-nothing scoring.",
+    "If two options look identical in spirit but one mentions a CONCRETE AWS service (Bedrock KBs, OpenSearch Serverless, Lambda) and the other is generic ('a custom pipeline'), the concrete one usually wins.",
+    "When in doubt between two managed services, pick the one in the SAME service family as the rest of the scenario (e.g., scenario is Bedrock-heavy → pick the Bedrock-native option).",
+    "'No code changes' or 'minimize developer effort' → Guardrails, Knowledge Bases, Agents — managed features, not custom Lambda.",
+    "Questions with 'AT REST' / 'IN TRANSIT' framing → KMS (CMK), TLS, PrivateLink. Identify which one the question is actually asking about.",
+    "Questions about 'auditing FM usage' → CloudTrail (control plane) + Model invocation logging (data plane). Both, often.",
+    "Trust your first read. Changing answers at the end usually decreases accuracy."
+  ],
+  "exam_room": [
+    "Test-center > online proctor for stamina (passer consensus). Quick bathroom breaks allowed at test centers.",
+    "180 min is shorter than you think for 75 questions. Don't camp on one question.",
+    "Use 'Mark for Review' aggressively on the first pass. Speed > perfection on pass 1.",
+    "Pass 2: revisit marked questions with the time you saved. New context from later Qs sometimes unlocks earlier ones.",
+    "If the question is incoherent or seems wrong, it's probably an unscored experimental Q. Pick the best plausible answer and MOVE ON.",
+    "Drink water before, not during. Caffeine that lasts 4h not 1h.",
+    "Read each option fully before picking — close-distractor traps live in the last clause of an option."
+  ],
+  "top_focus_8020": [
+    {"rank": 1, "topic": "Bedrock Knowledge Bases (managed RAG end-to-end)", "why": "Highest-frequency exam topic per passer reports"},
+    {"rank": 2, "topic": "Bedrock Guardrails (all 6 policy types and what they block)", "why": "Heavily tested in D3 (20%) and D1 PII contexts"},
+    {"rank": 3, "topic": "Bedrock Agents (action groups, function detail, Lambda backing, sessions)", "why": "Central to D2 (26%) implementation Qs"},
+    {"rank": 4, "topic": "Fine-tune vs RAG vs Continued Pre-training decision framework", "why": "Recurring decision-table Q across domains"},
+    {"rank": 5, "topic": "Vector store selection (OpenSearch Serverless / Aurora pgvector / MemoryDB / DocumentDB / Neptune Analytics)", "why": "Common in D1 + D2 architecture Qs"},
+    {"rank": 6, "topic": "Throughput modes (On-Demand / Provisioned / Batch) — when to use which", "why": "Almost all D4 (12%) Qs hinge on this"},
+    {"rank": 7, "topic": "Logging stack (CloudWatch + CloudTrail + Model invocation logs + Guardrail trace + Agent trace)", "why": "D3 governance + D5 troubleshooting"},
+    {"rank": 8, "topic": "Inference profiles (cross-region) and how they relate to quotas/capacity", "why": "Common in newer-model Qs (Claude 3.7+, Nova)"}
+  ]
+}

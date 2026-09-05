@@ -1,0 +1,1375 @@
+<title>PMP Study Hub</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Public+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   PMP STUDY HUB — palette: ink slate + deep violet + signal crimson
+   All colours defined on bare :root (light), redefined for dark.
+   ============================================================ */
+:root{
+  --bg:#e9ecf2;
+  --surface:#ffffff;
+  --surface2:#f4f6fa;
+  --ink:#11151e;
+  --ink2:#333c4b;
+  --muted:#5c6675;
+  --line:#d0d7e2;
+  --line-soft:#e3e8f0;
+  --accent:#4b2fa8;
+  --accent-ink:#ffffff;
+  --accent-soft:#ece7fc;
+  --accent-line:#c4b6f2;
+  --hot:#b01d3e;
+  --hot-ink:#ffffff;
+  --hot-soft:#fbe8ed;
+  --hot-line:#eeb6c4;
+  --gold:#7f5300;
+  --gold-soft:#fdf1d6;
+  --gold-line:#e3bd60;
+  --good:#0c6a45;
+  --good-soft:#e1f2ea;
+  --good-line:#9fd3bd;
+  --shadow:0 1px 2px rgba(15,21,33,.06), 0 8px 22px rgba(15,21,33,.07);
+  --shadow-sm:0 1px 2px rgba(15,21,33,.07);
+  --r:14px;
+  --r-sm:9px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0d1017;
+    --surface:#161a24;
+    --surface2:#1c2130;
+    --ink:#e9edf5;
+    --ink2:#c4ccda;
+    --muted:#95a1b3;
+    --line:#2c3342;
+    --line-soft:#232a37;
+    --accent:#b4a3ff;
+    --accent-ink:#150f2c;
+    --accent-soft:#211d3e;
+    --accent-line:#3c3570;
+    --hot:#ff7d95;
+    --hot-ink:#2c0b15;
+    --hot-soft:#2b141c;
+    --hot-line:#5b2636;
+    --gold:#f0c266;
+    --gold-soft:#2a2214;
+    --gold-line:#5e4a1f;
+    --good:#5fd6a3;
+    --good-soft:#0f2921;
+    --good-line:#245c48;
+    --shadow:0 1px 2px rgba(0,0,0,.45), 0 8px 22px rgba(0,0,0,.4);
+    --shadow-sm:0 1px 2px rgba(0,0,0,.5);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0d1017;
+  --surface:#161a24;
+  --surface2:#1c2130;
+  --ink:#e9edf5;
+  --ink2:#c4ccda;
+  --muted:#95a1b3;
+  --line:#2c3342;
+  --line-soft:#232a37;
+  --accent:#b4a3ff;
+  --accent-ink:#150f2c;
+  --accent-soft:#211d3e;
+  --accent-line:#3c3570;
+  --hot:#ff7d95;
+  --hot-ink:#2c0b15;
+  --hot-soft:#2b141c;
+  --hot-line:#5b2636;
+  --gold:#f0c266;
+  --gold-soft:#2a2214;
+  --gold-line:#5e4a1f;
+  --good:#5fd6a3;
+  --good-soft:#0f2921;
+  --good-line:#245c48;
+  --shadow:0 1px 2px rgba(0,0,0,.45), 0 8px 22px rgba(0,0,0,.4);
+  --shadow-sm:0 1px 2px rgba(0,0,0,.5);
+}
+
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  background:var(--bg);
+  color:var(--ink);
+  margin:0;
+  padding:0;
+  font-family:"Public Sans",-apple-system,BlinkMacSystemFont,"Segoe UI","Helvetica Neue",Arial,sans-serif;
+  font-size:16px;
+  line-height:1.5;
+  overflow-wrap:break-word;
+}
+.wrap{max-width:740px;margin:0 auto;padding:18px 14px 64px}
+.disp{font-family:"Bricolage Grotesque","Public Sans",-apple-system,Segoe UI,Arial,sans-serif;font-weight:800;letter-spacing:-.02em;line-height:1.05}
+.num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1}
+a{color:var(--accent)}
+
+/* ---------- header ---------- */
+.hero{
+  background:var(--surface);
+  border:1px solid var(--line);
+  border-radius:var(--r);
+  padding:18px 16px 16px;
+  box-shadow:var(--shadow);
+  margin-bottom:14px;
+}
+.kicker{
+  margin:0 0 6px;font-size:.68rem;letter-spacing:.14em;text-transform:uppercase;
+  font-weight:700;color:var(--accent);
+}
+.hero h1{font-size:2rem;margin:0 0 8px}
+.lede{
+  margin:0 0 14px;font-size:.92rem;color:var(--ink2);font-weight:500;
+}
+.lede b{color:var(--ink)}
+.stats{display:grid;grid-template-columns:1fr;gap:8px}
+.stat{
+  background:var(--surface2);border:1px solid var(--line-soft);
+  border-radius:var(--r-sm);padding:9px 11px;
+  display:flex;align-items:baseline;gap:9px;
+}
+.stat .v{font-family:"Bricolage Grotesque","Public Sans",sans-serif;font-weight:800;font-size:1.35rem;color:var(--accent);line-height:1;flex:0 0 auto}
+.stat .l{font-size:.79rem;color:var(--ink2);line-height:1.3}
+.stat.go .v{color:var(--good)}
+.stat.plan{display:block}
+.stat.plan .tag{
+  display:inline-block;font-size:.6rem;letter-spacing:.13em;text-transform:uppercase;
+  font-weight:800;color:var(--hot);margin-bottom:2px
+}
+.stat.plan .l{display:block;font-weight:600;color:var(--ink)}
+
+/* ---------- jump nav ---------- */
+.jump{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 22px}
+.jump a{
+  flex:1 1 auto;text-align:center;text-decoration:none;
+  font-size:.74rem;font-weight:700;letter-spacing:.02em;
+  color:var(--ink2);background:var(--surface);border:1px solid var(--line);
+  border-radius:999px;padding:9px 10px;min-height:38px;
+  display:flex;align-items:center;justify-content:center;
+}
+
+/* ---------- section furniture ---------- */
+section{margin:0 0 30px;scroll-margin-top:10px}
+.shead{margin:0 0 4px;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.shead h2{font-family:"Bricolage Grotesque","Public Sans",sans-serif;font-weight:800;letter-spacing:-.015em;font-size:1.4rem;margin:0}
+.shead .badge{
+  font-size:.6rem;letter-spacing:.13em;text-transform:uppercase;font-weight:800;
+  padding:3px 7px;border-radius:999px;background:var(--accent-soft);color:var(--accent);
+  border:1px solid var(--accent-line)
+}
+.sdek{margin:0 0 14px;font-size:.85rem;color:var(--muted);line-height:1.45}
+
+/* ---------- RED LIST ---------- */
+.rule{
+  background:var(--surface);border:1px solid var(--line);
+  border-left:5px solid var(--hot);
+  border-radius:var(--r);padding:13px 14px 12px;margin:0 0 11px;
+  box-shadow:var(--shadow-sm);
+}
+.rule-top{display:flex;gap:10px;align-items:flex-start;margin-bottom:8px}
+.rnum{
+  font-family:"Bricolage Grotesque","Public Sans",sans-serif;font-weight:800;
+  font-size:1.5rem;line-height:1;color:var(--hot);flex:0 0 auto;
+  min-width:2.05em;padding-top:1px;letter-spacing:-.03em;
+}
+.rtext{margin:0;font-size:1rem;font-weight:700;line-height:1.34;color:var(--ink)}
+.rtext em{font-style:normal;color:var(--hot);font-weight:800}
+.trap{
+  margin:0 0 9px;font-size:.83rem;line-height:1.45;color:var(--ink2);
+  background:var(--hot-soft);border:1px solid var(--hot-line);
+  border-radius:var(--r-sm);padding:7px 9px;
+}
+.trap b{
+  display:block;font-size:.6rem;letter-spacing:.13em;text-transform:uppercase;
+  color:var(--hot);margin-bottom:2px;font-weight:800
+}
+.mnem{
+  margin:0;display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  font-size:.6rem;letter-spacing:.13em;text-transform:uppercase;font-weight:800;color:var(--gold)
+}
+.mnem span{
+  font-family:"Bricolage Grotesque","Public Sans",sans-serif;
+  letter-spacing:.03em;font-size:.86rem;text-transform:none;font-weight:800;
+  color:var(--ink);background:var(--gold-soft);border:1px solid var(--gold-line);
+  border-radius:999px;padding:4px 11px;
+}
+.rule .sub{margin:8px 0 0;font-size:.79rem;color:var(--muted);line-height:1.45}
+
+/* ---------- generic cards ---------- */
+.card{
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+  padding:13px 14px;margin:0 0 11px;box-shadow:var(--shadow-sm);
+}
+.card h3{
+  margin:0 0 4px;font-size:.72rem;letter-spacing:.11em;text-transform:uppercase;
+  font-weight:800;color:var(--accent)
+}
+.card p{margin:0 0 7px;font-size:.86rem;line-height:1.5;color:var(--ink2)}
+.card p:last-child{margin-bottom:0}
+.card p b, .card li b{color:var(--ink)}
+
+/* estimating ladder */
+.ladder{list-style:none;margin:0;padding:0;counter-reset:est}
+.ladder li{
+  counter-increment:est;position:relative;
+  border:1px solid var(--line-soft);border-radius:var(--r-sm);
+  background:var(--surface2);padding:9px 11px 10px;margin:0 0 7px;
+}
+.ladder .t{font-size:.9rem;font-weight:700;color:var(--ink);display:block;margin-bottom:2px}
+.ladder .d{font-size:.81rem;color:var(--ink2);line-height:1.45;display:block}
+.meter{display:flex;gap:3px;margin-top:7px;align-items:center}
+.meter i{
+  height:6px;flex:1 1 0;border-radius:3px;background:var(--line);display:block
+}
+.meter i.on{background:var(--accent)}
+.meter .cap{
+  flex:0 0 auto;font-size:.58rem;letter-spacing:.1em;text-transform:uppercase;
+  font-weight:800;color:var(--muted);font-style:normal;height:auto;background:none;border-radius:0
+}
+.axis{
+  display:flex;justify-content:space-between;gap:10px;font-size:.62rem;
+  letter-spacing:.1em;text-transform:uppercase;font-weight:800;color:var(--muted);
+  margin:0 0 8px
+}
+
+/* mini table */
+.tw{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 0 8px}
+table.mini{width:100%;border-collapse:collapse;font-size:.82rem;line-height:1.4}
+table.mini th,table.mini td{
+  border:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top
+}
+table.mini th{background:var(--surface2);font-weight:700;color:var(--ink);font-size:.74rem;letter-spacing:.04em;text-transform:uppercase}
+table.mini td b{color:var(--ink)}
+table.mini td{color:var(--ink2)}
+
+/* trio */
+.trio{display:grid;grid-template-columns:1fr;gap:7px}
+.trio div{
+  border:1px solid var(--line-soft);border-radius:var(--r-sm);
+  background:var(--surface2);padding:9px 11px;font-size:.82rem;color:var(--ink2);line-height:1.45
+}
+.trio div b{display:block;color:var(--accent);font-size:.75rem;letter-spacing:.09em;text-transform:uppercase;margin-bottom:2px}
+
+/* pipeline */
+.pipe{display:flex;flex-wrap:wrap;align-items:stretch;gap:6px;margin:0}
+.pipe .p{
+  flex:1 1 150px;border:1px solid var(--line-soft);background:var(--surface2);
+  border-radius:var(--r-sm);padding:8px 10px;font-size:.79rem;color:var(--ink2);line-height:1.4
+}
+.pipe .p b{display:block;color:var(--ink);font-size:.83rem;margin-bottom:2px}
+
+/* callout */
+.call{
+  border:1px solid var(--gold-line);background:var(--gold-soft);
+  border-radius:var(--r-sm);padding:9px 11px;margin:9px 0 0;
+  font-size:.82rem;line-height:1.45;color:var(--ink2)
+}
+.call b{color:var(--ink)}
+
+/* ---------- easy points ---------- */
+.easy{list-style:none;margin:0;padding:0}
+.easy li{
+  background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--good);
+  border-radius:var(--r-sm);padding:10px 12px 10px 12px;margin:0 0 7px;
+  font-size:.85rem;line-height:1.45;color:var(--ink2)
+}
+.easy li b{color:var(--ink)}
+.easy li .k{
+  display:block;font-size:.62rem;letter-spacing:.12em;text-transform:uppercase;
+  font-weight:800;color:var(--good);margin-bottom:2px
+}
+code,.f{
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  font-size:.93em;background:var(--surface2);border:1px solid var(--line-soft);
+  border-radius:4px;padding:0 4px;font-variant-numeric:tabular-nums
+}
+
+/* ---------- exam day ---------- */
+.slot{
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+  padding:12px 14px;margin:0 0 10px;box-shadow:var(--shadow-sm)
+}
+.slot > h3{
+  margin:0 0 7px;font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;
+  font-weight:800;color:var(--accent);display:flex;align-items:center;gap:7px;flex-wrap:wrap
+}
+.slot > h3 .when{
+  font-family:"Bricolage Grotesque","Public Sans",sans-serif;
+  font-variant-numeric:tabular-nums;font-size:.86rem;letter-spacing:0;
+  text-transform:none;color:var(--ink);background:var(--accent-soft);
+  border:1px solid var(--accent-line);border-radius:999px;padding:2px 9px
+}
+.slot ul{margin:0;padding:0;list-style:none}
+.slot li{
+  font-size:.85rem;line-height:1.5;color:var(--ink2);padding:0 0 0 22px;
+  position:relative;margin:0 0 6px
+}
+.slot li:last-child{margin-bottom:0}
+.slot li::before{
+  content:"";position:absolute;left:0;top:.42em;width:12px;height:12px;
+  border:1.6px solid var(--accent-line);border-radius:3px;background:var(--surface2)
+}
+.slot li b{color:var(--ink)}
+.slot li.warn::before{border-color:var(--hot);background:var(--hot-soft)}
+.slot p{margin:0 0 7px;font-size:.85rem;color:var(--ink2);line-height:1.5}
+.addr{
+  font-size:.88rem;line-height:1.45;color:var(--ink);font-weight:600;
+  background:var(--surface2);border:1px solid var(--line-soft);border-radius:var(--r-sm);
+  padding:9px 11px;margin:0 0 8px
+}
+.pace{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin:0 0 9px}
+.pace div{
+  border:1px solid var(--line-soft);background:var(--surface2);border-radius:var(--r-sm);
+  padding:8px 10px;text-align:center
+}
+.pace .v{
+  display:block;font-family:"Bricolage Grotesque","Public Sans",sans-serif;font-weight:800;
+  font-size:1.15rem;color:var(--accent);font-variant-numeric:tabular-nums;line-height:1.15
+}
+.pace .l{display:block;font-size:.68rem;letter-spacing:.07em;text-transform:uppercase;font-weight:700;color:var(--muted);margin-top:2px}
+.mindset{
+  border:2px solid var(--accent);background:var(--accent-soft);border-radius:var(--r);
+  padding:14px 15px;margin:12px 0 0
+}
+.mindset .k{
+  font-size:.62rem;letter-spacing:.14em;text-transform:uppercase;font-weight:800;
+  color:var(--accent);display:block;margin-bottom:5px
+}
+.mindset p{
+  margin:0;font-family:"Bricolage Grotesque","Public Sans",sans-serif;font-weight:600;
+  font-size:1rem;line-height:1.42;color:var(--ink);letter-spacing:-.005em
+}
+
+/* ---------- cheat sheet shell ---------- */
+.cs-block{
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--r-sm);
+  margin:0 0 7px;overflow:hidden
+}
+.cs-block > summary{
+  cursor:pointer;list-style:none;padding:13px 14px;min-height:50px;
+  display:flex;align-items:center;gap:10px;
+  font-weight:700;font-size:.93rem;color:var(--ink);line-height:1.3
+}
+.cs-block > summary::-webkit-details-marker{display:none}
+.cs-block > summary .cs-num{
+  flex:0 0 auto;width:26px;height:26px;border-radius:7px;
+  background:var(--accent);color:var(--accent-ink);
+  display:flex;align-items:center;justify-content:center;
+  font-family:"Bricolage Grotesque","Public Sans",sans-serif;font-weight:800;font-size:.85rem;
+  font-variant-numeric:tabular-nums
+}
+.cs-block > summary .cs-title{flex:1 1 auto;min-width:0}
+.cs-block > summary .chev{
+  margin-left:auto;flex:0 0 auto;width:0;height:0;border-style:solid;
+  border-width:5px 0 5px 7px;border-color:transparent transparent transparent var(--muted);
+  transition:transform .15s
+}
+.cs-block[open] > summary{border-bottom:1px solid var(--line-soft);background:var(--surface2)}
+.cs-block[open] > summary .chev{transform:rotate(90deg)}
+.cs{padding:11px 13px 13px;font-size:.84rem;line-height:1.42;color:var(--ink2)}
+.cs h3{
+  font-size:.7rem;margin:11px 0 3px;color:var(--accent);text-transform:uppercase;
+  letter-spacing:.08em;font-weight:800
+}
+.cs h3:first-child{margin-top:0}
+.cs .tw{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:4px 0 7px}
+.cs table{width:100%;border-collapse:collapse;font-size:.79rem;line-height:1.35;table-layout:auto}
+/* 3+ column blocks wrap at word boundaries at 375px; if a device is narrower still,
+   the .tw wrapper scrolls the table instead of the page. */
+.cs table.wide{min-width:0}
+.cs th,.cs td{
+  border:1px solid var(--line);padding:5px 6px;text-align:left;vertical-align:top;
+  overflow-wrap:break-word;hyphens:none
+}
+.cs th{background:var(--surface2);font-weight:700;color:var(--ink)}
+.cs tbody tr:nth-child(even) td{background:var(--surface2)}
+.cs td b,.cs li b,.cs p b{color:var(--ink)}
+.cs .cs-f{
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.95em;
+  font-variant-numeric:tabular-nums;background:none;border:0;padding:0
+}
+.cs .cs-pos{color:var(--good);font-weight:700}
+.cs .cs-neg{color:var(--hot);font-weight:700}
+.cs ol,.cs ul{margin:4px 0 7px;padding-left:1.15em}
+.cs li{margin:2px 0;font-size:.83rem;line-height:1.42}
+.cs p{margin:4px 0;font-size:.83rem;line-height:1.45}
+.cs .cs-hook{
+  background:var(--gold-soft);border-left:3px solid var(--gold-line);
+  padding:7px 9px;margin:6px 0;border-radius:0 var(--r-sm) var(--r-sm) 0
+}
+.cs .cs-hook .cs-t{text-transform:uppercase;font-size:.9em;letter-spacing:.05em;color:var(--gold)}
+.cs .cs-box{
+  border:1px solid var(--line);border-radius:var(--r-sm);padding:7px 9px;margin:6px 0;
+  background:var(--surface2)
+}
+.cs .cs-mind{
+  border:2px solid var(--accent);background:var(--accent-soft);border-radius:var(--r-sm);
+  padding:10px 11px;margin:6px 0
+}
+.cs .cs-mind ol{counter-reset:m;list-style:none;padding-left:0;margin:4px 0 0}
+.cs .cs-mind ol li{
+  counter-increment:m;padding-left:1.9em;position:relative;margin:5px 0;
+  font-size:.85rem;font-weight:600;color:var(--ink)
+}
+.cs .cs-mind ol li::before{
+  content:counter(m);position:absolute;left:0;top:.05em;width:1.4em;height:1.4em;
+  line-height:1.4em;text-align:center;background:var(--accent);color:var(--accent-ink);
+  border-radius:50%;font-size:.8em;font-weight:800
+}
+.cs .cs-arrow{font-size:.8rem;font-weight:600;color:var(--ink)}
+.cs .cs-strip{display:flex;flex-wrap:wrap;gap:6px;margin:5px 0}
+.cs .cs-strip > div{
+  flex:1 1 150px;border:1px solid var(--line-soft);border-radius:var(--r-sm);
+  padding:8px 10px;font-size:.79rem;background:var(--surface2);line-height:1.42
+}
+.cs .cs-strip > div > b:first-child{display:block;color:var(--accent);margin-bottom:2px}
+.cs .cs-ok{background:var(--good-soft)!important}
+.cs .cs-no{background:var(--hot-soft)!important}
+.cs .cs-small{font-size:.78rem;color:var(--muted);line-height:1.45}
+.cs .cs-sub{font-size:.8rem;color:var(--muted)}
+
+/* ---------- footer ---------- */
+footer{
+  border-top:1px solid var(--line);margin-top:26px;padding-top:20px;text-align:center
+}
+.btn{
+  display:block;text-decoration:none;text-align:center;
+  background:var(--accent);color:var(--accent-ink);
+  font-family:"Bricolage Grotesque","Public Sans",sans-serif;font-weight:800;
+  font-size:1rem;padding:15px 18px;border-radius:var(--r);
+  box-shadow:var(--shadow);letter-spacing:-.01em
+}
+footer p{margin:11px 0 0;font-size:.82rem;color:var(--muted);line-height:1.5}
+.sig{margin-top:16px!important;font-size:.72rem!important;color:var(--muted)}
+
+/* ---------- wider screens ---------- */
+@media (min-width:560px){
+  .stats{grid-template-columns:1fr 1fr}
+  .stat.plan{grid-column:1 / -1}
+  .trio{grid-template-columns:1fr 1fr 1fr}
+  .pace{grid-template-columns:1fr 1fr 1fr 1fr}
+}
+@media (min-width:760px){
+  body{font-size:17px}
+  .wrap{max-width:820px;padding:26px 22px 80px}
+  .hero h1{font-size:2.5rem}
+  .shead h2{font-size:1.6rem}
+  .rnum{font-size:1.75rem}
+  .stats{grid-template-columns:1fr 1fr}
+  .btn{display:inline-block;padding:16px 34px}
+}
+</style>
+
+<div class="wrap">
+
+<!-- ============ 1. HEADER ============ -->
+<header class="hero">
+  <p class="kicker">One page &middot; tonight and tomorrow morning</p>
+  <h1 class="disp">PMP Study Hub</h1>
+  <p class="lede">Exam <b>Tue 25 Aug 08:00</b> &middot; Pearson Docklands &middot; arrive <b>07:30</b> &middot; passport</p>
+  <div class="stats">
+    <div class="stat"><span class="v num">166</span><span class="l">official questions practiced</span></div>
+    <div class="stat go"><span class="v num">67%</span><span class="l">stable across 3 sprints &mdash; above the 65% GO line</span></div>
+    <div class="stat plan">
+      <span class="tag">Tomorrow</span>
+      <span class="l">Red List &rarr; 2026 Patch &rarr; Block 10 &rarr; optional 20-Q set</span>
+    </div>
+  </div>
+</header>
+
+<nav class="jump">
+  <a href="#eco2026">2026 ECO</a>
+  <a href="#red">Red List</a>
+  <a href="#tech">Techniques</a>
+  <a href="#gap2026">Gap Patch</a>
+  <a href="#easy">Easy Points</a>
+  <a href="#day">Exam Day</a>
+  <a href="#sheet">Cheat Sheet</a>
+</nav>
+
+<!-- ============ THE 2026 ECO ============ -->
+<section id="eco2026">
+  <div class="shead">
+    <h2 class="disp">Your exam changed &mdash; verified against PMI&rsquo;s 2026 outline</h2>
+    <span class="badge">read first</span>
+  </div>
+  <p class="sdek">Source: PMI&rsquo;s official <i>PMP Examination Content Outline &mdash; July 2026</i>, read in full. The seat you sit in tomorrow is built on this outline, not the 2021 one. Three minutes here, then carry on down the page.</p>
+
+  <div class="card">
+    <h3>What moved</h3>
+    <div class="tw">
+      <table class="mini">
+        <thead><tr><th>Dimension</th><th>Old (2021)</th><th>Now (2026)</th></tr></thead>
+        <tbody>
+          <tr><td><b>People</b></td><td class="num">42%</td><td class="num"><b>33%</b></td></tr>
+          <tr><td><b>Process</b></td><td class="num">50%</td><td class="num"><b>41%</b></td></tr>
+          <tr><td><b>Business Environment</b></td><td class="num">8%</td><td class="num"><b>26%</b> &mdash; tripled</td></tr>
+          <tr><td><b>Predictive / adaptive</b></td><td class="num">50 / 50</td><td class="num"><b>40 / 60</b></td></tr>
+          <tr><td><b>Time</b></td><td class="num">230 min</td><td class="num"><b>240 min</b></td></tr>
+          <tr><td><b>Questions</b></td><td class="num">180</td><td class="num"><b>180</b> &mdash; 170 scored + 10 unscored pretest</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="call"><b>This is good news, and it is already inside your numbers.</b> Study Hall is the new-exam product, so your <b>166 practice questions</b> and your <b>67% stable score</b> were measured against <i>this</i> outline all along. <b>Business Environment is your strongest domain at 73%</b> &mdash; and it just tripled to 26% of the paper. The <b>60% adaptive</b> share favours you too. Roughly <b>80% of everything below this section is still directly testable</b>; the weights simply moved toward your strengths. The flip side: People and Process &mdash; both 64% for you &mdash; still carry <b>74% of the paper</b>, which is exactly what the Red List below exists to fix.</div>
+  </div>
+
+  <article class="rule">
+    <div class="rule-top">
+      <h3 class="rtext">The exam <em>OPENS with a case-study section</em>, and <em>break 1 comes right after it and LOCKS it</em>. Answer AND review every case question <em>before</em> you take that break.</h3>
+    </div>
+    <p class="trap"><b>The lock</b> Once you accept a break, the section behind it is closed for good &mdash; no returning, no flagged-question sweep, no changed answers. The second break falls mid-way through the independent questions and carries the same rule. Two breaks, two irreversible doors.</p>
+    <p class="mnem"><b>Order</b><span>Answer &middot; review &middot; then break</span></p>
+  </article>
+
+  <div class="card">
+    <h3>Question formats you may see</h3>
+    <p>Single-response multiple choice &middot; multiple-response (R10: select <b>exactly</b> the number asked) &middot; matching, including <b>enhanced drag-and-drop matching</b> &middot; hotspot / point-and-click &middot; pull-down lists &middot; and, new for 2026, <b>case / scenario</b> items and <b>graphic-based</b> items.</p>
+  </div>
+
+  <div class="card">
+    <h3>AI on this outline</h3>
+    <p><b>AI appears in the 2026 ECO exactly once, as context only.</b> No AI content is testable. If a stem mentions an AI tool, the project-management logic is unchanged.</p>
+    <div class="call"><b>The rule if it appears anyway:</b> the PM <b>validates AI output and stays accountable</b> for it. An AI tool change is a normal <b>change / risk / compliance</b> event &mdash; route it through the same process as any other tool change. PMI&rsquo;s own lessons frame AI strictly as decision-support the PM directs &mdash; sentiment analysis, chatbots and predictive analytics for stakeholder work, forecasting and utilisation dashboards for resources &mdash; under one guardrail: <b>AI augments, never substitutes.</b></div>
+  </div>
+</section>
+
+<!-- ============ 2. RED LIST ============ -->
+<section id="red">
+  <div class="shead">
+    <h2 class="disp">The Red List</h2>
+    <span class="badge">10 rules</span>
+  </div>
+  <p class="sdek">Your repeated misses, converted into rules. 55 wrong answers across 166 questions collapse into these ten shapes. Read the rule, recognise the trap, keep the mnemonic.</p>
+
+  <article class="rule">
+    <div class="rule-top">
+      <span class="rnum num">R1</span>
+      <h3 class="rtext">Vendor or contract in the stem &rarr; <em>the CONTRACT governs</em>: administer the remedy the clause defines, verify deliverables before paying, route disputes through the contract&rsquo;s claims mechanism.</h3>
+    </div>
+    <p class="trap"><b>Your trap</b> Six misses across all three sprints. You negotiated, investigated, accommodated or suspended &mdash; you never opened the contract. The single fastest miss of the whole set (18 seconds) was a contract question you answered with impact analysis.</p>
+    <p class="mnem"><b>Mnemonic</b><span>Paper beats people</span></p>
+  </article>
+
+  <article class="rule">
+    <div class="rule-top">
+      <span class="rnum num">R2</span>
+      <h3 class="rtext">Never hand a governance body a pre-made decision. Bring the assessment; <em>the CCB / steering committee decides</em>. Don&rsquo;t suspend work, confront vendors, or promise outcomes before the body rules.</h3>
+    </div>
+    <p class="trap"><b>Your trap</b> Four misses. You told the CCB the customer would pay (36 seconds, on an <i>Easy</i> item), suspended a subcontractor before assessing, confronted a vendor about its own solvency, and reassigned a blocked developer&rsquo;s work.</p>
+    <p class="mnem"><b>Mnemonic</b><span>Bring the file, not the verdict</span></p>
+  </article>
+
+  <article class="rule">
+    <div class="rule-top">
+      <span class="rnum num">R3</span>
+      <h3 class="rtext">Match the tool to the <em>QUESTION WORD</em>: &ldquo;impact of a change?&rdquo; &rarr; impact analysis (all three baselines). &ldquo;Why the divergence?&rdquo; &rarr; root cause analysis. &ldquo;How late will we be?&rdquo; &rarr; trend analysis. &ldquo;Contract dispute?&rdquo; &rarr; the contract itself. Never answer an analysis question with a meeting.</h3>
+    </div>
+    <p class="trap"><b>Your trap</b> Inside one sprint you skipped impact analysis where it was keyed (and called an emergency stakeholder meeting), then reached for impact analysis where the contract was keyed. You own the toolbox and mis-aim it.</p>
+    <p class="mnem"><b>Mnemonic</b><span>Impact &middot; Why &middot; Late &middot; Deal</span></p>
+  </article>
+
+  <article class="rule">
+    <div class="rule-top">
+      <span class="rnum num">R4</span>
+      <h3 class="rtext">The <em>unglamorous first step wins</em>: decompose the WBS, have the private conversation, run the analysis &mdash; before scheduling meetings, adding tools, or updating artifacts.</h3>
+    </div>
+    <p class="trap"><b>Your trap</b> The stem said the WBS was incomplete and you picked the bigger-sounding integrated PM plan. Two team members at war and you called a joint meeting before hearing either one alone. Sequencing is still your largest single leak (57%).</p>
+    <p class="mnem"><b>Mnemonic</b><span>Dig before you diarise</span></p>
+  </article>
+
+  <article class="rule">
+    <div class="rule-top">
+      <span class="rnum num">R5</span>
+      <h3 class="rtext">Escalation is a <em>two-way rule</em>: already assessed AND beyond your authority / tolerance &rarr; escalate NOW (it&rsquo;s mandatory, not failure). Not yet assessed &rarr; engage and understand first. The stem tells you which side you&rsquo;re on.</h3>
+    </div>
+    <p class="trap"><b>Your trap</b> Sprint 1 you escalated to get an absent product owner replaced before assessing his capacity. Sprint 2 you tried to negotiate a corporate acquisition yourself instead of seeking sponsor support. The cluster still runs at 43% &mdash; you are wrong in both directions.</p>
+    <p class="mnem"><b>Mnemonic</b><span>Know, then throw</span></p>
+  </article>
+
+  <article class="rule">
+    <div class="rule-top">
+      <span class="rnum num">R6</span>
+      <h3 class="rtext">Scope completeness in doubt &rarr; <em>BOTTOM-UP</em> (WBS decomposition, bottom-up estimating). Top-down / analogous is for speed when detail doesn&rsquo;t exist yet.</h3>
+    </div>
+    <p class="trap"><b>Your trap</b> The stem said scope was not fully captured and you still chose top-down with the functional managers instead of bottom-up with the team. 32 seconds.</p>
+    <p class="mnem"><b>Mnemonic</b><span>In doubt, go down</span></p>
+  </article>
+
+  <article class="rule">
+    <div class="rule-top">
+      <span class="rnum num">R7</span>
+      <h3 class="rtext"><em>Structure beats cadence</em>: change the governing artifact or authority structure, not the meeting schedule, tooling, or accommodation.</h3>
+    </div>
+    <p class="trap"><b>Your trap</b> Three sprints, one shape. Structured client sessions instead of a governance framework. More vendor status meetings instead of changing the procurement management plan. More stakeholder meetings instead of changing the stakeholder engagement plan &mdash; that last one took you 22 seconds.</p>
+    <p class="mnem"><b>Mnemonic</b><span>Change the doc, not the clock</span></p>
+  </article>
+
+  <article class="rule">
+    <div class="rule-top">
+      <span class="rnum num">R8</span>
+      <h3 class="rtext">Speed governor: an answer that came in <em>under 40 seconds</em> gets ONE re-read of the stem&rsquo;s last sentence before commit (your fast answers are now your miss zone). Past 2 minutes: eliminate to two, pick the proactive-orthodox one, flag, move.</h3>
+    </div>
+    <p class="trap"><b>Your trap</b> Sprint 3: 7 of 20 misses landed under 40 seconds, three of them under 25. Six more misses took over 2 minutes &mdash; grinding has never once rescued an item. Your accuracy lives in the middle band.</p>
+    <p class="mnem"><b>Mnemonic</b><span>Fast is the new medium</span></p>
+  </article>
+
+  <article class="rule">
+    <div class="rule-top">
+      <span class="rnum num">R9</span>
+      <h3 class="rtext"><em>Enable the person before citing the process</em>: a struggling team member gets support / coaching first, not a policy reference. And any option with blame words (&ldquo;assign responsibility&rdquo;, &ldquo;identify who caused&rdquo;) is wrong.</h3>
+    </div>
+    <p class="trap"><b>Your trap</b> You answered an unmet need with &ldquo;that was the agreed reporting format&rdquo; and a weekly timesheet reminder. You picked an option containing the words &ldquo;assign responsibility for the failure&rdquo;. And you blamed the delivery team&rsquo;s inexperience when the root cause was stakeholder role clarity.</p>
+    <p class="mnem"><b>Mnemonic</b><span>Person before policy &middot; blame = bin</span></p>
+  </article>
+
+  <article class="rule">
+    <div class="rule-top">
+      <span class="rnum num">R10</span>
+      <h3 class="rtext">Multi-response questions: select <em>EXACTLY</em> the number asked; judge each option independently as true / false against the stem.</h3>
+    </div>
+    <p class="trap"><b>Your trap</b> Three half-credit multi-selects. Each time you found the right answer and paired it with a wrong one: rewriting corporate strategy, suspending a subcontractor, and relaxing the ethics floor to fit local labour practice.</p>
+    <p class="mnem"><b>Mnemonic</b><span>Count it, then judge each alone</span></p>
+  </article>
+</section>
+
+<!-- ============ 3. NAMED TECHNIQUES ============ -->
+<section id="tech">
+  <div class="shead">
+    <h2 class="disp">Named Techniques</h2>
+    <span class="badge">the course you never took</span>
+  </div>
+  <p class="sdek">Six named-technique misses in Sprint 3 alone &mdash; 30% of that sprint&rsquo;s misses. Not judgment, not comprehension: vocabulary. These are the frameworks the questions name out loud.</p>
+
+  <div class="card">
+    <h3>Estimating spectrum</h3>
+    <div class="axis"><span>&larr; fastest &middot; least accurate</span><span>most accurate &rarr;</span></div>
+    <ul class="ladder">
+      <li>
+        <span class="t">1 &middot; Analogous &mdash; top-down</span>
+        <span class="d">Expert judgment from a similar past project. Fastest and cheapest; least accurate. Use early, when detail does not exist yet.</span>
+        <div class="meter"><i class="on"></i><i></i><i></i><i></i><em class="cap">accuracy</em></div>
+      </li>
+      <li>
+        <span class="t">2 &middot; Parametric</span>
+        <span class="d">Rate &times; quantity &mdash; a statistical relationship between historical data and the variable (&pound;/m&sup2;, hours/drawing). Scales well; only as good as the data.</span>
+        <div class="meter"><i class="on"></i><i class="on"></i><i></i><i></i><em class="cap">accuracy</em></div>
+      </li>
+      <li>
+        <span class="t">3 &middot; Three-point &mdash; PERT</span>
+        <span class="d">Optimistic / Most likely / Pessimistic. Beta <span class="f">(O+4M+P)&divide;6</span>, triangular <span class="f">(O+M+P)&divide;3</span>. Builds uncertainty into the number instead of hiding it.</span>
+        <div class="meter"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><em class="cap">accuracy</em></div>
+      </li>
+      <li>
+        <span class="t">4 &middot; Bottom-up</span>
+        <span class="d">Estimate every work package and roll it up. Slowest and most expensive; most accurate. Needs a decomposed WBS to exist.</span>
+        <div class="meter"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><em class="cap">accuracy</em></div>
+      </li>
+    </ul>
+    <div class="tw">
+      <table class="mini">
+        <thead><tr><th>Range</th><th>Band</th><th>When</th></tr></thead>
+        <tbody>
+          <tr><td><b>ROM</b></td><td class="num"><b>&minus;25% / +75%</b></td><td>Early, little detail</td></tr>
+          <tr><td><b>Definitive</b></td><td class="num"><b>&minus;5% / +10%</b></td><td>Late, detailed scope</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="call"><b>R6 lives here.</b> Scope completeness in doubt &rarr; bottom-up, with the team. Speed with known deliverables &rarr; top-down. Never derive the WBS from the schedule.</div>
+  </div>
+
+  <div class="card">
+    <h3>Stakeholder classification models</h3>
+    <div class="tw">
+      <table class="mini">
+        <thead><tr><th>Model</th><th>Classifies by</th><th>Use when</th></tr></thead>
+        <tbody>
+          <tr><td><b>Power / interest grid</b></td><td>Power &times; interest (4 quadrants)</td><td><b>Small, simple</b> stakeholder groups</td></tr>
+          <tr><td><b>Salience model</b></td><td><b>POWER + URGENCY + LEGITIMACY</b></td><td><b>Large, complex</b> communities &mdash; multinational, multi-division</td></tr>
+          <tr><td>Influence model</td><td>Direction of influence only</td><td>Mapping who influences whom</td></tr>
+          <tr><td>Prioritization model</td><td>Relative priority, re-run as membership shifts</td><td>Highly fluid communities with changing membership</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="call"><b>Mnemonic: PUL.</b> <b>P</b>ower, <b>U</b>rgency, <b>L</b>egitimacy &mdash; you <i>pull</i> the salience model out when the community is big and complex. You spent 9m44s on this one and still picked the prioritization model.</div>
+  </div>
+
+  <div class="card">
+    <h3>Leading vs lagging indicators</h3>
+    <div class="tw">
+      <table class="mini">
+        <thead><tr><th>Stem word</th><th>Type</th><th>Examples</th></tr></thead>
+        <tbody>
+          <tr><td><b>&ldquo;anticipate&rdquo;, &ldquo;predict&rdquo;, &ldquo;early warning&rdquo;</b></td><td><b>LEADING</b></td><td>Team engagement / satisfaction scores, risk burndown, cycle-time trend, backlog health</td></tr>
+          <tr><td><b>&ldquo;record what happened&rdquo;, &ldquo;measure results&rdquo;</b></td><td><b>LAGGING</b></td><td>Defect density, actual cost and schedule variance, customer satisfaction surveys</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="call">The word <b>anticipate</b> in the stem is the entire tell. You picked defect density &mdash; the most engineering-flavoured lagging metric on the page.</div>
+  </div>
+
+  <div class="card">
+    <h3>Iterative &middot; incremental &middot; hybrid</h3>
+    <div class="trio">
+      <div><b>Iterative</b>Refine <b>the same thing</b> repeatedly until it is right. Prototype &rarr; feedback &rarr; better prototype. Reduces uncertainty about the solution.</div>
+      <div><b>Incremental</b>Add <b>usable pieces</b>, each delivering value on its own. Phase 1 of the district opens while phase 2 is built.</div>
+      <div><b>Hybrid</b>Predictive and adaptive <b>mixed on purpose</b> &mdash; fixed-price contract and baselines outside, two-week iterations inside.</div>
+    </div>
+    <div class="call">City-wide redevelopment delivered area by area is <b>incremental</b>, not hybrid. You spent 3 minutes and landed on the looser term.</div>
+  </div>
+
+  <div class="card">
+    <h3>Information radiator &amp; Kanban</h3>
+    <p><b>Information radiator</b> = a big, visible, <b>passive</b> display that anyone walking past can read without asking. Not pairing. Not a meeting. Not an emailed report. If the stem wants persistent visible information for a team, it is the radiator.</p>
+    <p><b>WIP limits</b> cap the number of items allowed in a column &rarr; expose bottlenecks, cut cycle time. Stop starting, start finishing.</p>
+    <p><b>Little&rsquo;s Law:</b> <span class="f">cycle time = WIP &divide; throughput</span>.</p>
+    <div class="call">WIP limits <b>manage flow</b>; they do not diagnose root cause. Blockers surface at the <b>daily coordination meeting, with the team</b> &mdash; not in a stakeholder meeting.</div>
+  </div>
+
+  <div class="card">
+    <h3>Data &rarr; information &rarr; reports</h3>
+    <div class="pipe">
+      <div class="p"><b>Work performance DATA</b>Raw observations from executing: % complete, actual costs, start and finish dates, defect counts.</div>
+      <div class="p"><b>Work performance INFORMATION</b>Data analysed in a controlling process and given context: SPI, CPI, forecast status, variance against baseline.</div>
+      <div class="p"><b>Work performance REPORTS</b>The physical or electronic artifact that circulates: status report, dashboard, memo. This is what a WBR / MBR / QBR produces.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ GAP PATCH 2026 ============ -->
+<section id="gap2026">
+  <div class="shead">
+    <h2 class="disp">Gap Patch &mdash; the 2026 content</h2>
+    <span class="badge">the new 20%</span>
+  </div>
+  <p class="sdek">Everything the 2021 material never taught you, at the weight the new outline gives it. Tier 1 is the material worth reading properly. Tier 2 is recognition only &mdash; one line each, read once.</p>
+
+  <div class="axis"><span>Tier 1 &middot; read properly</span><span>7 blocks</span></div>
+
+  <div class="card">
+    <h3>Sustainability &amp; ESG</h3>
+    <p>Four testable enablers in the 2026 outline. It is never a values question &mdash; it is one of four objects you already know, wearing a green label.</p>
+    <div class="trio">
+      <div><b>Compliance</b>A requirement to be confirmed and met, like any other regulation.</div>
+      <div><b>Risk</b>A risk category that needs an identified response.</div>
+      <div><b>Quality</b>Part of the <b>cost of quality</b>.</div>
+      <div><b>Planning</b>An information requirement that feeds the plan.</div>
+    </div>
+    <div class="call"><b>Triple bottom line:</b> people &middot; planet &middot; profit. Think <b>whole lifecycle</b>, not handover. And <b>sustainability is never traded away for schedule</b> &mdash; any option that trades it is the wrong option.</div>
+  </div>
+
+  <div class="card">
+    <h3>The compliance loop</h3>
+    <p>A full Business Environment task, and BizEnv is now <b>26%</b> of the paper. Learn the order: the questions key on <i>the next step</i>.</p>
+    <div class="pipe">
+      <div class="p"><b>1 &middot; Confirm</b>Confirm the project&rsquo;s compliance requirements.</div>
+      <div class="p"><b>2 &middot; Classify</b>Security &middot; health &amp; safety &middot; sustainability &middot; regulatory.</div>
+      <div class="p"><b>3 &middot; Identify</b>Identify the threats to compliance.</div>
+      <div class="p"><b>4 &middot; Analyse</b>Analyse the consequences of non-compliance.</div>
+      <div class="p"><b>5 &middot; Act</b>Apply the approach that meets the requirement.</div>
+      <div class="p"><b>6 &middot; Measure</b>Measure the extent of compliance achieved.</div>
+    </div>
+    <div class="call"><b>Compliance is non-negotiable</b> &mdash; never balanced against cost or schedule. A discovered breach &rarr; <b>assess it, then escalate per governance</b>. Never absorb it silently, never quietly fix it and move on.</div>
+  </div>
+
+  <div class="card">
+    <h3>External business environment</h3>
+    <p>The other full BizEnv task. <b>Continually survey</b> the external environment &mdash; regulations, technology, geopolitical shifts, market shifts &mdash; then <b>assess the impact on scope / backlog</b>, then <b>reprioritise</b>.</p>
+    <div class="call"><b>Keyed answer shape:</b> &ldquo;re-assess the backlog / scope against the change.&rdquo; Not &ldquo;escalate&rdquo;. Not &ldquo;continue as planned&rdquo;. The environment moved, so the priorities move.</div>
+  </div>
+
+  <div class="card">
+    <h3>Value-based delivery</h3>
+    <p>A full Process task in 2026. <b>Identify value components with stakeholders</b> &rarr; prioritise by value and feedback &rarr; <b>deliver value incrementally</b> &rarr; verify a <b>benefits-measurement system exists</b>.</p>
+    <div class="tw">
+      <table class="mini">
+        <thead><tr><th>Model</th><th>Sorts by</th><th>Tell</th></tr></thead>
+        <tbody>
+          <tr><td><b>MoSCoW</b></td><td><b>M</b>ust / <b>S</b>hould / <b>C</b>ould / <b>W</b>on&rsquo;t</td><td>Straight must-have triage</td></tr>
+          <tr><td><b>WSJF</b></td><td>Weighted shortest job first &mdash; <b>value &divide; size</b></td><td>Sequencing by economics</td></tr>
+          <tr><td><b>Kano</b></td><td>Basic / performance / delighter</td><td>Customer-satisfaction framing</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="call">The <b>benefits realisation plan</b> ties back to the <b>business case</b>. If a stem asks how you know value was actually delivered, the answer is a measurement system &mdash; not an opinion, not a status meeting.</div>
+  </div>
+
+  <div class="card">
+    <h3>Project finance</h3>
+    <p>New Process task: analyse <b>funding needs</b> &middot; quantify <b>risk-based financial allocations</b> (contingency) &middot; <b>track spend</b> across the lifecycle &middot; <b>report</b> per the plan &middot; <b>monitor variations</b> through governance.</p>
+    <div class="tw">
+      <table class="mini">
+        <thead><tr><th>Measure</th><th>Decision rule &mdash; rules, not maths</th></tr></thead>
+        <tbody>
+          <tr><td><b>NPV</b></td><td><b>Higher wins.</b> NPV <b>&gt; 0</b> &rarr; go.</td></tr>
+          <tr><td><b>IRR</b></td><td><b>Higher wins.</b></td></tr>
+          <tr><td><b>Payback period</b></td><td><b>SHORTER wins</b> &mdash; the one that inverts.</td></tr>
+          <tr><td><b>BCR</b></td><td><b>&gt; 1</b> &rarr; go.</td></tr>
+          <tr><td><b>Opportunity cost</b></td><td>The value of the option you did <b>not</b> take.</td></tr>
+          <tr><td><b>Sunk cost</b></td><td><b>IGNORED</b> in any go / no-go decision. Always.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="call">You will not be asked to compute any of these. You will be asked which project to pick, or whether money already spent should change the decision. It never does.</div>
+  </div>
+
+  <div class="card">
+    <h3>Team charter &amp; ground rules</h3>
+    <p>Explicit People enablers in 2026. <b>The team writes its own charter</b> &mdash; values, ground rules, meeting norms, decision process, conflict process. The PM <b>fosters adherence</b>; the PM does not author it and hand it down.</p>
+    <div class="call">A ground-rule violation is addressed <b>with the team, against the charter</b> &mdash; <b>privately first</b>, never punitively. This is R9 wearing 2026 clothes: person before policy.</div>
+  </div>
+
+  <div class="card">
+    <h3>Graphic-based questions &mdash; the reading list</h3>
+    <p>The question hands you a chart. You are not drawing it, you are reading it. Know what each one says at a glance.</p>
+    <div class="tw">
+      <table class="mini">
+        <thead><tr><th>Graphic</th><th>What it tells you</th></tr></thead>
+        <tbody>
+          <tr><td><b>Burndown vs burnup</b></td><td>Burndown = work <b>remaining</b> falling toward zero. Burnup = work <b>completed</b> rising, with a separate scope line that exposes scope creep.</td></tr>
+          <tr><td><b>Cumulative flow diagram</b></td><td><b>Band width = WIP.</b> A widening band = a bottleneck in that stage.</td></tr>
+          <tr><td><b>Network diagram</b></td><td>Dependencies and <b>float</b>. Zero float = the critical path.</td></tr>
+          <tr><td><b>Control chart</b></td><td>Inside or outside the control limits &mdash; plus the <b>rule of seven</b>.</td></tr>
+          <tr><td><b>EV / PV / AC S-curve</b></td><td>AC above EV = over cost. EV below PV = behind schedule.</td></tr>
+          <tr><td><b>RACI grid</b></td><td>Exactly one <b>A</b> per row. A missing or duplicated A is usually the answer.</td></tr>
+          <tr><td><b>Power / interest grid</b></td><td>Which quadrant &rarr; which engagement strategy.</td></tr>
+          <tr><td><b>Tornado diagram</b></td><td>Sensitivity. The <b>widest bar sits at the top</b> and is the biggest driver.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="call"><b>Hotspot items:</b> you click the <b>region of the chart</b> that answers the question &mdash; the widening band, the out-of-control point, the task with float. Read the axis labels before you click.</div>
+  </div>
+
+  <div class="axis"><span>Tier 2 &middot; recognition only</span><span>one line each</span></div>
+
+  <ul class="easy">
+    <li><span class="k">Comms methods</span><b>Interactive</b> for conflict or complex topics &middot; <b>push</b> (email, memo) sends it but confirms no receipt &middot; <b>pull</b> (repository, wiki) for large audiences who fetch it themselves. The <b>5 Cs</b>: correct grammar, concise, clear purpose, coherent flow, controlled flow of words and ideas.</li>
+    <li><span class="k">Negotiation</span><b>BATNA</b> = your best alternative to a negotiated agreement &mdash; your walk-away power. Negotiate <b>interests, not positions</b>. The PM negotiates <b>before</b> escalating.</li>
+    <li><span class="k">Procurement docs</span><b>RFI</b> = gather information &middot; <b>RFQ</b> = price on a known item &middot; <b>RFP</b> = ask for a solution proposal. A <b>bidder conference</b> gives all vendors the same information at the same time &mdash; the point is <b>fairness</b>. Selection criteria are fixed <b>BEFORE</b> proposals arrive.</li>
+    <li><span class="k">Change models</span><b>ADKAR</b> = Awareness, Desire, Knowledge, Ability, Reinforcement &middot; <b>Kotter</b> = 8 steps, starts with <b>urgency</b> &middot; <b>Lewin</b> = unfreeze, change, refreeze &middot; <b>Bridges</b> = ending &rarr; neutral zone &rarr; new beginning (a transition, not a change).</li>
+    <li><span class="k">Risk vocabulary</span><b>Appetite</b> = general willingness to take risk &middot; <b>tolerance</b> = the acceptable range &middot; <b>threshold</b> = the specific trigger that fires an action or escalation.</li>
+    <li><span class="k">Common vision</span>Shared with stakeholders and <b>kept current</b>. If the vision is misunderstood, <b>root-cause the misunderstanding</b> &mdash; do not restate it louder or circulate it again.</li>
+    <li><span class="k">Mentoring vs coaching</span><b>Mentoring</b> is long-term, career-focused, and <b>advises</b>. <b>Coaching</b> is skill-specific, short-cycle, and <b>asks</b>.</li>
+    <li><span class="k">Knowledge transfer</span><b>Tacit</b> knowledge moves by <b>interaction</b> &mdash; pairing, shadowing, communities of practice. <b>Explicit</b> knowledge moves by <b>repository</b> &mdash; documents, wikis. Lessons are captured <b>throughout</b>, not at closure.</li>
+    <li><span class="k">IT &amp; cyber risk</span>Treat it as an ordinary risk &rarr; identify, analyse, plan a response, monitor &mdash; <b>plus</b> a compliance item. It is not a special category with special rules.</li>
+    <li><span class="k">Leadership styles</span><b>Transactional</b> = rewards for results &middot; <b>transformational</b> = inspires through vision &middot; <b>servant</b> = removes impediments and serves the team (<b>PMI&rsquo;s favourite</b>) &middot; <b>laissez-faire</b> = hands off, correct <b>only</b> for a mature, self-organising team.</li>
+    <li><span class="k">Emotional intelligence</span><b>Understand the other person&rsquo;s perspective first.</b> Every EI-flavoured stem resolves to that move before any action.</li>
+    <li><span class="k">Customer satisfaction</span>Monitored <b>continuously</b> &mdash; surveys, NPS, feedback loops &mdash; and <b>responded to</b>. Not measured once at closure.</li>
+    <li><span class="k">Decision techniques</span><b>Fist of five</b> &middot; <b>dot voting</b> / <b>Roman voting</b> (thumbs) &middot; <b>planning poker</b> for estimates &middot; and <b>consensus vs autocratic</b> &mdash; PMI wants consensus unless the stem gives you an emergency.</li>
+    <li><span class="k">2026 renames</span>PMI&rsquo;s current glossary says <b>&ldquo;Focus Areas&rdquo;</b> where it used to say &ldquo;Process Groups&rdquo; (same five: Initiating, Planning, Executing, Monitoring &amp; Controlling, Closing) &middot; the standup is now the <b>&ldquo;Daily Coordination Meeting&rdquo;</b> &middot; <b>Project Lead</b> is a defined role distinct from Project Manager &middot; the risk vocabulary adds a fourth term, <b>exposure</b> = the aggregate potential impact you currently carry.</li>
+    <li><span class="k">Modern vocab radar</span>Recognise on sight: <b>psychological safety</b> (team speaks up without fear) &middot; <b>working agreements</b> (the agile team charter) &middot; <b>vanity metric</b> (looks good, informs nothing &mdash; replace it) &middot; <b>OKRs</b> &middot; <b>story mapping / impact mapping</b> (backlog visualisation) &middot; <b>Stacey matrix</b> (complexity &rarr; delivery approach) &middot; <b>wideband Delphi</b> (anonymous iterative estimating) &middot; <b>spike</b> (timeboxed research story) &middot; <b>swarming / mobbing</b> (whole team, one item) &middot; <b>confirmation bias</b> (testable by name).</li>
+  </ul>
+</section>
+
+<!-- ============ 4. EASY POINTS ============ -->
+<section id="easy">
+  <div class="shead">
+    <h2 class="disp">Easy Points</h2>
+    <span class="badge">free marks</span>
+  </div>
+  <p class="sdek">If one of these appears, you bank it in under 30 seconds. No deliberation, no second-guessing.</p>
+  <ul class="easy">
+    <li><span class="k">Comms channels</span><b><span class="f">n(n&minus;1)&divide;2</span> &mdash; and <i>n</i> includes the PM.</b> &ldquo;5 team members plus the PM&rdquo; &rarr; n=6 &rarr; 15. For &ldquo;how many <b>additional</b>&rdquo;, compute both and subtract.</li>
+    <li><span class="k">Reserves</span><b>Contingency exhausted &rarr; raise a change request.</b> Contingency sits inside the cost baseline and the PM controls it. Management reserve sits outside the baseline (inside the budget), needs management / sponsor approval, and using it changes the cost baseline.</li>
+    <li><span class="k">Agile authority</span><b>The Product Owner owns the backlog and its order.</b> Single voice on what and why; can say no. The sprint backlog belongs to the developers.</li>
+    <li><span class="k">Timeboxes</span><b>8&ndash;4&ndash;3 for a one-month sprint:</b> Planning 8 h, Review 4 h, Retrospective 3 h. <b>Daily Scrum is always 15 minutes.</b> Halve the first three for a two-week sprint.</li>
+    <li><span class="k">Defects</span><b>A defect that already exists is Quality Control, not the risk register.</b> Inspection and statistical sampling. The risk register is for uncertain <i>future</i> events.</li>
+    <li><span class="k">Control charts</span><b>Rule of seven:</b> 7 consecutive points on one side of the mean &rarr; out of control, <b>investigate</b> &mdash; even though every point is inside the control limits.</li>
+    <li><span class="k">Done vs ready</span><b>DoD is the EXIT criterion</b> (one standard for every increment, potentially releasable). <b>DoR is the ENTRY criterion</b> (clear, estimated, acceptance criteria set, INVEST).</li>
+    <li><span class="k">Risk pairs</span><b>Secondary</b> = a <i>new</i> risk created <b>by implementing a response</b>. <b>Residual</b> = what <b>remains after</b> the response, knowingly accepted. Both go in the register.</li>
+    <li><span class="k">Charter</span><b>The sponsor issues and signs the charter</b> &mdash; not the PM. It authorises the project and names the PM with their authority. Business case comes first.</li>
+  </ul>
+</section>
+
+<!-- ============ 5. EXAM DAY ============ -->
+<section id="day">
+  <div class="shead">
+    <h2 class="disp">Exam-Day Brief</h2>
+    <span class="badge">Tue 25 Aug</span>
+  </div>
+  <p class="sdek">Decisions already made, so tomorrow you execute instead of deciding.</p>
+
+  <div class="slot">
+    <h3><span class="when">Tonight</span></h3>
+    <ul>
+      <li><b>Sleep by 23:00.</b> No new material after this page &mdash; new facts tonight displace the ones you already own.</li>
+      <li><b>Wake 06:00.</b></li>
+      <li>Lay out passport and booking confirmation before bed.</li>
+    </ul>
+  </div>
+
+  <div class="slot">
+    <h3><span class="when">06:10&ndash;06:40</span> morning pass</h3>
+    <ul>
+      <li><b>This page:</b> the Red List, then one pass of cheat-sheet <b>Block 10 &mdash; PMI Mindset Hierarchy</b> (open below).</li>
+      <li><b>06:40 &mdash; leave buffer.</b> Nothing after this point is study; it is travel.</li>
+      <li class="warn"><b>Optional:</b> a capped 20-question Study Hall set <b>only if calm</b>. Stop at 07:00 regardless of where you are. A bad run at 06:55 costs you more than a good run buys.</li>
+    </ul>
+  </div>
+
+  <div class="slot">
+    <h3><span class="when">Logistics</span></h3>
+    <div class="addr">Pearson Professional Centres UK Docklands<br>3 Quebec Wharf, 14 Thomas Road, London E14 7AF</div>
+    <ul>
+      <li class="warn"><b>Arrive 07:30.</b> 15 minutes late = refused entry and the fee is forfeit.</li>
+      <li><b>Passport.</b> The name must match <b>&ldquo;Joaquin Hui Gomez&rdquo;</b> exactly.</li>
+      <li><b>No watch, no phone</b> in the room. A locker is provided.</li>
+    </ul>
+  </div>
+
+  <div class="slot">
+    <h3><span class="when">Pacing</span></h3>
+    <div class="pace">
+      <div><span class="v num">180</span><span class="l">questions</span></div>
+      <div><span class="v num">240</span><span class="l">minutes</span></div>
+      <div><span class="v num">80 s</span><span class="l">per question</span></div>
+      <div><span class="v num">2</span><span class="l">breaks</span></div>
+    </div>
+    <ul>
+      <li class="warn"><b>Case-study section first.</b> Read the scenario once, fully. Answer all of its questions. <b>Review them.</b> THEN take break 1 &mdash; it locks behind you.</li>
+      <li><b>After that:</b> budget <b class="num">80 s</b> per question and check the clock every <b class="num">30</b> questions.</li>
+      <li class="warn"><b>Each 10-minute break LOCKS the section behind it.</b> Review your flagged questions <b>before</b> you take the break, never after. Break 2 falls mid-way through the independent questions &mdash; same rule.</li>
+      <li>Stand, stretch, sugar at every break. Both of them &mdash; take them.</li>
+    </ul>
+  </div>
+
+  <div class="slot">
+    <h3><span class="when">Rules of engagement</span></h3>
+    <ul>
+      <li><b>Never leave a blank.</b> There is no penalty for a wrong answer and no credit for an empty one.</li>
+      <li><b>Eliminate two, then pick</b> the proactive, process-following, root-cause option.</li>
+      <li><b>R8 speed governor applies all day.</b> Under 40 seconds &rarr; one re-read of the stem&rsquo;s last sentence before you commit.</li>
+      <li><b>Your &ldquo;medium&rdquo; feeling is a coin flip</b> &mdash; 54% accuracy on every question you marked Medium. When it fires, re-read the stem once.</li>
+    </ul>
+  </div>
+
+  <div class="mindset">
+    <span class="k">Read this last, before you walk in</span>
+    <p>&ldquo;Answer as the textbook PM who assesses first, consults the artifact, acts within authority, escalates when the trigger fires &mdash; and who trusts the contract, the baseline, and the team.&rdquo;</p>
+  </div>
+</section>
+
+<!-- ============ 6. FULL CHEAT SHEET ============ -->
+<section id="sheet">
+  <div class="shead">
+    <h2 class="disp">Full Cheat Sheet</h2>
+    <span class="badge">15 blocks</span>
+  </div>
+  <p class="sdek">PMBOK 6/7 &middot; Agile Practice Guide &middot; ECO 2021. Tap a block to open it. <b>Block 10 wins the situational questions</b> &mdash; it is open already, and it is the one to read last before you walk in.</p>
+
+<details class="cs-block" id="cs-s1">
+  <summary><span class="cs-num num">1</span><span class="cs-title">EVM Formula Block</span><span class="chev" aria-hidden="true"></span></summary>
+  <div class="cs">
+<div class="tw"><table>
+<tbody>
+<tr><td><b>PV</b> (BCWS)</td><td>Planned Value &mdash; budgeted cost of work <b>scheduled</b> by now = planned % &times; BAC</td></tr>
+<tr><td><b>EV</b> (BCWP)</td><td>Earned Value &mdash; budgeted cost of work <b>performed</b> = actual % complete &times; BAC</td></tr>
+<tr><td><b>AC</b> (ACWP)</td><td>Actual Cost &mdash; money actually spent</td></tr>
+<tr><td><b>BAC</b></td><td>Budget at Completion &mdash; total approved cost baseline</td></tr>
+</tbody>
+</table></div>
+<div class="cs-hook"><b class="cs-t">Hook:</b> <b>EV first</b> in all four &middot; <b>V = minus</b> &middot; <b>I = divide</b> &middot; <b>S pairs with PV</b>, <b>C pairs with AC</b>.</div>
+<div class="tw"><table class="wide">
+<tbody>
+<tr><td>SV</td><td class="cs-f">EV &minus; PV</td><td>Schedule Variance (in $, not time)</td></tr>
+<tr><td>CV</td><td class="cs-f">EV &minus; AC</td><td>Cost Variance</td></tr>
+<tr><td>SPI</td><td class="cs-f">EV &divide; PV</td><td>Schedule Performance Index</td></tr>
+<tr><td>CPI</td><td class="cs-f">EV &divide; AC</td><td>Cost Performance Index &mdash; best single cost indicator</td></tr>
+</tbody>
+</table></div>
+<div class="cs-hook"><b class="cs-t">Interpret:</b> variance (SV, CV, VAC) <span class="cs-pos">positive = good</span>, <span class="cs-neg">negative = bad</span> &middot; index (SPI, CPI) <span class="cs-pos">&gt;1 = good</span>, <span class="cs-neg">&lt;1 = bad</span> &middot; <b>TCPI inverted</b>: <span class="cs-neg">&gt;1 = must beat plan</span>.</div>
+<h3>EAC &mdash; 4 variants, pick from the stem</h3>
+<div class="tw"><table>
+<thead><tr><th>Formula</th><th>Use when</th></tr></thead>
+<tbody>
+<tr><td class="cs-f">BAC &divide; CPI</td><td><b>Typical</b> &mdash; variances continue / are representative. <b>Default if stem says nothing.</b></td></tr>
+<tr><td class="cs-f">AC + (BAC &minus; EV)</td><td><b>Atypical</b> &mdash; one-off event; rest runs at original budgeted rate</td></tr>
+<tr><td class="cs-f">AC + bottom-up ETC</td><td><b>Original estimate flawed</b> &mdash; team re-estimates remaining work</td></tr>
+<tr><td class="cs-f">AC + (BAC&minus;EV) &divide; (CPI&times;SPI)</td><td><b>Cost AND schedule pressure</b> &mdash; must hit the date too. Harshest.</td></tr>
+</tbody>
+</table></div>
+<div class="tw"><table class="wide">
+<tbody>
+<tr><td>ETC</td><td class="cs-f">EAC &minus; AC</td><td>cost of work left</td></tr>
+<tr><td>VAC</td><td class="cs-f">BAC &minus; EAC</td><td>forecast over/under at end</td></tr>
+<tr><td>TCPI&rarr;BAC</td><td class="cs-f">(BAC&minus;EV)&divide;(BAC&minus;AC)</td><td>efficiency needed to still hit original budget</td></tr>
+<tr><td>TCPI&rarr;EAC</td><td class="cs-f">(BAC&minus;EV)&divide;(EAC&minus;AC)</td><td>use once BAC unachievable &amp; new EAC approved</td></tr>
+</tbody>
+</table></div>
+<p class="cs-small">TCPI: numerator = <b>work</b> left, denominator = <b>money</b> left.</p>
+<h3>One worked example &mdash; reused for every formula</h3>
+<div class="cs-box"><b>BAC 1000 &middot; 50% complete &middot; AC 600 &middot; plan said 70%</b> &rarr; PV <b class="cs-f">700</b>, EV <b class="cs-f">500</b>, AC <b class="cs-f">600</b></div>
+<div class="tw"><table>
+<tbody>
+<tr><td>SV</td><td class="cs-f">500&minus;700 = <b>&minus;200</b> <span class="cs-neg">behind</span></td></tr>
+<tr><td>CV</td><td class="cs-f">500&minus;600 = <b>&minus;100</b> <span class="cs-neg">over</span></td></tr>
+<tr><td>SPI</td><td class="cs-f">500&divide;700 = <b>0.71</b></td></tr>
+<tr><td>CPI</td><td class="cs-f">500&divide;600 = <b>0.83</b></td></tr>
+<tr><td>EAC typical</td><td class="cs-f">1000&divide;0.833 = <b>1200</b></td></tr>
+<tr><td>EAC atypical</td><td class="cs-f">600+500 = <b>1100</b></td></tr>
+<tr><td>EAC bottom-up</td><td class="cs-f">600+ETC(450) = <b>1050</b></td></tr>
+<tr><td>EAC cost+sched</td><td class="cs-f">600+500&divide;(.833&times;.714) = <b>1440</b></td></tr>
+<tr><td>ETC</td><td class="cs-f">1200&minus;600 = <b>600</b></td></tr>
+<tr><td>VAC</td><td class="cs-f">1000&minus;1200 = <b>&minus;200</b></td></tr>
+<tr><td>TCPI&rarr;BAC</td><td class="cs-f">500&divide;400 = <b>1.25</b> <span class="cs-neg">need 1.25 vs 0.83 &rarr; unrealistic</span></td></tr>
+<tr><td>TCPI&rarr;EAC</td><td class="cs-f">500&divide;600 = <b>0.83</b> <span class="cs-pos">achievable</span></td></tr>
+</tbody>
+</table></div>
+  </div>
+</details>
+<details class="cs-block" id="cs-s2">
+  <summary><span class="cs-num num">2</span><span class="cs-title">Other Formulas</span><span class="chev" aria-hidden="true"></span></summary>
+  <div class="cs">
+<div class="tw"><table class="wide">
+<tbody>
+<tr><td>Comms channels</td><td class="cs-f">n(n&minus;1)&divide;2</td><td><b>TRAP: n includes the PM.</b> "5 team + PM" &rarr; n=6 &rarr; 15. For "how many <b>additional</b>", compute both and subtract (5&rarr;6 adds 5).</td></tr>
+<tr><td>PERT / beta</td><td class="cs-f">(O+4M+P)&divide;6</td><td>Triangular avg = <span class="cs-f">(O+M+P)&divide;3</span></td></tr>
+<tr><td>PERT &sigma;</td><td class="cs-f">(P&minus;O)&divide;6</td><td>Variance = &sigma;&sup2; &middot; &plusmn;1&sigma; 68.3%, &plusmn;2&sigma; 95.5%, &plusmn;3&sigma; 99.7%</td></tr>
+<tr><td>Total float</td><td class="cs-f">LS&minus;ES = LF&minus;EF</td><td>Delay <b>without delaying project finish</b> or breaking a constraint. Negative TF = imposed date already at risk &rarr; compress.</td></tr>
+<tr><td>Free float</td><td class="cs-f">ES<sub>succ</sub>&minus;EF<sub>act</sub></td><td>Delay without delaying the <b>early start of any successor</b>. FF &le; TF.</td></tr>
+<tr><td>Critical path</td><td class="cs-f">longest path</td><td><b>Longest</b> path = <b>shortest</b> possible duration &middot; <b>zero total float</b> &middot; &gt;1 CP = more risk</td></tr>
+<tr><td>EMV</td><td class="cs-f">P &times; I</td><td>Threat &minus;, opportunity + &middot; <b>sum</b> the branches at a decision-tree node, pick highest EMV &middot; quantitative</td></tr>
+<tr><td>ROM estimate</td><td class="cs-f">&minus;25% / +75%</td><td>early, little detail</td></tr>
+<tr><td>Definitive estimate</td><td class="cs-f">&minus;5% / +10%</td><td>late, detailed scope</td></tr>
+</tbody>
+</table></div>
+<div class="tw"><table class="wide">
+<thead><tr><th>Compression</th><th>Do</th><th>Costs</th></tr></thead>
+<tbody>
+<tr><td><b>Crashing</b></td><td>Add resources/overtime to <b>critical path</b>, cheapest first</td><td class="cs-no">adds <b>COST</b></td></tr>
+<tr><td><b>Fast-tracking</b></td><td>Overlap / parallelise sequential activities</td><td class="cs-no">adds <b>RISK</b></td></tr>
+</tbody>
+</table></div>
+<p class="cs-small">Both keep scope intact. Cutting scope is <b>not</b> compression &mdash; that needs change control.</p>
+  </div>
+</details>
+<details class="cs-block" id="cs-s3">
+  <summary><span class="cs-num num">3</span><span class="cs-title">Contract Types &mdash; Risk Spectrum</span><span class="chev" aria-hidden="true"></span></summary>
+  <div class="cs">
+<p class="cs-arrow"><b>SELLER risk max</b> &larr;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&rarr; <b>BUYER risk max</b></p>
+<div class="tw"><table class="wide">
+<thead><tr><th>Type</th><th>Risk on</th><th>Use when</th></tr></thead>
+<tbody>
+<tr><td><b>FFP</b> Firm Fixed Price</td><td><b>Seller (max)</b></td><td>Scope <b>well defined &amp; stable</b>. Price fixed whatever seller's cost. Most common.</td></tr>
+<tr><td><b>FPIF</b> FP Incentive Fee</td><td>Seller (high)</td><td>Fixed price + incentive for beating cost / schedule / performance targets. Has a <b>price ceiling</b>.</td></tr>
+<tr><td><b>FP-EPA</b> Econ Price Adj.</td><td>Seller (high)</td><td><b>Multi-year</b>, exposed to inflation / FX / commodity. Adjusts on a <b>pre-agreed index</b>.</td></tr>
+<tr><td><b>T&amp;M</b> Time &amp; Material</td><td>Shared (middle)</td><td><b>Staff aug, experts, small or urgent work</b>; scope not yet definable. Fixed rates, open quantity. Cap with <b>not-to-exceed</b>.</td></tr>
+<tr><td><b>CPIF</b> CP Incentive Fee</td><td>Buyer (high)</td><td>Costs reimbursed + fee flexing on performance, buyer / seller <b>share ratio</b>.</td></tr>
+<tr><td><b>CPAF</b> CP Award Fee</td><td>Buyer (higher)</td><td>Costs + <b>subjective</b> award fee at buyer's discretion; generally <b>not appealable</b>.</td></tr>
+<tr><td><b>CPFF</b> CP Fixed Fee</td><td><b>Buyer (max)</b></td><td>Costs + fixed fee (% of <b>initial</b> estimate). <b>R&amp;D / high uncertainty.</b> Seller has least cost incentive.</td></tr>
+</tbody>
+</table></div>
+<div class="cs-hook"><b class="cs-t">PTA &mdash; FPIF only:</b> cost above which the <b>seller absorbs 100%</b> of further overrun. <span class="cs-f">PTA = ((Ceiling &minus; Target Price) &divide; Buyer share ratio) + Target Cost</span></div>
+<p class="cs-small">Vaguer the scope &rarr; further right. Never FFP on undefined scope.</p>
+  </div>
+</details>
+<details class="cs-block" id="cs-s4">
+  <summary><span class="cs-num num">4</span><span class="cs-title">Conflict Modes</span><span class="chev" aria-hidden="true"></span></summary>
+  <div class="cs">
+<div class="tw"><table class="wide">
+<thead><tr><th>Prep order*</th><th>Mode</th><th>Use when</th></tr></thead>
+<tbody>
+<tr><td class="cs-ok"><b>1 BEST</b></td><td class="cs-ok"><b>Collaborate / Problem-Solve</b> win&ndash;win</td><td><b>Default correct answer.</b> Multiple viewpoints, time available, need real commitment &rarr; root cause + consensus.</td></tr>
+<tr><td>2</td><td><b>Compromise / Reconcile</b> lose&ndash;lose</td><td>Equal power, temporary fix, deadline pressure. Both give something up. Fast, not durable.</td></tr>
+<tr><td>3</td><td><b>Smooth / Accommodate</b> lose&ndash;win</td><td>Stress areas of agreement; preserve the relationship; matters more to them.</td></tr>
+<tr><td>4</td><td><b>Force / Direct</b> win&ndash;lose</td><td><b>Emergency only</b> &mdash; safety, legal, ethics, real no-time crisis. Breeds resentment.</td></tr>
+<tr><td class="cs-no"><b>5 WORST</b></td><td class="cs-no"><b>Withdraw / Avoid</b> lose&ndash;lose</td><td>Only a deliberate <b>cooling-off</b>, or issue trivial / clearly someone else's. Never permanent.</td></tr>
+</tbody>
+</table></div>
+<p class="cs-small">*PMBOK 6 (9.5.2.1) names these five techniques but does <b>not</b> publish a 1&ndash;5 ranking &mdash; the order is common prep convention. What doctrine does support: <b>collaborate / problem-solve</b> is the durable win&ndash;win and the usual best answer; <b>withdraw / avoid</b> resolves nothing. Conflict is inevitable and can be healthy. Address it <b>early, in private, directly</b>; it is a <b>team</b> issue, not personal. Team resolves first, PM facilitates, escalation last.</p>
+  </div>
+</details>
+<details class="cs-block" id="cs-s5">
+  <summary><span class="cs-num num">5</span><span class="cs-title">Tuckman Ladder</span><span class="chev" aria-hidden="true"></span></summary>
+  <div class="cs">
+<div class="tw"><table class="wide">
+<thead><tr><th>Stage</th><th>Team</th><th>Leadership</th></tr></thead>
+<tbody>
+<tr><td><b>Forming</b></td><td>Polite, independent, roles unclear. Low output.</td><td><b>Directing</b></td></tr>
+<tr><td><b>Storming</b></td><td>Conflict; approach and authority challenged. Morale low.</td><td><b>Coaching</b></td></tr>
+<tr><td><b>Norming</b></td><td>Norms agreed, trust builds, behaviour adjusts.</td><td><b>Participating / Supporting</b></td></tr>
+<tr><td><b>Performing</b></td><td>Interdependent, self-organising, high output. Goal state.</td><td><b>Delegating</b></td></tr>
+<tr><td><b>Adjourning</b></td><td>Done &rarr; recognition, lessons learned, release resources.</td><td>Celebrate &amp; close</td></tr>
+</tbody>
+</table></div>
+<p class="cs-small">Teams <b>regress</b> (new member, new scope, re-org) &rarr; back to Storming. Co-location and team-building accelerate it.</p>
+  </div>
+</details>
+<details class="cs-block" id="cs-s6">
+  <summary><span class="cs-num num">6</span><span class="cs-title">Stakeholders</span><span class="chev" aria-hidden="true"></span></summary>
+  <div class="cs">
+<h3>Power / Interest grid</h3>
+<div class="tw"><table class="wide">
+<thead><tr><th></th><th>HIGH interest</th><th>LOW interest</th></tr></thead>
+<tbody>
+<tr><td><b>HIGH power</b></td><td class="cs-ok"><b>MANAGE CLOSELY</b> &mdash; full engagement, frequent 2-way (sponsor, key customer)</td><td><b>KEEP SATISFIED</b> &mdash; keep content or they intervene; don't overload (exec, regulator)</td></tr>
+<tr><td><b>LOW power</b></td><td><b>KEEP INFORMED</b> &mdash; regular updates</td><td><b>MONITOR</b> &mdash; minimum effort, watch for change</td></tr>
+</tbody>
+</table></div>
+<p class="cs-small">Variants: power / influence, influence / impact, salience (power &middot; urgency &middot; legitimacy). Identification is <b>iterative and continuous</b>, not one-off in Initiating.</p>
+<h3>Engagement levels (low &rarr; high)</h3>
+<p><b>Unaware</b> (doesn't know) &rarr; <b>Resistant</b> (aware, opposed) &rarr; <b>Neutral</b> (aware, indifferent) &rarr; <b>Supportive</b> (backs it) &rarr; <b>Leading</b> (actively engaged in success)</p>
+<div class="cs-box"><b>Engagement Assessment Matrix (C/D):</b> rows = stakeholders, columns = the 5 levels. Mark <b>C</b> current, <b>D</b> desired. <b>C &ne; D = a gap</b> &rarr; drives actions in the stakeholder engagement plan. Re-assess periodically. <b>Higher is not always the target.</b></div>
+  </div>
+</details>
+<details class="cs-block" id="cs-s7">
+  <summary><span class="cs-num num">7</span><span class="cs-title">Change Control Flow (Predictive)</span><span class="chev" aria-hidden="true"></span></summary>
+  <div class="cs">
+<div class="cs-mind">
+<ol>
+<li><b>Change request raised</b> &mdash; by <i>anyone</i>; <b>documented</b>, never verbal</li>
+<li><b>PM evaluates impact on ALL baselines</b> &mdash; scope, schedule, cost + quality, risk, resources, procurement. Never just the one named.</li>
+<li><b>Log it</b> in the <b>change log</b>; route to the <b>CCB</b> (or sponsor/customer per authority threshold)</li>
+<li><b>CCB decides</b> &mdash; approve / reject / defer; decision + rationale recorded either way</li>
+<li><b>If approved &rarr; update the PM plan, baselines &amp; affected documents</b> (re-baseline)</li>
+<li><b>Communicate</b> to all impacted stakeholders &mdash; <b>including rejections</b></li>
+<li><b>Implement</b>, then <b>verify</b> in Monitoring &amp; Controlling</li>
+</ol>
+</div>
+<div class="cs-hook"><b class="cs-t">Golden rules</b>
+<ul>
+<li><b>Never act before approval</b> &mdash; not for the sponsor, not if "small" or "free"</li>
+<li><b>Never a flat no</b> (nor a flat yes) &mdash; <b>assess, document, route</b>. Refusing to evaluate is as wrong as approving alone.</li>
+<li><b>Gold-plating is never OK</b> &mdash; unrequested extras = unapproved scope, added risk and cost</li>
+<li><b>Scope creep</b> = uncontrolled change; the cure is the process, not heroics</li>
+<li>Change control starts <b>once baselines exist</b> &middot; approved changes drive <b>corrective / preventive action or defect repair</b></li>
+</ul>
+</div>
+  </div>
+</details>
+<details class="cs-block" id="cs-s8">
+  <summary><span class="cs-num num">8</span><span class="cs-title">Risk</span><span class="chev" aria-hidden="true"></span></summary>
+  <div class="cs">
+<div class="tw"><table class="wide">
+<thead><tr><th>THREAT (&minus;)</th><th>OPPORTUNITY (+)</th><th>Shared idea</th></tr></thead>
+<tbody>
+<tr><td><b>Escalate</b></td><td><b>Escalate</b></td><td>Outside project scope or PM authority &rarr; programme / portfolio / ops. Owner is outside the project; the team <b>no longer monitors it</b> (it may stay in the register for information).</td></tr>
+<tr><td><b>Avoid</b></td><td><b>Exploit</b></td><td>Probability to <b>0%</b> / to <b>100%</b> &mdash; kill the cause, or guarantee the upside</td></tr>
+<tr><td><b>Transfer</b></td><td><b>Share</b></td><td>Ownership to a third party: insurance, warranty, fixed-price contract / JV. Costs a <b>risk premium</b>.</td></tr>
+<tr><td><b>Mitigate</b></td><td><b>Enhance</b></td><td>Change the <b>size</b>: reduce vs increase probability and/or impact</td></tr>
+<tr><td><b>Accept</b></td><td><b>Accept</b></td><td><b>Active</b> = contingency reserve / plan &middot; <b>Passive</b> = document &amp; monitor only</td></tr>
+</tbody>
+</table></div>
+<p class="cs-small"><b>Contingency plan</b> = pre-planned response &middot; <b>Fallback</b> = backup if the response fails &middot; <b>Trigger</b> = warning sign &middot; <b>Workaround</b> = unplanned response to an <b>unidentified</b> risk that already occurred.</p>
+<div class="tw"><table>
+<tbody>
+<tr><td><b>Risk register</b></td><td><b>Uncertain future</b> events: cause, category, P&amp;I, score, <b>risk owner</b>, strategy, actions, residual/secondary risks, triggers</td></tr>
+<tr><td><b>Issue log</b></td><td><b>Already happened</b>, action now: issue, owner, action, due date, status. A risk that occurs <b>becomes an issue</b>.</td></tr>
+<tr><td><b>Assumption log</b></td><td>Assumptions + constraints from charter onward. An <b>invalidated assumption becomes a risk or issue</b>.</td></tr>
+</tbody>
+</table></div>
+<div class="tw"><table>
+<thead><tr><th>Qualitative</th><th>Quantitative</th></tr></thead>
+<tbody>
+<tr><td><b>Always done, all projects.</b> Subjective <b>ranking</b> via probability &times; impact matrix &rarr; prioritised shortlist. Adds urgency, proximity, detectability.</td><td><b>Optional</b> &mdash; large/complex/high-value, usually only risks qualitative promoted. <b>Numeric</b>: Monte Carlo, EMV / decision trees, sensitivity (tornado). Gives probability of hitting cost / time targets.</td></tr>
+</tbody>
+</table></div>
+<div class="tw"><table class="wide">
+<thead><tr><th></th><th>Contingency</th><th>Management</th></tr></thead>
+<tbody>
+<tr><td>Covers</td><td><b>Known-unknowns</b> (identified risks)</td><td><b>Unknown-unknowns</b> (unforeseen work in scope)</td></tr>
+<tr><td>Sits</td><td><b>INSIDE</b> the cost baseline</td><td><b>OUTSIDE</b> baseline, inside the <b>budget</b></td></tr>
+<tr><td>Controlled by</td><td><b>The PM</b> &mdash; no extra approval</td><td>Mgmt / sponsor &mdash; <b>needs approval</b></td></tr>
+<tr><td>Using it</td><td>No change request</td><td><b>Changes the cost baseline</b> &rarr; change request</td></tr>
+</tbody>
+</table></div>
+<p class="cs-small">Both are <b>reserves</b>. Cost baseline = estimates + contingency &middot; <b>Budget = cost baseline + management reserve</b>.</p>
+<div class="cs-hook"><b class="cs-t">Secondary vs residual:</b> <b>Secondary</b> = <i>new</i> risk created <b>by implementing a response</b> (outsourced &rarr; now vendor-failure risk). <b>Residual</b> = what <b>remains after</b> the response, knowingly accepted. Both go in the register.</div>
+  </div>
+</details>
+<details class="cs-block" id="cs-s9">
+  <summary><span class="cs-num num">9</span><span class="cs-title">Agile Compact</span><span class="chev" aria-hidden="true"></span></summary>
+  <div class="cs">
+<h3>Timeboxes &mdash; maxima for a <b>1-month</b> sprint (scale down proportionally)</h3>
+<div class="tw"><table class="wide">
+<thead><tr><th>Event</th><th>1&nbsp;mo</th><th>2&nbsp;wk</th><th>Purpose</th></tr></thead>
+<tbody>
+<tr><td>Sprint Planning</td><td><b>8 h</b></td><td>4 h</td><td>Why (Sprint Goal) &middot; What (items) &middot; How (plan)</td></tr>
+<tr><td>Daily Scrum</td><td><b>15 min</b></td><td>15 min</td><td><b>Always 15 min</b>, for the <b>developers</b>; re-plan the day. <b>Not a status report to the PM/SM.</b></td></tr>
+<tr><td>Sprint Review</td><td><b>4 h</b></td><td>2 h</td><td>Inspect the <b>increment</b> with <b>stakeholders</b>, adapt the backlog. Demo, not slides.</td></tr>
+<tr><td>Retrospective</td><td><b>3 h</b></td><td>1.5 h</td><td>Inspect people, process, tools, DoD &rarr; improvement actions. Ends the sprint.</td></tr>
+<tr><td>Sprint</td><td colspan="2"><b>&le; 1 month</b></td><td>Nothing may endanger the Sprint Goal. Only the PO can cancel a sprint.</td></tr>
+</tbody>
+</table></div>
+<div class="tw"><table>
+<tbody>
+<tr><td><b>Product Owner</b></td><td><b>Owns the backlog, maximises value</b> &mdash; orders it, single voice on what/why, can say no</td></tr>
+<tr><td><b>Scrum Master</b></td><td><b>Servant leader: serves the team, removes impediments</b>, coaches, protects from interruption. <b>No authority to assign work.</b></td></tr>
+<tr><td><b>Developers</b></td><td><b>Self-organising, cross-functional</b> &mdash; they estimate, pull work, own the how and the quality</td></tr>
+</tbody>
+</table></div>
+<div class="tw"><table>
+<tbody>
+<tr><td><b>DoD</b></td><td><b>Exit</b> criterion, one standard for <b>every</b> increment: coded, tested, integrated, documented, <b>potentially releasable</b>. Not met = <b>not done</b>, back to the backlog, no partial credit.</td></tr>
+<tr><td><b>DoR</b></td><td><b>Entry</b> criterion: clear, estimated, acceptance criteria set, dependencies resolved, <b>INVEST</b> (Independent, Negotiable, Valuable, Estimable, Small, Testable)</td></tr>
+<tr><td>Acceptance criteria</td><td>Per-story, used by the <b>PO</b> to accept that item. DoD global, AC local.</td></tr>
+</tbody>
+</table></div>
+<div class="tw"><table>
+<tbody>
+<tr><td><b>Burndown</b></td><td>Work <b>remaining</b> &rarr; zero. Above ideal line = behind &middot; flat = blocked &middot; hides scope change.</td></tr>
+<tr><td><b>Burnup</b></td><td>Work <b>completed</b> rising + separate <b>total scope</b> line &rarr; rising scope line makes <b>scope creep visible</b>.</td></tr>
+<tr><td><b>CFD</b></td><td>Stacked bands per state. <b>Band width = WIP</b>; widening = <b>bottleneck</b>. Horizontal gap = <b>cycle time</b>, slope of top band = <b>throughput</b>.</td></tr>
+</tbody>
+</table></div>
+<div class="cs-hook"><b class="cs-t">Agile reflexes</b>
+<ul>
+<li><b>Velocity is empirical and team-specific &mdash; a planning tool, never a performance metric, NEVER compared across teams</b></li>
+<li><b>Story points are relative</b> (effort + complexity + uncertainty), not hours. <b>The team estimates &mdash; not the PM, PO or manager.</b></li>
+<li><b>WIP limits</b> (Kanban): cap items per column &rarr; expose bottlenecks, cut cycle time. <b>Stop starting, start finishing.</b> Little's Law: cycle time = WIP &divide; throughput.</li>
+<li>Kanban = continuous pull flow, no fixed iteration &middot; Scrum = timeboxed iterations</li>
+<li><b>Servant-leader first response: facilitate, don't assign.</b> Coach, let the team solve it, remove the impediment.</li>
+<li>Backlog refinement is <b>ongoing</b>, not a formal event &middot; prioritise <b>highest value &amp; highest risk first</b></li>
+<li>Change is handled by <b>re-ordering the backlog</b> &mdash; no CCB in a pure agile context</li>
+</ul>
+</div>
+  </div>
+</details>
+<details class="cs-block" id="cs-s10" open>
+  <summary><span class="cs-num num">10</span><span class="cs-title">&#9733; PMI MINDSET HIERARCHY &mdash; read twice</span><span class="chev" aria-hidden="true"></span></summary>
+  <div class="cs">
+<div class="cs-mind">
+<p style="margin:0 0 2px"><b>"What should the PM do FIRST / NEXT / BEST?" &rarr; walk the ladder. The answer is the highest rung not yet done.</b></p>
+<ol>
+<li><b>GATHER INFORMATION &mdash; assess the situation.</b> Understand problem, root cause and impact before reacting. Meet the person, analyse the data.</li>
+<li><b>CONSULT THE RELEVANT PLAN / REGISTER / ARTIFACT.</b> Risk register, change management plan, comms plan, quality plan, contract, issue log, lessons learned. It is usually already documented.</li>
+<li><b>ACT WITHIN YOUR AUTHORITY, PER THE PROCESS.</b> Implement the documented response, raise the change request, update the register, have the conversation, replan.</li>
+<li><b>ESCALATE &mdash; LAST RESORT ONLY.</b> To sponsor / CCB / programme, only after 1&ndash;3, only if genuinely beyond your authority. <b>Escalating first is the classic wrong answer.</b></li>
+</ol>
+</div>
+<div class="cs-hook"><b class="cs-t">Reflexes &mdash; the orthodox default in any ambiguous question</b>
+<ul>
+<li><b>Never blame individuals.</b> Attack the process and root cause. No public criticism, no firing, no running to their functional manager first.</li>
+<li><b>The team estimates and plans its own work.</b> The PM facilitates; never imposes.</li>
+<li><b>Prevention over inspection</b> &mdash; quality is planned and built in, never inspected in at the end.</li>
+<li><b>The PM is proactive and never waits.</b> No "wait and see", no "monitor and do nothing".</li>
+<li><b>Face-to-face beats email</b> for conflict, bad news, negotiation. Written for records and formal decisions. Performance and conflict talks happen <b>in private</b>.</li>
+<li><b>Culture / language / diversity &rarr; adapt, respect, accommodate. Never impose</b> your own norms, never "tell them to adjust".</li>
+<li><b>The sponsor funds, champions and signs the charter; the PM plans and executes.</b> The sponsor removes organisational obstacles.</li>
+<li><b>Never bypass the CCB.</b> No verbal approvals, no favours, no starting before the decision.</li>
+<li><b>Never add scope without change control &mdash; and never gold-plate.</b></li>
+<li><b>Bad news travels immediately and transparently.</b> Never hide, delay or soften a variance.</li>
+<li><b>Code of Ethics</b>: responsibility, respect, fairness, honesty. Report violations, refuse gifts that look like bribes, disclose conflicts of interest.</li>
+<li><b>Servant leadership over command-and-control</b> &middot; <b>tailor</b> to the project &middot; if a process exists, <b>follow it</b>.</li>
+</ul>
+</div>
+  </div>
+</details>
+<details class="cs-block" id="cs-s11">
+  <summary><span class="cs-num num">11</span><span class="cs-title">Stem Decoder</span><span class="chev" aria-hidden="true"></span></summary>
+  <div class="cs">
+<div class="tw"><table>
+<thead><tr><th>Signal</th><th>Means &rarr; do</th></tr></thead>
+<tbody>
+<tr><td><b>FIRST / NEXT</b></td><td><b>Sequence question.</b> Several options are all things you'd eventually do &rarr; pick the <b>earliest rung</b>. Usually <b>assess / gather info / consult the plan</b>, not act, never escalate.</td></tr>
+<tr><td><b>BEST / MOST</b></td><td>All options defensible &rarr; pick the <b>PMI-orthodox</b> one: proactive, process-following, collaborative, root-cause, documented.</td></tr>
+<tr><td><b>EXCEPT / NOT / LEAST</b></td><td><b>Inverted &mdash; SLOW DOWN.</b> Three options are correct; you're hunting the wrong one. Re-read, then test each option true/false.</td></tr>
+<tr><td><b>"should the PM <i>have</i> done"</b></td><td>Past tense &rarr; answer is a <b>prevention / planning artifact</b>: risk identification, stakeholder register, comms plan, clearer WBS, quality plan.</td></tr>
+<tr><td>Two answers both look right</td><td>Pick the more <b>proactive</b>, and <b>root cause</b> over symptom; team-involving over PM-alone; documented over verbal.</td></tr>
+<tr><td>"Escalate to sponsor / inform senior management / go to their functional manager"</td><td>Almost always <b>wrong as a FIRST step</b>. Right only if you have already assessed and it exceeds your authority.</td></tr>
+<tr><td>"Do nothing / wait / monitor and take no action"</td><td>Nearly always <b>wrong</b>. The PM acts.</td></tr>
+<tr><td>"Make an exception / approve it yourself / just do it"</td><td><b>Wrong.</b> Process and change control hold.</td></tr>
+<tr><td>Stem says sprint / backlog / PO / iteration</td><td>Answer in <b>agile grammar</b>: re-order the backlog, team self-organises, servant leadership, retrospective &mdash; not CCB or baselines.</td></tr>
+<tr><td>"In execution" + a plan gap</td><td>You still go back and <b>plan / replan</b>. Process groups are <b>iterative</b>.</td></tr>
+<tr><td>Long stem, lots of numbers</td><td>Read the <b>last sentence first</b>. Half the data is a distractor.</td></tr>
+</tbody>
+</table></div>
+  </div>
+</details>
+<details class="cs-block" id="cs-s12">
+  <summary><span class="cs-num num">12</span><span class="cs-title">Amazon &rarr; PMI Terminology Map</span><span class="chev" aria-hidden="true"></span></summary>
+  <div class="cs">
+<div class="tw"><table class="wide">
+<thead><tr><th>Amazon</th><th>PMI</th><th>Watch out</th></tr></thead>
+<tbody>
+<tr><td>Mechanism</td><td><b>Process</b></td><td>PMI says process / procedure / policy (OPA). "Mechanism" is in no option.</td></tr>
+<tr><td>COE, 5-whys, post-mortem</td><td><b>Lessons learned register &middot; RCA</b></td><td>Captured <b>continuously throughout</b>, not only at closing; roll into the lessons learned <b>repository</b> (an OPA) at closure.</td></tr>
+<tr><td>Two-way door</td><td><b>Low-impact / reversible change</b></td><td><b>Still documented and still assessed.</b> Reversible is no licence to skip the change log.</td></tr>
+<tr><td>One-way door</td><td><b>Formal change control &middot; decision / phase gate</b></td><td>Needs a <b>change request &rarr; CCB</b>, or a phase-gate review first.</td></tr>
+<tr><td>WBR / MBR / QBR</td><td><b>Performance review meeting</b> (M&amp;C)</td><td>Outputs are <b>work performance reports</b>. Data &rarr; information &rarr; reports.</td></tr>
+<tr><td>6-pager / PR-FAQ</td><td><b>Business case &middot; project charter</b></td><td>Business case comes <b>before</b> the charter. <b>The sponsor issues the charter</b>, not you.</td></tr>
+<tr><td>SIM / ticket queue</td><td><b>Issue log</b></td><td>Issues = already happened. Not-yet-happened lives in the <b>risk register</b>.</td></tr>
+<tr><td>Bar raiser</td><td><b>Peer review &middot; QA audit</b></td><td>Reviews/audits = <b>QA (process)</b>. Testing a deliverable = <b>QC (product)</b>.</td></tr>
+<tr><td>Andon cord</td><td><b>Stop-the-line quality control</b></td><td>PMI approves: empowered team, defect caught at source, prevention over inspection.</td></tr>
+<tr><td>OP1 / OP2</td><td><b>Portfolio planning</b></td><td>Portfolio &gt; programme &gt; project. Portfolio picks <b>what</b>; the project delivers <b>how</b>.</td></tr>
+<tr><td>Escalate to L8 / skip-level</td><td><b>Escalate to sponsor / CCB</b></td><td><b>PMI escalates LAST</b> &mdash; after assessing and consulting the plan, and only if beyond your authority. Early escalation is the trap.</td></tr>
+</tbody>
+</table></div>
+  </div>
+</details>
+<details class="cs-block" id="cs-s13">
+  <summary><span class="cs-num num">13</span><span class="cs-title">Artifact Quick Map</span><span class="chev" aria-hidden="true"></span></summary>
+  <div class="cs">
+<div class="tw"><table class="wide">
+<thead><tr><th>Artifact</th><th>Owner</th><th>Is / is NOT</th></tr></thead>
+<tbody>
+<tr><td><b>Project charter</b></td><td><b>Sponsor</b> issues &amp; signs</td><td><b>Authorises the project AND names the PM with their authority.</b> High-level: purpose, objectives, high-level requirements &amp; risks, summary milestones / budget, success criteria. <b>Not detailed, not baselined.</b></td></tr>
+<tr><td><b>PM plan</b></td><td><b>PM</b> creates, CCB / sponsor approves</td><td><b>HOW</b> the project is executed, monitored, controlled, closed. Subsidiary plans + the <b>3 baselines</b>. Once approved, changes <b>only via change control</b>.</td></tr>
+<tr><td><b>Scope statement</b></td><td>PM &amp; team</td><td>Detailed <b>product + project</b> scope: deliverables, acceptance criteria, <b>exclusions</b>, constraints, assumptions. Comes <b>before</b> the WBS.</td></tr>
+<tr><td><b>WBS</b></td><td>Team, with the PM</td><td><b>Decomposition of DELIVERABLES</b> &mdash; not activities, not the org chart. <b>100% rule.</b> Lowest level = <b>work package</b>. <b>Scope baseline = scope statement + WBS + WBS dictionary.</b></td></tr>
+<tr><td><b>RACI</b></td><td>PM</td><td><b>R</b> does &middot; <b>A</b> owns &mdash; <b>exactly ONE A per task</b> &middot; <b>C</b> two-way input &middot; <b>I</b> one-way update.</td></tr>
+<tr><td><b>Stakeholder register</b></td><td>PM</td><td>Identity, role, requirements, expectations, influence / power, current &amp; desired engagement. <b>Living</b> &mdash; starts in Initiating, updated throughout.</td></tr>
+<tr><td><b>Product backlog</b></td><td><b>Product Owner</b></td><td><b>Living, ordered</b> list. <b>Never baselined or frozen</b>, re-ordered freely. The <b>sprint backlog</b> belongs to the <b>developers</b>.</td></tr>
+<tr><td><b>Baselines (3)</b></td><td>PM / CCB</td><td>Scope, schedule, cost &mdash; the <b>approved</b> versions variance is measured against. Changed <b>only</b> by approved change request.</td></tr>
+</tbody>
+</table></div>
+  </div>
+</details>
+<details class="cs-block" id="cs-s14">
+  <summary><span class="cs-num num">14</span><span class="cs-title">Quality</span><span class="chev" aria-hidden="true"></span></summary>
+  <div class="cs">
+<div class="tw"><table class="wide">
+<thead><tr><th></th><th>QA &mdash; Manage Quality</th><th>QC &mdash; Control Quality</th></tr></thead>
+<tbody>
+<tr><td>Focus</td><td><b>PROCESS</b></td><td><b>PRODUCT / deliverable</b></td></tr>
+<tr><td>Aim</td><td><b>Prevention</b> &mdash; build quality in</td><td><b>Inspection</b> &mdash; find defects</td></tr>
+<tr><td>Group</td><td>Executing</td><td>Monitoring &amp; Controlling</td></tr>
+<tr><td>Tools</td><td>Audits, process analysis, RCA</td><td>Inspection, testing, checklists, sampling, control charts</td></tr>
+<tr><td>Output</td><td>Quality reports, change requests</td><td><b>Verified deliverables</b> &rarr; <b>Validate Scope</b> &rarr; customer-<b>accepted</b></td></tr>
+</tbody>
+</table></div>
+<p class="cs-small"><b>Control Quality = correctness (internal, PM/team). Validate Scope = acceptance (external, customer sign-off). QC comes FIRST.</b> Quality = meets requirements. Grade = category of features &mdash; <b>low grade may be acceptable, low quality never is</b>.</p>
+<h3>Cost of Quality</h3>
+<div class="tw"><table>
+<thead><tr><th>CONFORMANCE (to prevent failure)</th><th>NON-CONFORMANCE (because of failure)</th></tr></thead>
+<tbody>
+<tr><td><b>Prevention</b> &mdash; training, documented process, right equipment<br><b>Appraisal</b> &mdash; testing, inspection, audits</td><td><b>Internal failure</b> &mdash; found <b>before</b> the customer: rework, scrap<br><b class="cs-neg">External failure</b> &mdash; found <b>by</b> the customer: warranty, recalls, lost business &mdash; <b>ALWAYS DEAREST</b></td></tr>
+</tbody>
+</table></div>
+<p class="cs-small">Cheapest &rarr; dearest: <b>prevention &lt; appraisal &lt; internal failure &lt; external failure</b>. So spend on prevention.</p>
+<div class="tw"><table>
+<tbody>
+<tr><td><b>Pareto</b></td><td><b>80/20</b> &mdash; ordered bar chart of causes by frequency. 80% of problems from 20% of causes &rarr; <b>where to focus first</b>.</td></tr>
+<tr><td><b>Ishikawa</b></td><td>Fishbone / cause-and-effect &mdash; <b>finds the ROOT CAUSE</b> by decomposing an effect into categories (people, process, machine, material, measurement, environment).</td></tr>
+<tr><td><b>Control chart</b></td><td><b>Spec limits</b> = customer requirement &middot; <b>control limits</b> = process capability, normally <b>&plusmn;3&sigma;</b> from the mean. Point <b>outside a control limit &rarr; out of control</b>. <b>RULE OF SEVEN: 7 consecutive points on one side of the mean &rarr; out of control &mdash; INVESTIGATE, even though every point is inside the limits.</b></td></tr>
+<tr><td>Others</td><td>Histogram = distribution &middot; scatter = correlation &middot; flowchart = steps / handoffs &middot; checksheet = tally while collecting</td></tr>
+</tbody>
+</table></div>
+  </div>
+</details>
+<details class="cs-block" id="cs-s15">
+  <summary><span class="cs-num num">15</span><span class="cs-title">Process Groups &mdash; One-Liner Strip</span><span class="chev" aria-hidden="true"></span></summary>
+  <div class="cs">
+<div class="cs-strip">
+<div><b>INITIATING</b>Authorise the project / phase &rarr; <b>project charter</b>, <b>stakeholder register</b>, assumption log.</div>
+<div><b>PLANNING</b>Define scope, refine objectives &rarr; <b>PM plan + ALL THREE BASELINES</b> (scope, schedule, cost), subsidiary plans, risk register. Largest group.</div>
+<div><b>EXECUTING</b>Do the work in the plan &rarr; <b>deliverables</b>, acquire / develop / manage the <b>team</b>, manage comms &amp; engagement, conduct procurements, implement approved changes.</div>
+<div><b>MONITORING &amp; CONTROLLING</b>Track, review, regulate &rarr; <b>variance analysis, EVM, work performance reports, change requests, INTEGRATED CHANGE CONTROL</b>, validate &amp; control scope, monitor risks. Runs <b>in parallel with every other group</b>.</div>
+<div><b>CLOSING</b>Formally finish &rarr; <b>final report</b>, transition the product, close procurements, <b>lessons learned repository</b>, archive, <b>release resources</b>. Close out even a <b>terminated</b> project.</div>
+</div>
+<p class="cs-small">Process groups are <b>not</b> phases and <b>not</b> sequential &mdash; they overlap and iterate. <b>ECO 2021 domains: People 42% &middot; Process 50% &middot; Business Environment 8%</b>, roughly <b>50% predictive / 50% agile-hybrid</b> &mdash; superseded 9 Jul 2026: now <b>33/41/26</b>, see the 2026 section above.</p>
+  </div>
+</details>
+
+</section>
+
+<!-- ============ 7. FOOTER ============ -->
+<footer>
+  <a class="btn" href="https://claude.ai/code/artifact/e335c2b9-7eb0-4d7b-ab89-a832dad188af">Open the Crunch Kit drill &rarr;</a>
+  <p>Review Deck inside the kit covers every missed concept.</p>
+  <p class="sig">166 questions &middot; 3 sprints &middot; 55 misses &middot; 10 rules. You have done the work.</p>
+</footer>
+
+</div>

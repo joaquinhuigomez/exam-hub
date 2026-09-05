@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f172a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Exam Hub — Engine</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎯</text></svg>">
+<style>
+  :root {
+    --bg: #0f172a; --bg-soft: #1e293b; --bg-elevated: #334155;
+    --text: #f1f5f9; --text-dim: #94a3b8;
+    --primary: #ff9900; --green: #10b981; --red: #ef4444; --yellow: #f59e0b; --blue: #3b82f6; --purple: #a78bfa;
+    --border: #334155;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--bg); color: var(--text); }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif; line-height: 1.5; font-size: 15px; min-height: 100vh; -webkit-tap-highlight-color: transparent; }
+  a { color: var(--blue); }
+  header { position: sticky; top: 0; z-index: 100; background: var(--bg-soft); padding: 10px 14px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .title { font-size: 0.98rem; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+  .title a.home { color: var(--text-dim); text-decoration: none; font-size: 0.85rem; padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px; }
+  .title small { color: var(--text-dim); font-weight: 400; font-size: 0.75rem; }
+  .stats { display: flex; gap: 12px; font-size: 0.78rem; flex-wrap: wrap; }
+  .stat { color: var(--text-dim); } .stat strong { color: var(--text); font-weight: 700; }
+  nav { position: sticky; top: 45px; z-index: 99; background: var(--bg); padding: 6px 8px; border-bottom: 1px solid var(--border); display: flex; gap: 3px; overflow-x: auto; scrollbar-width: none; }
+  nav::-webkit-scrollbar { display: none; }
+  nav button { background: transparent; color: var(--text-dim); border: none; padding: 8px 12px; font-size: 0.85rem; cursor: pointer; white-space: nowrap; border-radius: 6px; font-weight: 600; }
+  nav button:hover { color: var(--text); background: var(--bg-soft); }
+  nav button.active { color: var(--bg); background: var(--primary); }
+  nav button .cnt { opacity: 0.7; font-weight: 500; font-size: 0.75rem; margin-left: 3px; }
+  main { max-width: 920px; margin: 0 auto; padding: 14px 12px 90px; }
+  .card { background: var(--bg-soft); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; margin-bottom: 14px; }
+  .card h2 { color: var(--primary); margin-bottom: 10px; font-size: 1.02rem; }
+  .card h3 { font-size: 0.92rem; margin: 12px 0 6px; color: var(--text); }
+  .card p { margin-bottom: 8px; }
+  .dim { color: var(--text-dim); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 10px; }
+  .tier-s-card { background: linear-gradient(135deg, #1a2434, #0f172a); border: 1px solid var(--border); border-left: 3px solid var(--primary); border-radius: 8px; padding: 12px 14px; }
+  .tier-s-card h3 { font-size: 0.92rem; color: var(--primary); margin: 0 0 6px; }
+  .tier-s-card p { color: var(--text); font-size: 0.86rem; white-space: pre-wrap; margin: 0; }
+  .q-meta { display: flex; gap: 5px; flex-wrap: wrap; font-size: 0.7rem; margin-bottom: 12px; }
+  .pill { background: var(--bg-elevated); color: var(--text-dim); padding: 3px 8px; border-radius: 12px; font-weight: 600; }
+  .pill.domain { background: rgba(255,153,0,0.18); color: var(--primary); }
+  .pill.diff-easy { color: var(--green); } .pill.diff-medium { color: var(--yellow); } .pill.diff-hard { color: var(--red); }
+  .pill.multi { background: rgba(59,130,246,0.18); color: var(--blue); }
+  .scenario { color: var(--text-dim); font-size: 0.92rem; margin-bottom: 10px; padding: 10px 12px; background: rgba(0,0,0,0.2); border-radius: 8px; border-left: 2px solid var(--bg-elevated); }
+  .stem { font-weight: 600; font-size: 1rem; margin-bottom: 14px; }
+  .options { display: flex; flex-direction: column; gap: 8px; }
+  .option { display: flex; gap: 10px; padding: 11px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); cursor: pointer; transition: border-color .12s, background .12s; }
+  .option:hover { border-color: var(--text-dim); }
+  .option.selected { border-color: var(--blue); background: rgba(59,130,246,0.1); }
+  .option.correct { border-color: var(--green); background: rgba(16,185,129,0.1); }
+  .option.incorrect-selected { border-color: var(--red); background: rgba(239,68,68,0.1); }
+  .option.revealed { cursor: default; }
+  .option-letter { width: 26px; height: 26px; flex: none; border-radius: 50%; background: var(--bg-elevated); display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 700; }
+  .option.correct .option-letter { background: var(--green); color: #052e1c; }
+  .option.incorrect-selected .option-letter { background: var(--red); color: #fff; }
+  .option-body { flex: 1; } .option-text { font-size: 0.92rem; }
+  .option-why { margin-top: 6px; font-size: 0.85rem; color: var(--text-dim); line-height: 1.45; }
+  .badge { font-weight: 700; margin-right: 6px; } .badge.ok { color: var(--green); } .badge.bad { color: var(--red); }
+  .actions { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+  button.primary { background: var(--primary); color: var(--bg); border: none; padding: 10px 18px; border-radius: 8px; font-weight: 700; cursor: pointer; font-size: 0.92rem; }
+  button.primary:disabled { opacity: 0.45; cursor: not-allowed; }
+  button.secondary { background: var(--bg-elevated); color: var(--text); border: none; padding: 9px 14px; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 0.88rem; }
+  button.secondary:disabled { opacity: 0.4; cursor: not-allowed; }
+  button.ghost { background: transparent; color: var(--text-dim); border: 1px solid var(--border); padding: 7px 12px; border-radius: 8px; cursor: pointer; font-size: 0.82rem; }
+  button.ghost.on { color: var(--primary); border-color: var(--primary); }
+  .toolbar { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+  .toolbar .label { color: var(--text-dim); font-size: 0.85rem; margin: 0 4px; }
+  .progress-bar { height: 4px; background: var(--bg-elevated); border-radius: 2px; margin-bottom: 10px; overflow: hidden; }
+  .progress-bar div { height: 100%; background: var(--primary); transition: width .2s; }
+  .reveal-panel { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 10px; }
+  .reveal-row { display: flex; gap: 10px; } .reveal-row .icon { flex: none; font-size: 1.1rem; }
+  .reveal-row strong { display: block; font-size: 0.82rem; color: var(--text-dim); margin-bottom: 2px; }
+  .reveal-row p { font-size: 0.9rem; margin: 0; }
+  .reveal-row a { font-size: 0.8rem; word-break: break-all; }
+  .sub-toggle { display: inline-flex; background: var(--bg-soft); border: 1px solid var(--border); border-radius: 8px; padding: 3px; margin-bottom: 12px; gap: 2px; flex-wrap: wrap; }
+  .sub-toggle button { background: transparent; color: var(--text-dim); border: none; padding: 6px 12px; border-radius: 6px; font-size: 0.85rem; font-weight: 600; cursor: pointer; }
+  .sub-toggle button.active { background: var(--bg-elevated); color: var(--text); }
+  .cheat-row { display: grid; grid-template-columns: 170px 1fr; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 0.88rem; }
+  .cheat-row:last-child { border-bottom: none; }
+  .cheat-row .topic { color: var(--primary); font-weight: 600; } .cheat-row .fact { white-space: pre-wrap; }
+  @media (max-width: 560px) { .cheat-row { grid-template-columns: 1fr; gap: 3px; } }
+  .trap-card { padding: 10px 12px; border-left: 3px solid var(--red); background: rgba(239,68,68,0.06); border-radius: 6px; margin-bottom: 8px; font-size: 0.88rem; }
+  .trap-card .name { font-weight: 700; margin-bottom: 3px; } .trap-card .row { color: var(--text-dim); margin-top: 2px; } .trap-card .spot { color: var(--green); }
+  .tip-list li { margin: 6px 0 6px 18px; font-size: 0.9rem; }
+  .focus-row { display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+  .focus-row .rank { width: 26px; height: 26px; border-radius: 50%; background: var(--primary); color: var(--bg); font-weight: 700; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; flex: none; }
+  .focus-row .topic { font-weight: 600; } .focus-row .why { color: var(--text-dim); font-size: 0.85rem; }
+  .empty-state { text-align: center; padding: 50px 20px; color: var(--text-dim); }
+  .empty-state h2 { color: var(--text); margin-bottom: 8px; }
+  /* decision tables */
+  .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--border); border-radius: 8px; }
+  table.dt { border-collapse: collapse; width: 100%; font-size: 0.84rem; min-width: 560px; }
+  table.dt th { background: var(--bg-elevated); color: var(--text); text-align: left; padding: 8px 10px; position: sticky; top: 0; }
+  table.dt td { padding: 8px 10px; border-top: 1px solid var(--border); vertical-align: top; }
+  table.dt td:first-child { font-weight: 700; color: var(--primary); white-space: nowrap; }
+  .trigger { display: inline-block; background: rgba(167,139,250,0.15); color: var(--purple); font-size: 0.75rem; padding: 2px 8px; border-radius: 10px; margin: 2px 3px 2px 0; }
+  .rule { margin-top: 8px; padding: 8px 10px; background: rgba(16,185,129,0.08); border-left: 3px solid var(--green); border-radius: 6px; font-size: 0.88rem; }
+  details { margin-bottom: 8px; } summary { cursor: pointer; font-weight: 600; padding: 8px 0; list-style: none; display: flex; align-items: center; gap: 8px; }
+  summary::before { content: '▸'; color: var(--text-dim); transition: transform .15s; } details[open] summary::before { transform: rotate(90deg); }
+  .kv { display: grid; grid-template-columns: 120px 1fr; gap: 6px 12px; font-size: 0.86rem; }
+  .kv .k { color: var(--primary); font-weight: 700; text-align: right; }
+  @media (max-width: 560px) { .kv { grid-template-columns: 90px 1fr; } }
+  .mnemo { padding: 10px 12px; border-radius: 8px; background: rgba(255,153,0,0.07); border: 1px dashed rgba(255,153,0,0.4); margin-bottom: 8px; font-size: 0.88rem; }
+  .mnemo .hook { font-weight: 700; color: var(--primary); font-size: 0.95rem; } .mnemo .use { color: var(--text-dim); font-size: 0.8rem; }
+  input.search { width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 0.95rem; margin-bottom: 10px; }
+  .kw-row { display: grid; grid-template-columns: 1fr 200px; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 0.86rem; }
+  .kw-row .svc { color: var(--green); font-weight: 700; text-align: right; }
+  @media (max-width: 560px) { .kw-row { grid-template-columns: 1fr; } .kw-row .svc { text-align: left; } }
+  /* recall */
+  .flash { min-height: 180px; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 22px 18px; border-radius: 12px; background: linear-gradient(135deg, #1a2434, #0f172a); border: 1px solid var(--border); cursor: pointer; }
+  .flash .cue { font-size: 1.05rem; font-weight: 600; }
+  .flash .ans { font-size: 1.25rem; font-weight: 800; color: var(--green); margin-top: 8px; }
+  .flash .why { color: var(--text-dim); font-size: 0.88rem; margin-top: 10px; text-align: left; }
+  .flash .hint { color: var(--text-dim); font-size: 0.78rem; margin-top: 12px; }
+  .box-bar { display: flex; gap: 4px; margin-bottom: 10px; font-size: 0.72rem; color: var(--text-dim); align-items: center; }
+  .box-bar span { padding: 2px 8px; border-radius: 10px; background: var(--bg-elevated); }
+  .box-bar span.b0 { color: var(--red); } .box-bar span.b1 { color: var(--yellow); } .box-bar span.b2 { color: var(--green); }
+  .streak { color: var(--primary); font-weight: 700; }
+  .sim-timer { font-variant-numeric: tabular-nums; font-weight: 800; color: var(--primary); font-size: 1.1rem; }
+  .sim-timer.low { color: var(--red); }
+  .score-big { font-size: 2.4rem; font-weight: 900; color: var(--primary); }
+  .score-big.pass { color: var(--green); } .score-big.fail { color: var(--red); }
+  .dom-bar { display: grid; grid-template-columns: 40px 1fr 60px; gap: 8px; align-items: center; margin: 6px 0; font-size: 0.85rem; }
+  .dom-bar .bar { height: 8px; background: var(--bg-elevated); border-radius: 4px; overflow: hidden; } .dom-bar .bar div { height: 100%; background: var(--green); }
+  .sim-nav { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 10px; }
+  .sim-nav button { width: 32px; height: 28px; font-size: 0.72rem; border-radius: 5px; border: 1px solid var(--border); background: var(--bg); color: var(--text-dim); cursor: pointer; }
+  .sim-nav button.answered { background: var(--bg-elevated); color: var(--text); } .sim-nav button.flag { border-color: var(--primary); } .sim-nav button.cur { outline: 2px solid var(--blue); }
+  .sim-nav button.right { background: rgba(16,185,129,0.25); color: var(--green); } .sim-nav button.wrong { background: rgba(239,68,68,0.25); color: var(--red); }
+  textarea.io { width: 100%; min-height: 90px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 8px; font-family: ui-monospace, monospace; font-size: 0.75rem; }
+  .kbd { font-family: ui-monospace, monospace; background: var(--bg-elevated); padding: 1px 6px; border-radius: 4px; font-size: 0.78rem; }
+  footer { position: fixed; bottom: 0; left: 0; right: 0; background: var(--bg-soft); border-top: 1px solid var(--border); padding: 6px 12px; font-size: 0.72rem; color: var(--text-dim); display: flex; justify-content: space-between; gap: 8px; z-index: 90; padding-bottom: calc(6px + env(safe-area-inset-bottom)); }
+  footer button { background: transparent; border: none; color: var(--text-dim); cursor: pointer; font-size: 0.72rem; text-decoration: underline; }
+</style>
+</head>
+<body>
+<header>
+  <div class="title"><a class="home" href="./">⌂ Hub</a><span id="exam-title">Loading…</span><small id="exam-sub"></small></div>
+  <div class="stats">
+    <span class="stat">Attempted <strong id="stat-attempted">0</strong></span>
+    <span class="stat">Accuracy <strong id="stat-accuracy">—</strong></span>
+    <span class="stat">Mistakes <strong id="stat-mistakes">0</strong></span>
+    <span class="stat">Recall <strong id="stat-recall">—</strong></span>
+  </div>
+</header>
+<nav id="nav"></nav>
+<main id="app"><div class="empty-state"><h2>Loading…</h2></div></main>
+<footer>
+  <span id="foot-left">Progress is saved in this browser.</span>
+  <span><button id="btn-sync">Sync / export progress</button> · <span class="kbd">1-5</span> pick · <span class="kbd">↵</span> submit/next · <span class="kbd">F</span> flag</span>
+</footer>
+
+<script>
+// =====================================================================
+// Exam Hub Engine — generic, data-driven. URL: app.html?exam=<id>
+// Reads exams/<id>/manifest.json, then the files it names.
+// =====================================================================
+const EXAM_ID = new URLSearchParams(location.search).get('exam') || 'saa-c03';
+const BASE = `./exams/${EXAM_ID}/`;
+const LS = (k) => `hub.${EXAM_ID}.${k}`;
+const lsGet = (k, d) => { try { const v = localStorage.getItem(LS(k)); return v == null ? d : JSON.parse(v); } catch { return d; } };
+const lsSet = (k, v) => { try { localStorage.setItem(LS(k), JSON.stringify(v)); } catch {} };
+
+const STATE = {
+  manifest: null, domains: {}, cheatsheets: null, traps: null, recall: null,
+  activeTab: 'cram', domainMode: 'quiz',
+  currentIdx: 0, selected: new Set(), revealed: false, shuffled: false, shuffleOrder: [],
+  attempts: lsGet('attempts', {}), mistakes: new Set(lsGet('mistakes', [])), flagged: new Set(lsGet('flagged', [])),
+  // recall
+  recallMode: 'pick', recallFilter: 'all', recallBoxes: lsGet('recall', {}), recallQueue: [], recallIdx: 0, recallRevealed: false, recallPicked: null, recallStreak: 0, recallOptions: [],
+  // sim
+  sim: lsGet('sim', null), simIdx: 0, simTimer: null,
+  tablesFilter: '',
+};
+function persist() {
+  lsSet('attempts', STATE.attempts); lsSet('mistakes', [...STATE.mistakes]); lsSet('flagged', [...STATE.flagged]);
+  lsSet('recall', STATE.recallBoxes); lsSet('sim', STATE.sim);
+}
+const esc = (s) => s == null ? '' : String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+const shuffle = (a) => { const b = [...a]; for (let i = b.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [b[i], b[j]] = [b[j], b[i]]; } return b; };
+
+async function loadJSON(file) {
+  if (!file) return null;
+  try { const r = await fetch(BASE + file, { cache: 'no-store' }); if (!r.ok) throw 0; return await r.json(); } catch { return null; }
+}
+function allQuestions() {
+  return Object.entries(STATE.domains).flatMap(([d, data]) => (data?.questions || []).map(q => ({ ...q, _domain: d })));
+}
+function updateStats() {
+  const attempted = Object.keys(STATE.attempts).length;
+  const correct = Object.values(STATE.attempts).filter(a => a.lastCorrect).length;
+  document.getElementById('stat-attempted').textContent = attempted;
+  document.getElementById('stat-accuracy').textContent = attempted ? Math.round(correct / attempted * 100) + '%' : '—';
+  document.getElementById('stat-mistakes').textContent = STATE.mistakes.size;
+  const cards = STATE.recall?.cards || [];
+  if (cards.length) {
+    const mastered = cards.filter(c => (STATE.recallBoxes[c.id]?.box || 0) >= 2).length;
+    document.getElementById('stat-recall').textContent = `${mastered}/${cards.length}`;
+  }
+}
+
+// ---------------- Nav ----------------
+function buildNav() {
+  const tabs = [{ id: 'cram', label: '🔥 Cram' }];
+  if (STATE.recall?.cards?.length) tabs.push({ id: 'recall', label: '⚡ Recall', cnt: STATE.recall.cards.length });
+  if (STATE.cheatsheets?.decision_tables?.length) tabs.push({ id: 'tables', label: '📊 Tables' });
+  for (const d of STATE.manifest.domains) tabs.push({ id: d.id, label: d.id, cnt: STATE.domains[d.id]?.questions?.length || 0, title: d.title });
+  tabs.push({ id: 'sim', label: '🎯 Exam Sim' });
+  if (STATE.traps) tabs.push({ id: 'traps', label: '🪤 Traps' });
+  tabs.push({ id: 'mistakes', label: '❌ Mistakes', cnt: STATE.mistakes.size });
+  tabs.push({ id: 'flagged', label: '★ Flagged', cnt: STATE.flagged.size });
+  document.getElementById('nav').innerHTML = tabs.map(t => `<button data-tab="${t.id}" title="${esc(t.title || '')}" class="${t.id === STATE.activeTab ? 'active' : ''}">${t.label}${t.cnt != null ? `<span class="cnt">${t.cnt}</span>` : ''}</button>`).join('');
+  document.querySelectorAll('nav button').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
+}
+function setTab(tab) {
+  STATE.activeTab = tab; STATE.currentIdx = 0; STATE.selected = new Set(); STATE.revealed = false; STATE.shuffled = false;
+  buildNav(); render(); window.scrollTo({ top: 0 });
+}
+function setDomainMode(mode) { STATE.domainMode = mode; STATE.currentIdx = 0; STATE.selected = new Set(); STATE.revealed = false; render(); }
+
+// ---------------- Pools ----------------
+function getQuestionPool() {
+  const t = STATE.activeTab;
+  if (t === 'mistakes') return allQuestions().filter(q => STATE.mistakes.has(q.id));
+  if (t === 'flagged') return allQuestions().filter(q => STATE.flagged.has(q.id));
+  if (STATE.domains[t]) return (STATE.domains[t].questions || []).map(q => ({ ...q, _domain: t }));
+  return [];
+}
+function getCurrentQuestion() {
+  const pool = getQuestionPool(); if (!pool.length) return null;
+  let idx = STATE.currentIdx;
+  if (STATE.shuffled && STATE.shuffleOrder.length === pool.length) idx = STATE.shuffleOrder[STATE.currentIdx];
+  return pool[idx];
+}
+
+// ---------------- Render dispatch ----------------
+function render() {
+  const t = STATE.activeTab, app = document.getElementById('app');
+  if (STATE.simTimer && t !== 'sim') { clearInterval(STATE.simTimer); STATE.simTimer = null; }
+  if (t === 'cram') return app.innerHTML = renderCram();
+  if (t === 'recall') return renderRecall(app);
+  if (t === 'tables') return renderTables(app);
+  if (t === 'sim') return renderSim(app);
+  if (t === 'traps') return app.innerHTML = renderTraps();
+  if (STATE.domains[t] && STATE.domainMode === 'cheat') return renderDomainCheat(app, t);
+  return renderQuizMode(app);
+}
+
+// ---------------- Cram ----------------
+function renderCram() {
+  const cs = STATE.cheatsheets || {}, tierS = cs.tier_s_must_memorize_cold || [];
+  const ex = STATE.manifest.exam;
+  let html = `<div class="card"><h2>📋 ${esc(ex.code)} at a glance</h2>
+    <div class="kv">
+      <div class="k">Questions</div><div>${ex.total_questions || (ex.scored_questions + ex.unscored_questions)} (${ex.scored_questions} scored + ${ex.unscored_questions} unscored) · ${ex.duration_minutes} min → <strong>${(ex.duration_minutes / (ex.total_questions || 65)).toFixed(1)} min/Q</strong></div>
+      <div class="k">Pass</div><div>${ex.passing_score}/1000 (scaled; ≈ ${Math.round(((ex.passing_score - 100) / 900) * 100)}% raw is a safe target)</div>
+      <div class="k">Domains</div><div>${STATE.manifest.domains.map(d => `<div><strong>${d.id}</strong> ${esc(d.title)} — ${Math.round(d.weight * 100)}% (≈${Math.round(d.weight * (ex.total_questions || 65))} Q)</div>`).join('')}</div>
+    </div></div>`;
+  if (tierS.length) html += `<div class="card"><h2>🔥 Tier-S — Must Memorize Cold</h2><p class="dim" style="margin-bottom:12px">These drive roughly half the paper. If you have &lt;1 h, study only these, then run ⚡ Recall.</p>
+    <div class="grid">${tierS.map(c => `<div class="tier-s-card"><h3>${esc(c.topic)}</h3><p>${esc(c.fact)}</p></div>`).join('')}</div></div>`;
+  const focus = STATE.traps?.top_focus_8020 || [];
+  if (focus.length) html += `<div class="card"><h2>🎯 80/20 Focus (ranked)</h2>${focus.map(f => `<div class="focus-row"><div class="rank">${f.rank}</div><div><div class="topic">${esc(f.topic)}</div><div class="why">${esc(f.why)}</div></div></div>`).join('')}</div>`;
+  const mn = cs.mnemonics || [];
+  if (mn.length) html += `<div class="card"><h2>🧠 Mnemonics</h2>${mn.map(m => `<div class="mnemo"><div class="hook">${esc(m.hook)}</div><div>${esc(m.expands_to)}</div>${m.use_for ? `<div class="use">Use for: ${esc(m.use_for)}</div>` : ''}</div>`).join('')}</div>`;
+  const nums = cs.numbers_to_memorize || [];
+  if (nums.length) html += `<div class="card"><details><summary>🔢 Numbers that get tested (${nums.length})</summary><div class="cheat-table">${nums.map(n => `<div class="cheat-row"><div class="topic">${esc(n.number)}</div><div class="fact">${esc(n.meaning)}</div></div>`).join('')}</div></details></div>`;
+  return html;
+}
+
+// ---------------- Domain cheat ----------------
+function renderDomainCheat(app, d) {
+  const items = (STATE.cheatsheets?.domains?.[d]) || [];
+  const dInfo = STATE.manifest.domains.find(x => x.id === d) || {};
+  app.innerHTML = `<div class="sub-toggle"><button data-mode="quiz">Quiz (${STATE.domains[d]?.questions?.length || 0})</button><button data-mode="cheat" class="active">Cheat Sheet</button></div>
+    <div class="card"><h2>${d} · ${esc(dInfo.title)}</h2><p class="dim" style="margin-bottom:12px">${Math.round((dInfo.weight || 0) * 100)}% of the exam.</p>
+    <div class="cheat-table">${items.length ? items.map(i => `<div class="cheat-row"><div class="topic">${esc(i.topic)}</div><div class="fact">${esc(i.fact)}</div></div>`).join('') : '<p class="dim">Cheat sheet not yet populated.</p>'}</div></div>`;
+  document.querySelectorAll('.sub-toggle button').forEach(b => b.addEventListener('click', () => setDomainMode(b.dataset.mode)));
+}
+
+// ---------------- Decision tables ----------------
+function renderTables(app) {
+  const tables = STATE.cheatsheets?.decision_tables || [];
+  const kw = STATE.traps?.keyword_to_service || [];
+  const f = STATE.tablesFilter.toLowerCase();
+  const kwF = f ? kw.filter(k => (k.keyword + ' ' + k.service).toLowerCase().includes(f)) : kw;
+  app.innerHTML = `<div class="card"><h2>📊 Pick-the-Service Tables</h2><p class="dim">The SAA skill: map a requirement phrase → one service. Read trigger words, then the rule of thumb. Tap a title to expand.</p></div>
+    ${tables.map((t, i) => `<div class="card"><details ${i === 0 ? 'open' : ''}><summary>${esc(t.title)}</summary>
+      ${(t.trigger_words || []).length ? `<div style="margin:6px 0 10px">${t.trigger_words.map(w => `<span class="trigger">${esc(w)}</span>`).join('')}</div>` : ''}
+      <div class="table-wrap"><table class="dt"><thead><tr>${(t.columns || []).map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>${(t.rows || []).map(r => `<tr>${r.map(c => `<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
+      ${t.rule_of_thumb ? `<div class="rule">👉 ${esc(t.rule_of_thumb)}</div>` : ''}</details></div>`).join('')}
+    ${kw.length ? `<div class="card"><h2>🔑 Keyword → Service (${kw.length})</h2><input class="search" id="kw-search" placeholder="Filter… e.g. 'SMB', 'static IP', 'PII'" value="${esc(STATE.tablesFilter)}">
+      ${kwF.map(k => `<div class="kw-row"><div>${esc(k.keyword)}</div><div class="svc">${esc(k.service)}</div></div>`).join('') || '<p class="dim">No match.</p>'}</div>` : ''}`;
+  const inp = document.getElementById('kw-search');
+  if (inp) { inp.addEventListener('input', () => { STATE.tablesFilter = inp.value; const pos = inp.selectionStart; renderTables(app); const el = document.getElementById('kw-search'); el.focus(); el.setSelectionRange(pos, pos); }); }
+}
+
+// ---------------- Traps ----------------
+function renderTraps() {
+  const t = STATE.traps || {};
+  return `<div class="card"><h2>🪤 Traps (${(t.traps || []).length})</h2>${(t.traps || []).map(tr => `<div class="trap-card"><div class="name">${esc(tr.name)}</div>${tr.pattern ? `<div class="row"><strong>Pattern:</strong> ${esc(tr.pattern)}</div>` : ''}${tr.spot_it ? `<div class="row spot"><strong>Spot it:</strong> ${esc(tr.spot_it)}</div>` : ''}</div>`).join('')}</div>
+    <div class="card"><h2>💡 Tactical Tips</h2><ul class="tip-list">${(t.tips || []).map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>
+    <div class="card"><h2>🪑 Exam Room</h2><ul class="tip-list">${(t.exam_room || []).map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>`;
+}
+
+// ---------------- Quiz ----------------
+function optionHTML(q, o, selected, revealed) {
+  let cls = '';
+  if (revealed) cls = o.correct ? 'correct revealed' : (selected.has(o.letter) ? 'incorrect-selected revealed' : 'revealed');
+  else if (selected.has(o.letter)) cls = 'selected';
+  return `<div class="option ${cls}" data-letter="${o.letter}"><div class="option-letter">${o.letter}</div><div class="option-body"><div class="option-text">${esc(o.text)}</div>
+    ${revealed ? `<div class="option-why"><span class="badge ${o.correct ? 'ok' : 'bad'}">${o.correct ? '✓ Correct' : '✗ Wrong'}:</span>${esc(o.why)}</div>` : ''}</div></div>`;
+}
+function revealPanelHTML(q) {
+  return `<div class="reveal-panel">
+    ${q.knowledge_point ? `<div class="reveal-row"><div class="icon">📌</div><div class="body"><strong>Knowledge Point</strong><p>${esc(q.knowledge_point)}</p></div></div>` : ''}
+    ${q.trap_alert ? `<div class="reveal-row"><div class="icon">⚠️</div><div class="body"><strong>Trap Alert</strong><p>${esc(q.trap_alert)}</p></div></div>` : ''}
+    ${q.mnemonic ? `<div class="reveal-row"><div class="icon">🧠</div><div class="body"><strong>Mnemonic</strong><p>${esc(q.mnemonic)}</p></div></div>` : ''}
+    ${(q.doc_refs || []).length ? `<div class="reveal-row"><div class="icon">🔗</div><div class="body"><strong>AWS Docs</strong>${q.doc_refs.map(u => `<div><a href="${esc(u)}" target="_blank" rel="noopener">${esc(u)}</a></div>`).join('')}</div></div>` : ''}
+  </div>`;
+}
+function renderQuizMode(app) {
+  const pool = getQuestionPool(), t = STATE.activeTab, showSub = !!STATE.domains[t];
+  const subHTML = showSub ? `<div class="sub-toggle"><button data-mode="quiz" class="active">Quiz (${pool.length})</button><button data-mode="cheat">Cheat Sheet</button></div>` : '';
+  if (!pool.length) {
+    const msg = t === 'mistakes' ? "Nothing here yet — wrong answers auto-queue here until you get them right." : t === 'flagged' ? "Nothing here yet — tap ☆ Flag on any question." : "No questions loaded for this domain yet.";
+    app.innerHTML = subHTML + `<div class="empty-state"><h2>Empty</h2><p>${msg}</p></div>`;
+    document.querySelectorAll('.sub-toggle button').forEach(b => b.addEventListener('click', () => setDomainMode(b.dataset.mode)));
+    return;
+  }
+  const q = getCurrentQuestion(), total = pool.length, di = STATE.currentIdx + 1;
+  const isMulti = q.type === 'multiple_response', correctCount = q.options.filter(o => o.correct).length;
+  const att = STATE.attempts[q.id];
+  app.innerHTML = subHTML + `<div class="progress-bar"><div style="width:${Math.round(di / total * 100)}%"></div></div>
+    <div class="toolbar"><button class="secondary" id="btn-prev" ${STATE.currentIdx === 0 ? 'disabled' : ''}>←</button><span class="label">Q ${di}/${total}</span><button class="secondary" id="btn-next" ${STATE.currentIdx >= total - 1 ? 'disabled' : ''}>→</button>
+      <button class="ghost ${STATE.shuffled ? 'on' : ''}" id="btn-shuffle">🔀 Shuffle</button><button class="ghost ${STATE.flagged.has(q.id) ? 'on' : ''}" id="btn-flag">${STATE.flagged.has(q.id) ? '★ Flagged' : '☆ Flag'}</button>
+      ${att ? `<span class="pill" style="margin-left:auto">${att.lastCorrect ? '✓' : '✗'} last · ${att.count}×</span>` : ''}</div>
+    <div class="card"><div class="q-meta"><span class="pill domain">${q._domain}</span><span class="pill diff-${q.difficulty || 'medium'}">${q.difficulty || 'medium'}</span>${isMulti ? `<span class="pill multi">Select ${correctCount}</span>` : ''}${(q.tags || []).slice(0, 4).map(x => `<span class="pill">#${esc(x)}</span>`).join('')}<span class="pill" style="color:var(--purple)">${esc(q.id)}</span></div>
+      ${q.scenario ? `<div class="scenario">${esc(q.scenario)}</div>` : ''}<div class="stem">${esc(q.stem)}</div>
+      <div class="options" id="options-wrap">${q.options.map(o => optionHTML(q, o, STATE.selected, STATE.revealed)).join('')}</div>
+      <div class="actions">${!STATE.revealed ? `<button class="primary" id="btn-submit" ${STATE.selected.size === 0 ? 'disabled' : ''}>Submit</button>` : `<button class="primary" id="btn-next2" ${STATE.currentIdx >= total - 1 ? 'disabled' : ''}>Next →</button><button class="secondary" id="btn-redo">Retry</button>`}</div>
+      ${STATE.revealed ? revealPanelHTML(q) : ''}</div>`;
+  document.querySelectorAll('.sub-toggle button').forEach(b => b.addEventListener('click', () => setDomainMode(b.dataset.mode)));
+  document.querySelectorAll('#options-wrap .option').forEach(el => el.addEventListener('click', () => pickOption(el.dataset.letter, isMulti)));
+  document.getElementById('btn-submit')?.addEventListener('click', submitAnswer);
+  document.getElementById('btn-next')?.addEventListener('click', nextQ); document.getElementById('btn-next2')?.addEventListener('click', nextQ);
+  document.getElementById('btn-prev')?.addEventListener('click', prevQ);
+  document.getElementById('btn-shuffle')?.addEventListener('click', toggleShuffle);
+  document.getElementById('btn-flag')?.addEventListener('click', toggleFlag);
+  document.getElementById('btn-redo')?.addEventListener('click', () => { STATE.revealed = false; STATE.selected = new Set(); render(); });
+}
+function pickOption(letter, isMulti) {
+  if (STATE.revealed) return;
+  if (isMulti) { STATE.selected.has(letter) ? STATE.selected.delete(letter) : STATE.selected.add(letter); } else STATE.selected = new Set([letter]);
+  render();
+}
+function isCorrect(q, sel) { const c = new Set(q.options.filter(o => o.correct).map(o => o.letter)); return sel.size === c.size && [...sel].every(l => c.has(l)); }
+function submitAnswer() {
+  const q = getCurrentQuestion(); if (!q || !STATE.selected.size) return;
+  const ok = isCorrect(q, STATE.selected);
+  STATE.attempts[q.id] = { lastCorrect: ok, count: (STATE.attempts[q.id]?.count || 0) + 1, lastAt: Date.now() };
+  ok ? STATE.mistakes.delete(q.id) : STATE.mistakes.add(q.id);
+  STATE.revealed = true; persist(); updateStats(); buildNav(); render();
+}
+function nextQ() { const pool = getQuestionPool(); if (STATE.currentIdx < pool.length - 1) { STATE.currentIdx++; STATE.selected = new Set(); STATE.revealed = false; render(); window.scrollTo({ top: 0 }); } }
+function prevQ() { if (STATE.currentIdx > 0) { STATE.currentIdx--; STATE.selected = new Set(); STATE.revealed = false; render(); } }
+function toggleShuffle() { STATE.shuffled = !STATE.shuffled; if (STATE.shuffled) STATE.shuffleOrder = shuffle(getQuestionPool().map((_, i) => i)); STATE.currentIdx = 0; STATE.selected = new Set(); STATE.revealed = false; render(); }
+function toggleFlag() { const q = STATE.activeTab === 'sim' ? STATE.sim?.questions[STATE.simIdx] : getCurrentQuestion(); if (!q) return; STATE.flagged.has(q.id) ? STATE.flagged.delete(q.id) : STATE.flagged.add(q.id); persist(); buildNav(); render(); }
+
+// ---------------- Rapid Recall (Leitner-lite: box 0 = new/missed, 1 = once right, 2 = mastered) ----------------
+function recallCards() {
+  const cards = STATE.recall?.cards || [];
+  const f = STATE.recallFilter;
+  return f === 'all' ? cards : f === 'weak' ? cards.filter(c => (STATE.recallBoxes[c.id]?.box || 0) < 2) : cards.filter(c => c.domain === f || c.kind === f);
+}
+function buildRecallQueue() {
+  // weight: box0 ×3, box1 ×2, box2 ×1 — missed cards come back sooner
+  const cards = recallCards(), w = [];
+  for (const c of cards) { const b = STATE.recallBoxes[c.id]?.box || 0; for (let i = 0; i < (3 - b); i++) w.push(c); }
+  const seen = new Set(), q = [];
+  for (const c of shuffle(w)) { if (!seen.has(c.id)) { seen.add(c.id); q.push(c); } }
+  STATE.recallQueue = q; STATE.recallIdx = 0; STATE.recallRevealed = false; STATE.recallPicked = null; STATE.recallOptions = [];
+}
+function renderRecall(app) {
+  const cards = STATE.recall?.cards || [];
+  if (!STATE.recallQueue.length) buildRecallQueue();
+  const c = STATE.recallQueue[STATE.recallIdx];
+  const boxes = [0, 1, 2].map(b => cards.filter(x => (STATE.recallBoxes[x.id]?.box || 0) === b).length);
+  const doms = STATE.manifest.domains.map(d => d.id);
+  const filters = [['all', 'All'], ['weak', 'Weak only'], ...doms.map(d => [d, d]), ['pick_service', 'Pick service'], ['number', 'Numbers'], ['contrast', 'Contrast'], ['spot_the_trap', 'Spot trap']];
+  let html = `<div class="sub-toggle"><button data-rm="pick" class="${STATE.recallMode === 'pick' ? 'active' : ''}">Pick (4 options)</button><button data-rm="flip" class="${STATE.recallMode === 'flip' ? 'active' : ''}">Flip card</button></div>
+    <div class="sub-toggle">${filters.map(([k, l]) => `<button data-rf="${k}" class="${STATE.recallFilter === k ? 'active' : ''}">${l}</button>`).join('')}</div>
+    <div class="box-bar"><span class="b0">New/missed ${boxes[0]}</span><span class="b1">Learning ${boxes[1]}</span><span class="b2">Mastered ${boxes[2]}</span><span style="margin-left:auto;background:transparent" class="streak">🔥 ${STATE.recallStreak}</span></div>`;
+  if (!c) { app.innerHTML = html + `<div class="empty-state"><h2>All mastered in this filter 🎉</h2><p>Switch filter or reset boxes.</p><button class="secondary" id="rr-reset">Reset boxes</button></div>`; wireRecall(app); return; }
+  const box = STATE.recallBoxes[c.id]?.box || 0;
+  html += `<div class="progress-bar"><div style="width:${Math.round((STATE.recallIdx + 1) / STATE.recallQueue.length * 100)}%"></div></div>
+    <div class="q-meta"><span class="pill domain">${esc(c.domain)}</span><span class="pill">${esc((c.kind || '').replace(/_/g, ' '))}</span><span class="pill b${box}">box ${box}</span><span class="pill">${STATE.recallIdx + 1}/${STATE.recallQueue.length}</span></div>`;
+  if (STATE.recallMode === 'flip') {
+    html += `<div class="flash" id="flash"><div class="cue">${esc(c.cue)}</div>${STATE.recallRevealed ? `<div class="ans">${esc(c.answer)}</div><div class="why">${esc(c.why)}</div>` : `<div class="hint">tap to reveal</div>`}</div>
+      <div class="actions">${STATE.recallRevealed ? `<button class="primary" id="rr-got">✓ Got it</button><button class="secondary" id="rr-miss">✗ Missed</button>` : `<button class="secondary" id="rr-skip">Skip</button>`}</div>`;
+  } else {
+    if (!STATE.recallOptions.length) STATE.recallOptions = shuffle([c.answer, ...(c.distractors || []).slice(0, 3)]);
+    html += `<div class="card"><div class="stem">${esc(c.cue)}</div><div class="options" id="rr-opts">${STATE.recallOptions.map((o, i) => {
+      let cls = ''; if (STATE.recallRevealed) cls = o === c.answer ? 'correct revealed' : (o === STATE.recallPicked ? 'incorrect-selected revealed' : 'revealed');
+      return `<div class="option ${cls}" data-o="${esc(o)}"><div class="option-letter">${i + 1}</div><div class="option-body"><div class="option-text">${esc(o)}</div></div></div>`; }).join('')}</div>
+      ${STATE.recallRevealed ? `<div class="reveal-panel"><div class="reveal-row"><div class="icon">${STATE.recallPicked === c.answer ? '✅' : '❌'}</div><div class="body"><strong>Why</strong><p>${esc(c.why)}</p></div></div></div><div class="actions"><button class="primary" id="rr-next">Next →</button></div>` : ''}</div>`;
+  }
+  app.innerHTML = html; wireRecall(app, c);
+}
+function wireRecall(app, c) {
+  document.querySelectorAll('[data-rm]').forEach(b => b.addEventListener('click', () => { STATE.recallMode = b.dataset.rm; STATE.recallRevealed = false; STATE.recallPicked = null; STATE.recallOptions = []; render(); }));
+  document.querySelectorAll('[data-rf]').forEach(b => b.addEventListener('click', () => { STATE.recallFilter = b.dataset.rf; buildRecallQueue(); render(); }));
+  document.getElementById('rr-reset')?.addEventListener('click', () => { if (confirm('Reset all recall boxes?')) { STATE.recallBoxes = {}; persist(); buildRecallQueue(); updateStats(); render(); } });
+  if (!c) return;
+  document.getElementById('flash')?.addEventListener('click', () => { if (!STATE.recallRevealed) { STATE.recallRevealed = true; render(); } });
+  document.getElementById('rr-got')?.addEventListener('click', () => gradeRecall(c, true));
+  document.getElementById('rr-miss')?.addEventListener('click', () => gradeRecall(c, false));
+  document.getElementById('rr-skip')?.addEventListener('click', () => advanceRecall());
+  document.getElementById('rr-next')?.addEventListener('click', () => advanceRecall());
+  document.querySelectorAll('#rr-opts .option').forEach(el => el.addEventListener('click', () => { if (STATE.recallRevealed) return; STATE.recallPicked = el.dataset.o; STATE.recallRevealed = true; gradeRecall(c, STATE.recallPicked === c.answer, true); }));
+}
+function gradeRecall(c, ok, stay) {
+  const cur = STATE.recallBoxes[c.id]?.box || 0;
+  STATE.recallBoxes[c.id] = { box: ok ? Math.min(2, cur + 1) : 0, at: Date.now() };
+  STATE.recallStreak = ok ? STATE.recallStreak + 1 : 0;
+  persist(); updateStats();
+  if (stay) render(); else advanceRecall();
+}
+function advanceRecall() {
+  STATE.recallIdx++; STATE.recallRevealed = false; STATE.recallPicked = null; STATE.recallOptions = [];
+  if (STATE.recallIdx >= STATE.recallQueue.length) buildRecallQueue();
+  render();
+}
+
+// ---------------- Exam Simulation ----------------
+function buildSim(n) {
+  const ex = STATE.manifest.exam, all = allQuestions();
+  const total = Math.min(n, all.length), picks = [];
+  for (const d of STATE.manifest.domains) {
+    const pool = shuffle(all.filter(q => q._domain === d.id));
+    picks.push(...pool.slice(0, Math.round(d.weight * total)));
+  }
+  let qs = shuffle(picks).slice(0, total);
+  if (qs.length < total) { const ids = new Set(qs.map(q => q.id)); qs = qs.concat(shuffle(all.filter(q => !ids.has(q.id))).slice(0, total - qs.length)); }
+  const minutes = Math.round(ex.duration_minutes * (total / (ex.total_questions || 65)));
+  STATE.sim = { questions: qs.map(q => ({ id: q.id, _domain: q._domain })), answers: {}, startedAt: Date.now(), endsAt: Date.now() + minutes * 60000, finished: false, minutes };
+  STATE.simIdx = 0; persist();
+}
+function simQ(i) { const ref = STATE.sim.questions[i]; const q = allQuestions().find(x => x.id === ref.id); return q ? { ...q, _domain: ref._domain } : null; }
+function renderSim(app) {
+  const s = STATE.sim, all = allQuestions();
+  if (!s) {
+    app.innerHTML = `<div class="card"><h2>🎯 Exam Simulation</h2><p>Timed, mixed-domain, weighted like the real paper (${STATE.manifest.domains.map(d => `${d.id} ${Math.round(d.weight * 100)}%`).join(' · ')}). No feedback until you finish — then a full review with every option explained.</p>
+      <div class="actions"><button class="primary" data-n="${Math.min(65, all.length)}">Full: ${Math.min(65, all.length)} Q · ${Math.round(STATE.manifest.exam.duration_minutes * Math.min(65, all.length) / 65)} min</button><button class="secondary" data-n="30">Half: 30 Q</button><button class="secondary" data-n="15">Sprint: 15 Q</button></div>
+      <p class="dim" style="margin-top:12px">Bank: ${all.length} questions. Pass bar ${STATE.manifest.exam.passing_score}/1000 ≈ ${Math.round(((STATE.manifest.exam.passing_score - 100) / 900) * 100)}% raw.</p></div>`;
+    document.querySelectorAll('[data-n]').forEach(b => b.addEventListener('click', () => { buildSim(+b.dataset.n); render(); }));
+    return;
+  }
+  if (s.finished) return renderSimResults(app);
+  const q = simQ(STATE.simIdx); if (!q) { STATE.sim = null; persist(); return render(); }
+  const isMulti = q.type === 'multiple_response', sel = new Set(s.answers[q.id] || []), correctCount = q.options.filter(o => o.correct).length;
+  const left = Math.max(0, s.endsAt - Date.now()), mm = Math.floor(left / 60000), ss = Math.floor((left % 60000) / 1000);
+  const answered = Object.keys(s.answers).filter(id => s.answers[id]?.length).length;
+  app.innerHTML = `<div class="toolbar"><span class="sim-timer ${left < 10 * 60000 ? 'low' : ''}" id="sim-clock">${mm}:${String(ss).padStart(2, '0')}</span><span class="label">Q ${STATE.simIdx + 1}/${s.questions.length} · ${answered} answered</span>
+      <button class="ghost ${STATE.flagged.has(q.id) ? 'on' : ''}" id="btn-flag">${STATE.flagged.has(q.id) ? '★' : '☆'} Flag</button><button class="ghost" id="sim-finish" style="margin-left:auto">Finish & score</button><button class="ghost" id="sim-abort">✕</button></div>
+    <div class="sim-nav">${s.questions.map((r, i) => `<button data-i="${i}" class="${s.answers[r.id]?.length ? 'answered' : ''} ${STATE.flagged.has(r.id) ? 'flag' : ''} ${i === STATE.simIdx ? 'cur' : ''}">${i + 1}</button>`).join('')}</div>
+    <div class="card"><div class="q-meta">${isMulti ? `<span class="pill multi">Select ${correctCount}</span>` : '<span class="pill">Select 1</span>'}</div>
+      ${q.scenario ? `<div class="scenario">${esc(q.scenario)}</div>` : ''}<div class="stem">${esc(q.stem)}</div>
+      <div class="options" id="options-wrap">${q.options.map(o => optionHTML(q, o, sel, false)).join('')}</div>
+      <div class="actions"><button class="secondary" id="btn-prev" ${STATE.simIdx === 0 ? 'disabled' : ''}>← Prev</button><button class="primary" id="btn-next" ${STATE.simIdx >= s.questions.length - 1 ? 'disabled' : ''}>Next →</button></div></div>`;
+  document.querySelectorAll('#options-wrap .option').forEach(el => el.addEventListener('click', () => {
+    const l = el.dataset.letter; const cur = new Set(s.answers[q.id] || []);
+    if (isMulti) { cur.has(l) ? cur.delete(l) : cur.add(l); } else { cur.clear(); cur.add(l); }
+    s.answers[q.id] = [...cur]; persist(); render();
+  }));
+  document.querySelectorAll('.sim-nav button').forEach(b => b.addEventListener('click', () => { STATE.simIdx = +b.dataset.i; render(); }));
+  document.getElementById('btn-prev')?.addEventListener('click', () => { STATE.simIdx--; render(); window.scrollTo({ top: 0 }); });
+  document.getElementById('btn-next')?.addEventListener('click', () => { STATE.simIdx++; render(); window.scrollTo({ top: 0 }); });
+  document.getElementById('btn-flag')?.addEventListener('click', toggleFlag);
+  document.getElementById('sim-finish')?.addEventListener('click', () => { if (confirm(`Finish now? ${s.questions.length - answered} unanswered will count as wrong.`)) finishSim(); });
+  document.getElementById('sim-abort')?.addEventListener('click', () => { if (confirm('Abandon this simulation?')) { STATE.sim = null; persist(); render(); } });
+  if (!STATE.simTimer) STATE.simTimer = setInterval(() => {
+    const el = document.getElementById('sim-clock'); if (!el || !STATE.sim || STATE.sim.finished) return;
+    const l = Math.max(0, STATE.sim.endsAt - Date.now()); el.textContent = `${Math.floor(l / 60000)}:${String(Math.floor((l % 60000) / 1000)).padStart(2, '0')}`; el.classList.toggle('low', l < 10 * 60000);
+    if (l <= 0) finishSim();
+  }, 1000);
+}
+function finishSim() {
+  const s = STATE.sim; if (!s) return; clearInterval(STATE.simTimer); STATE.simTimer = null;
+  s.finished = true; s.finishedAt = Date.now();
+  for (let i = 0; i < s.questions.length; i++) { const q = simQ(i); if (!q) continue; const ok = isCorrect(q, new Set(s.answers[q.id] || []));
+    STATE.attempts[q.id] = { lastCorrect: ok, count: (STATE.attempts[q.id]?.count || 0) + 1, lastAt: Date.now(), sim: true }; ok ? STATE.mistakes.delete(q.id) : STATE.mistakes.add(q.id); }
+  STATE.simIdx = 0; persist(); updateStats(); buildNav(); render();
+}
+function renderSimResults(app) {
+  const s = STATE.sim, ex = STATE.manifest.exam;
+  const rows = s.questions.map((r, i) => { const q = simQ(i); return { q, ok: q ? isCorrect(q, new Set(s.answers[q.id] || [])) : false }; }).filter(r => r.q);
+  const correct = rows.filter(r => r.ok).length, pct = Math.round(correct / rows.length * 100), scaled = Math.round(100 + 900 * correct / rows.length), pass = scaled >= ex.passing_score;
+  const perDom = STATE.manifest.domains.map(d => { const rs = rows.filter(r => r.q._domain === d.id); return { d, n: rs.length, c: rs.filter(r => r.ok).length }; });
+  const q = rows[STATE.simIdx]?.q, sel = new Set(s.answers[q?.id] || []);
+  const mins = Math.round((s.finishedAt - s.startedAt) / 60000);
+  app.innerHTML = `<div class="card" style="text-align:center"><div class="score-big ${pass ? 'pass' : 'fail'}">${scaled}</div><div>${pass ? '✅ PASS' : '❌ Below bar'} · ${correct}/${rows.length} (${pct}%) · ${mins} min · bar ${ex.passing_score}</div><p class="dim" style="margin-top:6px">Scaled ≈ 100 + 900 × raw%. Real exam scaling differs slightly; treat ≥ 75% raw as safe.</p>
+      ${perDom.map(p => `<div class="dom-bar"><strong>${p.d.id}</strong><div class="bar"><div style="width:${p.n ? Math.round(p.c / p.n * 100) : 0}%"></div></div><span>${p.c}/${p.n}</span></div>`).join('')}
+      <div class="actions" style="justify-content:center"><button class="primary" id="sim-new">New simulation</button><button class="secondary" id="sim-review-wrong">Review wrong only (${rows.length - correct})</button></div></div>
+    <div class="sim-nav">${rows.map((r, i) => `<button data-i="${i}" class="${r.ok ? 'right' : 'wrong'} ${i === STATE.simIdx ? 'cur' : ''}">${i + 1}</button>`).join('')}</div>
+    ${q ? `<div class="card"><div class="q-meta"><span class="pill domain">${q._domain}</span><span class="pill diff-${q.difficulty}">${q.difficulty}</span><span class="pill" style="color:var(--purple)">${esc(q.id)}</span><span class="pill ${rows[STATE.simIdx].ok ? 'diff-easy' : 'diff-hard'}">${rows[STATE.simIdx].ok ? '✓ correct' : '✗ wrong'}</span></div>
+      ${q.scenario ? `<div class="scenario">${esc(q.scenario)}</div>` : ''}<div class="stem">${esc(q.stem)}</div><div class="options">${q.options.map(o => optionHTML(q, o, sel, true)).join('')}</div>${revealPanelHTML(q)}
+      <div class="actions"><button class="secondary" id="btn-prev" ${STATE.simIdx === 0 ? 'disabled' : ''}>← Prev</button><button class="primary" id="btn-next" ${STATE.simIdx >= rows.length - 1 ? 'disabled' : ''}>Next →</button></div></div>` : ''}`;
+  document.getElementById('sim-new')?.addEventListener('click', () => { STATE.sim = null; persist(); render(); });
+  document.getElementById('sim-review-wrong')?.addEventListener('click', () => { const i = rows.findIndex((r, k) => !r.ok && k > STATE.simIdx); STATE.simIdx = i >= 0 ? i : rows.findIndex(r => !r.ok); if (STATE.simIdx < 0) STATE.simIdx = 0; render(); });
+  document.querySelectorAll('.sim-nav button').forEach(b => b.addEventListener('click', () => { STATE.simIdx = +b.dataset.i; render(); }));
+  document.getElementById('btn-prev')?.addEventListener('click', () => { STATE.simIdx--; render(); window.scrollTo({ top: 0 }); });
+  document.getElementById('btn-next')?.addEventListener('click', () => { STATE.simIdx++; render(); window.scrollTo({ top: 0 }); });
+}
+
+// ---------------- Sync / export ----------------
+function openSync() {
+  const data = { exam: EXAM_ID, attempts: STATE.attempts, mistakes: [...STATE.mistakes], flagged: [...STATE.flagged], recall: STATE.recallBoxes, exportedAt: new Date().toISOString() };
+  const app = document.getElementById('app');
+  app.innerHTML = `<div class="card"><h2>🔄 Sync progress between devices</h2><p class="dim">Progress lives in this browser only. To move it: copy this JSON on one device, paste it on the other, tap Import (merges — keeps the more recent attempt per question).</p>
+    <textarea class="io" id="io">${esc(JSON.stringify(data))}</textarea>
+    <div class="actions"><button class="primary" id="io-copy">Copy</button><button class="secondary" id="io-import">Import pasted JSON</button><button class="ghost" id="io-reset">Reset all progress</button><button class="ghost" id="io-back">Back</button></div></div>`;
+  document.getElementById('io-copy').addEventListener('click', async () => { const t = document.getElementById('io'); t.select(); try { await navigator.clipboard.writeText(t.value); alert('Copied.'); } catch { document.execCommand('copy'); } });
+  document.getElementById('io-import').addEventListener('click', () => { try { const d = JSON.parse(document.getElementById('io').value); if (d.exam !== EXAM_ID) throw new Error('wrong exam');
+      for (const [id, a] of Object.entries(d.attempts || {})) if (!STATE.attempts[id] || (a.lastAt || 0) > (STATE.attempts[id].lastAt || 0)) STATE.attempts[id] = a;
+      (d.mistakes || []).forEach(x => STATE.mistakes.add(x)); (d.flagged || []).forEach(x => STATE.flagged.add(x));
+      for (const [id, b] of Object.entries(d.recall || {})) if (!STATE.recallBoxes[id] || (b.at || 0) > (STATE.recallBoxes[id].at || 0)) STATE.recallBoxes[id] = b;
+      persist(); updateStats(); buildNav(); alert('Imported.'); setTab('cram'); } catch (e) { alert('Import failed: ' + e.message); } });
+  document.getElementById('io-reset').addEventListener('click', () => { if (confirm('Erase all progress for this exam on this device?')) { ['attempts', 'mistakes', 'flagged', 'recall', 'sim'].forEach(k => localStorage.removeItem(LS(k))); location.reload(); } });
+  document.getElementById('io-back').addEventListener('click', () => setTab(STATE.activeTab));
+}
+
+// ---------------- Keyboard ----------------
+document.addEventListener('keydown', (e) => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  const t = STATE.activeTab;
+  if (/^[1-5]$/.test(e.key)) {
+    const opts = document.querySelectorAll('#options-wrap .option, #rr-opts .option'); const el = opts[+e.key - 1]; if (el) el.click();
+  } else if (e.key === 'Enter') {
+    (document.getElementById('btn-submit') || document.getElementById('btn-next2') || document.getElementById('rr-next') || document.getElementById('rr-got') || document.getElementById('flash') || document.getElementById('btn-next'))?.click();
+  } else if (e.key.toLowerCase() === 'f' && (STATE.domains[t] || t === 'mistakes' || t === 'flagged' || t === 'sim')) toggleFlag();
+  else if (e.key === 'ArrowRight') document.getElementById('btn-next')?.click();
+  else if (e.key === 'ArrowLeft') document.getElementById('btn-prev')?.click();
+});
+document.getElementById('btn-sync').addEventListener('click', openSync);
+
+// ---------------- Init ----------------
+(async function init() {
+  STATE.manifest = await loadJSON('manifest.json');
+  if (!STATE.manifest) { document.getElementById('app').innerHTML = `<div class="empty-state"><h2>Exam "${esc(EXAM_ID)}" not found</h2><p><a href="./">Back to hub</a></p></div>`; return; }
+  const ex = STATE.manifest.exam;
+  document.title = `${ex.code} — Exam Hub`;
+  document.getElementById('exam-title').textContent = ex.code;
+  document.getElementById('exam-sub').textContent = ex.short || ex.name;
+  const f = STATE.manifest.files || {};
+  const [cs, tr, rr, ...doms] = await Promise.all([loadJSON(f.cheatsheets), loadJSON(f.traps), loadJSON(f.rapid_recall), ...STATE.manifest.domains.map(d => loadJSON(d.questions_file))]);
+  STATE.cheatsheets = cs; STATE.traps = tr; STATE.recall = rr;
+  STATE.manifest.domains.forEach((d, i) => { STATE.domains[d.id] = doms[i] || { questions: [] }; });
+  const n = allQuestions().length;
+  document.getElementById('foot-left').textContent = `${n} questions · ${(rr?.cards || []).length} recall cards · saved in this browser`;
+  if (STATE.sim && !STATE.sim.finished && Date.now() > STATE.sim.endsAt) finishSim();
+  updateStats(); buildNav(); render();
+})();
+</script>
+</body>
+</html>

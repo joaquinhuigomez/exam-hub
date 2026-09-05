@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f172a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Exam Hub</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎯</text></svg>">
+<style>
+  :root { --bg:#0f172a; --bg-soft:#1e293b; --bg-elevated:#334155; --text:#f1f5f9; --text-dim:#94a3b8; --primary:#ff9900; --green:#10b981; --red:#ef4444; --blue:#3b82f6; --purple:#a78bfa; --border:#334155; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html,body { background:var(--bg); color:var(--text); }
+  body { font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',system-ui,sans-serif; line-height:1.5; font-size:15px; }
+  main { max-width:920px; margin:0 auto; padding:28px 16px 60px; }
+  h1 { font-size:1.6rem; margin-bottom:4px; } .sub { color:var(--text-dim); margin-bottom:22px; }
+  h2 { font-size:0.85rem; text-transform:uppercase; letter-spacing:.08em; color:var(--text-dim); margin:26px 0 10px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:12px; }
+  .card { background:var(--bg-soft); border:1px solid var(--border); border-radius:14px; padding:18px; display:flex; flex-direction:column; gap:8px; text-decoration:none; color:var(--text); transition:border-color .12s, transform .12s; }
+  a.card:hover { border-color:var(--primary); transform:translateY(-1px); }
+  .card.live { border-left:4px solid var(--primary); background:linear-gradient(135deg,#1f2a3d,#1e293b); }
+  .card h3 { font-size:1.05rem; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .badge { font-size:0.68rem; padding:2px 8px; border-radius:10px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
+  .badge.live { background:var(--primary); color:var(--bg); } .badge.next { background:rgba(59,130,246,.2); color:var(--blue); } .badge.done { background:rgba(16,185,129,.2); color:var(--green); } .badge.plan { background:var(--bg-elevated); color:var(--text-dim); }
+  .card p { color:var(--text-dim); font-size:0.88rem; }
+  .meta { font-size:0.78rem; color:var(--text-dim); display:flex; gap:10px; flex-wrap:wrap; }
+  .links { display:flex; gap:6px; flex-wrap:wrap; margin-top:4px; }
+  .links a { font-size:0.8rem; padding:5px 10px; border-radius:6px; background:var(--bg-elevated); color:var(--text); text-decoration:none; }
+  .links a:hover { background:var(--primary); color:var(--bg); }
+  .plan { background:rgba(255,153,0,.06); border:1px dashed rgba(255,153,0,.4); border-radius:12px; padding:14px 16px; margin-top:8px; }
+  .plan ol { margin-left:18px; font-size:0.9rem; } .plan li { margin:5px 0; } .plan strong { color:var(--primary); }
+  .stats { font-size:0.78rem; color:var(--text-dim); }
+  footer { color:var(--text-dim); font-size:0.75rem; margin-top:40px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>🎯 Exam Hub</h1>
+  <div class="sub">One place. Every cert. Quizzes that explain every option, recall drills, decision tables, timed sims. Works on phone.</div>
+
+  <h2>Live now</h2>
+  <div class="grid">
+    <a class="card live" href="app.html?exam=saa-c03">
+      <h3>SAA-C03 <span class="badge live">exam today</span></h3>
+      <p>AWS Solutions Architect – Associate · 65 Q · 130 min · pass 720</p>
+      <div class="meta"><span id="saa-stats">loading…</span></div>
+      <div class="links"><span style="font-size:.8rem;color:var(--text-dim)">🔥 Cram → ⚡ Recall → 📊 Tables → D1–D4 → 🎯 Sim</span></div>
+    </a>
+  </div>
+  <div class="plan">
+    <strong>Today's cram sequence (≈4 h, cut from the bottom if short on time)</strong>
+    <ol>
+      <li><strong>Cram tab, 20 min.</strong> Read Tier-S cards + mnemonics once. Don't memorize yet.</li>
+      <li><strong>Recall tab (Pick mode), 40 min.</strong> Run all cards once. Missed cards return sooner automatically. Stop when "Mastered" &gt; 60%.</li>
+      <li><strong>Domain quizzes, 90 min.</strong> D1 → D2 → D3 → D4. Read every option's Why, even when right — wrong-option whys are where the discriminating facts live.</li>
+      <li><strong>Tables tab, 20 min.</strong> Storage picker, S3 classes, messaging picker, DR ladder, EC2 purchasing, connectivity. Skim trigger words.</li>
+      <li><strong>Exam Sim (Half, 30 Q), 60 min incl. review.</strong> Then Mistakes tab until empty.</li>
+      <li><strong>Last 15 min before leaving:</strong> Tier-S cards + Numbers + Traps only. Nothing new.</li>
+    </ol>
+  </div>
+
+  <h2>Up next</h2>
+  <div class="grid">
+    <a class="card" href="app.html?exam=sap-c02">
+      <h3>SAP-C02 <span class="badge next">in ~2 weeks</span></h3>
+      <p>AWS Solutions Architect – Professional · 75 Q · 180 min · pass 750</p>
+      <div class="meta"><span>Manifest + domains ready · content generation pending</span></div>
+    </a>
+    <div class="card">
+      <h3>Claude Certified Architect <span class="badge plan">planned</span></h3>
+      <p>Anthropic certification track. Blueprint to be loaded when scheduled — same engine, same format.</p>
+    </div>
+  </div>
+
+  <h2>Passed — archives stay drillable</h2>
+  <div class="grid">
+    <a class="card" href="app.html?exam=aip-c01">
+      <h3>AIP-C01 <span class="badge done">passed</span></h3>
+      <p>AWS Generative AI Developer – Professional · 105 Q bank, cheat sheets, traps</p>
+    </a>
+    <div class="card">
+      <h3>PMP <span class="badge done">passed · Above Target ×3</span></h3>
+      <p>One-day multi-agent prep system. Static pages, still useful for agile/predictive vocabulary refreshers.</p>
+      <div class="links"><a href="exams/pmp/study-hub.html">Study Hub</a><a href="exams/pmp/crunch-kit.html">Crunch Kit</a><a href="exams/pmp/cheatsheet.html">Cheat Sheet</a><a href="exams/pmp/amazonian-pmp.html">Amazonian PMP</a></div>
+    </div>
+  </div>
+
+  <footer>Progress is stored per device in the browser. Use "Sync / export progress" in the engine footer to move it phone ↔ laptop. Content is original, generated for personal study; verify anything surprising against AWS docs (linked on every question).</footer>
+</main>
+<script>
+(async () => {
+  try {
+    const m = await (await fetch('exams/saa-c03/manifest.json', {cache:'no-store'})).json();
+    const counts = await Promise.all(m.domains.map(async d => { try { const j = await (await fetch('exams/saa-c03/' + d.questions_file, {cache:'no-store'})).json(); return j.questions?.length || 0; } catch { return 0; } }));
+    let rr = 0; try { rr = (await (await fetch('exams/saa-c03/rapid-recall.json', {cache:'no-store'})).json()).cards?.length || 0; } catch {}
+    const total = counts.reduce((a,b)=>a+b,0);
+    const att = JSON.parse(localStorage.getItem('hub.saa-c03.attempts') || '{}');
+    const n = Object.keys(att).length, ok = Object.values(att).filter(a=>a.lastCorrect).length;
+    document.getElementById('saa-stats').textContent = `${total} questions (${counts.join('/')}) · ${rr} recall cards` + (n ? ` · you: ${n} attempted, ${Math.round(ok/n*100)}%` : '');
+  } catch { document.getElementById('saa-stats').textContent = 'content loading…'; }
+})();
+</script>
+</body>
+</html>

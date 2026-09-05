@@ -1,0 +1,55 @@
+{
+  "exam": {
+    "code": "SAP-C02",
+    "name": "AWS Certified Solutions Architect \u2013 Professional",
+    "short": "Solutions Architect Professional",
+    "status": "planned",
+    "passing_score": 750,
+    "scoring_scale": [
+      100,
+      1000
+    ],
+    "scored_questions": 65,
+    "unscored_questions": 10,
+    "total_questions": 75,
+    "duration_minutes": 180,
+    "cost_usd": 300,
+    "formats": [
+      "single_choice",
+      "multiple_response"
+    ]
+  },
+  "domains": [
+    {
+      "id": "D1",
+      "title": "Design Solutions for Organizational Complexity",
+      "weight": 0.26,
+      "questions_file": "quiz-d1-org.json"
+    },
+    {
+      "id": "D2",
+      "title": "Design for New Solutions",
+      "weight": 0.29,
+      "questions_file": "quiz-d2-new.json"
+    },
+    {
+      "id": "D3",
+      "title": "Continuous Improvement for Existing Solutions",
+      "weight": 0.25,
+      "questions_file": "quiz-d3-improve.json"
+    },
+    {
+      "id": "D4",
+      "title": "Accelerate Workload Migration and Modernization",
+      "weight": 0.2,
+      "questions_file": "quiz-d4-migrate.json"
+    }
+  ],
+  "files": {
+    "cheatsheets": "cheatsheets.json",
+    "traps": "traps-tips.json",
+    "rapid_recall": "rapid-recall.json"
+  },
+  "version": "0.1",
+  "generated": "2026-09-05"
+}
