@@ -1,0 +1,707 @@
+{
+  "domain": "D3",
+  "title": "Design High-Performing Architectures",
+  "weight": 0.24,
+  "intro": "Domain 3 is the 'pick the right service and prove you know its numbers' domain — about 16 of 65 questions. It almost never asks 'is this secure' or 'is this cheap'; it asks which service class matches the access pattern, and then whether you know the one limit that rules out the tempting alternative. Three mental models unlock nearly all of it. First, storage sorts into block (one instance, raw device), file (many instances, POSIX or SMB path), and object (HTTP, infinite scale) — the question tells you the protocol and the protocol picks the service. Second, performance problems are solved by moving work closer (cache, edge, read replica) or by widening the pipe (more shards, more prefixes, bigger network), never by 'upgrading the instance' unless the stem says CPU-bound. Third, every managed service has a shard-shaped unit — an EBS IOPS ceiling, a Kinesis shard, a DynamoDB partition, a VPN tunnel — and the exam tests whether you can spot that the workload exceeds one unit. Learn the numbers; the discriminating fact is usually numeric.",
+  "sections": [
+    {
+      "id": "storage-picker",
+      "title": "Storage picker: block, file, object",
+      "summary": "The access protocol in the scenario (raw device / POSIX / SMB / HTTP) determines the storage family, and the throughput or IOPS figure determines the tier inside it.",
+      "concepts": [
+        {
+          "name": "Block vs file vs object, and choosing an EBS volume type",
+          "explain": "Block storage is a raw device attached to one instance at a time — the OS puts a filesystem on it. File storage speaks a network filesystem protocol (NFS or SMB) so many instances mount the same tree at once. Object storage is an HTTP API with no partial writes, no filesystem semantics, and effectively unlimited capacity. A scenario that says 'the application writes to a local path and cannot be modified' with one server is block; the same sentence with 'fleet of instances share the files' is file; 'store user uploads and serve them to the internet' is object.\nInside EBS, gp3 is the modern default because performance is decoupled from size: every gp3 volume gets 3,000 IOPS and 125 MB/s baseline regardless of whether it is 1 GiB or 16 TiB, and you provision up to 16,000 IOPS and 1,000 MB/s independently. gp2 tied performance to size at 3 IOPS per GiB, which is why the classic exam story is 'we had to over-provision a 4 TiB gp2 volume just to get IOPS' — the answer is migrate to gp3, cheaper and faster. io1/io2 exist only when you need more than 16,000 IOPS or sub-millisecond consistency; io2 Block Express reaches 256,000 IOPS and 4,000 MB/s and is the only family with Multi-Attach for clustered filesystems. st1 and sc1 are spinning disks sold by throughput, not IOPS — big sequential scans (log processing, data warehouse staging, MapReduce) — and they cannot be boot volumes.",
+          "exam_tests": "Trigger words map almost one-to-one. 'Over-provisioned for IOPS' or 'need more IOPS without more capacity' means gp3. 'More than 16,000 IOPS' or 'sub-millisecond latency, mission-critical database' means io2 Block Express. 'Shared block device for a clustered application like a Linux cluster manager' means io2 Multi-Attach, not EFS. 'Large sequential streaming workloads, big data, log processing, lowest cost per TB' means st1; 'infrequently accessed, cold, lowest cost' means sc1. 'Highest possible IOPS, data is temporary or replicated by the application' means instance store, not any EBS type.",
+          "example": {
+            "scenario": "A company runs a self-managed PostgreSQL server on a 500 GiB gp2 volume. Monitoring shows the volume is throttled at 1,500 IOPS while only 40 percent of capacity is used. The team needs at least 8,000 IOPS and wants the lowest cost.",
+            "answer": "Change the volume type to gp3 and provision 8,000 IOPS at the existing 500 GiB size.",
+            "why": "gp2 gives 3 IOPS per GiB, so 500 GiB caps at 1,500 IOPS and the only gp2 fix is to grow the volume to ~2.7 TiB of storage you do not need. gp3 decouples the two, so you buy 8,000 IOPS on a 500 GiB volume. io1 would also work but costs materially more per provisioned IOPS, and the stem asks for lowest cost."
+          },
+          "compare": {
+            "columns": ["Type", "Max IOPS", "Max throughput", "Performance model", "Use when"],
+            "rows": [
+              ["gp3 (SSD)", "16,000", "1,000 MB/s", "3,000 IOPS + 125 MB/s baseline free, size-independent", "Default for boot and most workloads; fixes gp2 over-provisioning"],
+              ["gp2 (SSD)", "16,000 (at 5,334 GiB)", "250 MB/s", "3 IOPS per GiB, burst to 3,000 under 1 TiB", "Legacy only — the exam wants you to migrate off it"],
+              ["io1 (SSD)", "64,000", "1,000 MB/s", "Provisioned IOPS, max 50:1 IOPS per GiB", "High IOPS on older instance families"],
+              ["io2 / io2 Block Express (SSD)", "64,000 / 256,000", "1,000 / 4,000 MB/s", "Provisioned IOPS, 500:1 ratio, 99.999 percent durability", "Tier-1 databases, sub-ms latency, Multi-Attach clusters"],
+              ["st1 (HDD)", "500", "500 MB/s", "Throughput-optimized, 40 MB/s per TiB baseline", "Sequential big-data, log processing, ETL staging"],
+              ["sc1 (HDD)", "250", "250 MB/s", "Cold, 12 MB/s per TiB baseline", "Rarely accessed bulk data, lowest EBS cost per GB"],
+              ["Instance store (NVMe)", "Millions", "Tens of GB/s", "Physically attached, ephemeral", "Cache, scratch, buffers, shard-replicated NoSQL"]
+            ]
+          },
+          "gotchas": [
+            "HDD volumes (st1, sc1) cannot be used as boot volumes — an option offering sc1 for a root volume is always wrong.",
+            "Instance store data is lost on stop, hibernate, or terminate; it survives only a reboot. 'Must persist' kills it instantly.",
+            "EBS Multi-Attach is io1/io2 only, same Availability Zone only, up to 16 instances, and needs a cluster-aware filesystem — it is not a substitute for EFS.",
+            "EBS volumes are AZ-scoped; to move one to another AZ you snapshot and restore, which the exam phrases as 'copy the snapshot'.",
+            "gp3 throughput is capped at 0.25 MB/s per provisioned IOPS, so you cannot buy 1,000 MB/s on a 3,000 IOPS volume.",
+            "Changing volume type or size is an online operation (Elastic Volumes) — answers claiming downtime is required are wrong."
+          ],
+          "numbers": [
+            "gp3 baseline: 3,000 IOPS and 125 MB/s; max 16,000 IOPS and 1,000 MB/s",
+            "gp2: 3 IOPS per GiB, 16,000 IOPS ceiling",
+            "io2 Block Express: 256,000 IOPS, 4,000 MB/s, up to 64 TiB",
+            "st1 max 500 MB/s, sc1 max 250 MB/s",
+            "Multi-Attach: up to 16 instances, same AZ, io1/io2 only"
+          ],
+          "mnemonic": "gp3 = 3,000 free IOPS. io2 = I/O to the max. st1 = STreaming. sc1 = SCarcely used."
+        },
+        {
+          "name": "Shared file systems: EFS vs the four FSx flavours",
+          "explain": "The moment a scenario needs many instances writing to the same directory tree, you are in file-storage land and the only question is which protocol and which OS. EFS is NFS for Linux: elastic, pay per GB stored, no capacity to provision, and it is Regional by default (data replicated across AZs) with a cheaper One Zone option. FSx for Windows File Server is SMB with NTFS ACLs and Active Directory integration — the tell is 'Windows', 'SMB share', 'AD-joined', or 'DFS namespaces'. FSx for Lustre is the HPC and machine-learning parallel filesystem: hundreds of GB/s, sub-millisecond latency, and a native S3 link so a Lustre filesystem can be a fast POSIX front end over an S3 bucket. FSx for NetApp ONTAP is the multi-protocol answer — NFS, SMB and iSCSI at once, plus ONTAP features (snapshots, cloning, dedup, SnapMirror) that on-prem NetApp customers want to keep. FSx for OpenZFS is the ZFS/Linux-NFS lift-and-shift with very high IOPS and snapshots.\nEFS has two dimensions people confuse. Performance mode is General Purpose (lowest latency, the default and correct answer almost always) versus Max I/O (higher aggregate throughput, higher per-operation latency, now legacy). Throughput mode is Bursting (scales with stored data, uses credits), Elastic (scales automatically, pay per GB transferred, the modern default for spiky workloads) or Provisioned (fixed throughput when you need more than storage size gives you).",
+          "exam_tests": "'Windows application, SMB, Active Directory' is FSx for Windows every time — EFS is never the answer for Windows. 'HPC cluster', 'machine learning training', 'sub-millisecond, hundreds of GB/s', or 'process data that lives in S3 with a POSIX interface' is FSx for Lustre. 'Migrate a NetApp appliance' or 'needs NFS and SMB access to the same data' is ONTAP. 'Linux fleet, shared, grows automatically, no capacity planning' is EFS. If only one instance touches the data, the answer is EBS and the file-system options are all distractors.",
+          "example": {
+            "scenario": "A genomics company runs a 500-node HPC cluster that must read a 40 TB reference dataset already stored in Amazon S3 and write results back. The jobs are throughput-bound and need a POSIX filesystem. The cluster runs for six hours a day and is then torn down.",
+            "answer": "Create an FSx for Lustre scratch filesystem linked to the S3 bucket, and export results back to S3.",
+            "why": "Lustre is the only AWS filesystem that both hits HPC throughput and links natively to S3, lazily loading objects on first read and exporting changes back. Scratch is correct because the cluster is transient and the durable copy lives in S3, so paying for persistent replication adds cost with no benefit. EFS would work functionally but cannot reach the aggregate throughput and has no S3 linkage."
+          },
+          "compare": {
+            "columns": ["Service", "Protocol", "Shared?", "Scope", "Signature use case"],
+            "rows": [
+              ["EBS", "Block (raw device)", "One instance (16 with Multi-Attach)", "Single AZ", "Boot volumes, single-instance databases"],
+              ["Instance store", "Block (local NVMe)", "One instance, ephemeral", "The host", "Scratch, cache, highest IOPS"],
+              ["EFS", "NFS v4.1", "Thousands of Linux clients", "Regional (or One Zone)", "Shared Linux app data, CMS, home directories, Lambda/ECS shared state"],
+              ["FSx for Windows", "SMB", "Windows clients", "Single or Multi-AZ", "AD-joined Windows shares, DFS namespaces, .NET apps"],
+              ["FSx for Lustre", "Lustre (POSIX)", "HPC cluster", "Single AZ (scratch or persistent)", "HPC, ML training, S3-linked high-throughput processing"],
+              ["FSx for NetApp ONTAP", "NFS + SMB + iSCSI + NVMe/TCP", "Mixed Linux and Windows", "Single or Multi-AZ", "NetApp migration, multi-protocol, snapshots and dedup"],
+              ["FSx for OpenZFS", "NFS v3/v4", "Linux clients", "Single or Multi-AZ", "ZFS or Linux NFS server lift-and-shift, very high IOPS"]
+            ]
+          },
+          "gotchas": [
+            "EFS One Zone is cheaper but loses the AZ-failure resilience — never pick it when the stem says highly available.",
+            "FSx for Lustre scratch filesystems have no replication; a failed host loses data. Persistent is the answer whenever the data is not reproducible from S3.",
+            "EFS Infrequent Access and Archive classes need a lifecycle policy to be useful, and reads from IA carry a retrieval charge — that charge can make a hot dataset in IA more expensive than Standard.",
+            "EFS Access Points enforce a POSIX user and root directory per application — the standard answer for multi-tenant directory isolation on one filesystem.",
+            "Max I/O performance mode raises per-operation latency; if the stem says 'lowest latency', it is General Purpose (or Elastic throughput), not Max I/O.",
+            "FSx for Windows supports DFS Namespaces to present multiple filesystems as one namespace, and that is how you scale past a single filesystem's limits."
+          ],
+          "numbers": [
+            "EFS: NFS v4.1, Regional (multi-AZ) or One Zone, storage classes Standard / IA / Archive",
+            "FSx for Lustre: sub-millisecond latency, hundreds of GB/s aggregate throughput",
+            "EBS Multi-Attach: 16 instances, same AZ, io1/io2 only"
+          ],
+          "mnemonic": "Windows = FSx Windows. HPC = Lustre. NetApp/multi-protocol = ONTAP. Linux shared = EFS."
+        },
+        {
+          "name": "S3 performance: prefixes, multipart, byte-range, acceleration",
+          "explain": "S3 scales request rate per prefix, not per bucket. Each prefix sustains 3,500 PUT/COPY/POST/DELETE and 5,500 GET/HEAD requests per second, and there is no limit on the number of prefixes — so the fix for a request-rate ceiling is always to spread keys across more prefixes, never to create more buckets. This is why the classic date-based key of year/month/day/ hurts: every write on a given day lands in one prefix. Randomising or hashing the leading characters spreads load.\nFor large objects, multipart upload is the performance answer: parallel part uploads, retry of a single failed part instead of the whole object, and required above 5 GB. AWS recommends it above 100 MB. The read-side mirror is byte-range fetches — request parts of an object in parallel, or fetch just the header of a large file instead of the whole thing. Transfer Acceleration solves a different problem: clients far from the bucket Region upload over the CloudFront edge network and then across the AWS backbone, which helps only when distance and public-internet latency are the bottleneck. S3 Express One Zone is the low-latency tier: directory buckets in a single AZ, an order of magnitude faster first-byte latency, much cheaper requests, but higher storage price and no AZ redundancy.",
+          "exam_tests": "'503 Slow Down errors' or 'request rate exceeded' means add prefixes. 'Uploading 5 GB files over an unreliable network' or 'improve upload throughput and resume failed parts' means multipart. 'Global users uploading to a single bucket, high latency' means Transfer Acceleration (or CloudFront for downloads). 'Only needs the first few KB of each large object' means byte-range fetch. 'Millisecond-scale, request-heavy analytics on hot data in one AZ' means S3 Express One Zone.",
+          "example": {
+            "scenario": "A media company writes 20,000 small objects per second into one S3 bucket using keys of the form logs/2026-09-05/<uuid>. The application receives frequent HTTP 503 Slow Down responses. Cost and code changes should be minimal.",
+            "answer": "Change the key naming so writes are spread across many prefixes, for example logs/<hash>/2026-09-05/<uuid>.",
+            "why": "The 3,500 write-requests-per-second limit is per prefix, and every object that day shares one prefix. Spreading across 8 or 16 hash prefixes multiplies the ceiling linearly. Creating additional buckets is unnecessary operational overhead, and Transfer Acceleration addresses network distance, not request-rate throttling."
+          },
+          "compare": {
+            "columns": ["Technique", "Fixes", "Trigger phrase"],
+            "rows": [
+              ["More prefixes", "Request-rate throttling (503 Slow Down)", "Exceeds 3,500 PUT or 5,500 GET per second"],
+              ["Multipart upload", "Large-object upload throughput and resilience", "Objects over 100 MB; mandatory over 5 GB"],
+              ["Byte-range fetch", "Download parallelism, partial reads", "Only need part of a large object"],
+              ["Transfer Acceleration", "Long-distance upload latency", "Global users, single-Region bucket"],
+              ["CloudFront", "Repeated downloads by many users", "Static content served worldwide"],
+              ["S3 Express One Zone", "Per-request latency on hot data", "Single-digit-millisecond, request-intensive"]
+            ]
+          },
+          "gotchas": [
+            "S3 request limits are per prefix, not per bucket — 'create multiple buckets' is a distractor.",
+            "Maximum single object is 5 TB; maximum single PUT without multipart is 5 GB.",
+            "Transfer Acceleration costs extra per GB and must be enabled on the bucket; it does nothing for clients in the same Region.",
+            "S3 Express One Zone stores data in one AZ and uses directory buckets — it is not a durability upgrade and cannot replace S3 Standard for critical data.",
+            "S3 is strongly read-after-write consistent for all operations now — any answer that says 'wait for eventual consistency' is stale and wrong.",
+            "CloudFront in front of S3 reduces both latency and S3 request cost, which is why it appears as the answer to 'reduce load on the origin'."
+          ],
+          "numbers": [
+            "3,500 write / 5,500 read requests per second per prefix",
+            "Multipart recommended above 100 MB, required above 5 GB",
+            "Max object size 5 TB"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "compute-picker",
+      "title": "Compute picker: instances, placement, scaling, serverless",
+      "summary": "Match the instance family letter to the bottleneck, the placement group to the failure or latency requirement, and the scaling policy to how predictable demand is.",
+      "concepts": [
+        {
+          "name": "EC2 instance families, Graviton, and the network stack (ENA vs EFA)",
+          "explain": "Instance types encode their purpose in the first letter. C is compute (high CPU-to-memory), M is the balanced middle, R is memory-optimised, X and u- are extreme memory, I is local NVMe storage, D is dense HDD, P is GPU for training, G is GPU for inference and graphics, and T is burstable for spiky low-average workloads. T instances earn CPU credits when idle and spend them under load; in standard mode they throttle when credits run out, and in unlimited mode they keep running and you pay a surcharge. A trailing g means Graviton, AWS's ARM processor, which typically delivers materially better price-performance but requires ARM-compatible binaries or containers.\nNetworking has two levels. The Elastic Network Adapter is standard enhanced networking, giving up to 100 Gbps on large instances, and ENA Express uses the SRD protocol to lift single-flow throughput. The Elastic Fabric Adapter is a different animal: it bypasses the operating system kernel so MPI and NCCL libraries talk directly to the hardware, which is what HPC and distributed ML training need. EFA is the answer whenever you see 'tightly coupled', 'MPI', 'NCCL', or 'inter-node communication is the bottleneck'.",
+          "exam_tests": "The stem names the bottleneck and you name the letter. 'In-memory database, SAP HANA, large caches' is R or X. 'Batch encoding, gaming servers, high-performance web' is C. 'Millions of local IOPS, NoSQL, data warehouse scratch' is I. 'Low average CPU with occasional spikes, cost-sensitive' is T with unlimited mode. 'Tightly coupled HPC' is EFA plus a cluster placement group. 'Reduce compute cost with no architecture change on a Linux container workload' is Graviton.",
+          "example": {
+            "scenario": "A research team runs a weather simulation across 60 EC2 instances using MPI. Profiling shows the job spends most of its wall time in inter-node message passing, and the team wants the lowest possible latency between nodes.",
+            "answer": "Launch the fleet in a cluster placement group using instances with an Elastic Fabric Adapter.",
+            "why": "EFA bypasses the kernel network stack for MPI traffic, which is the specific bottleneck named, and a cluster placement group puts the nodes on the same low-latency network segment. Adding more or bigger instances does not help a communication-bound job, and a spread placement group deliberately separates instances, which is the opposite of what is needed."
+          },
+          "compare": {
+            "columns": ["Letter", "Optimised for", "Examples", "Pick it when the stem says"],
+            "rows": [
+              ["T", "Burstable, low average CPU", "T3, T4g", "Small workloads, dev/test, spiky traffic, cheapest baseline"],
+              ["M", "Balanced general purpose", "M6i, M7g", "No stated bottleneck; typical application servers"],
+              ["C", "Compute / high CPU", "C6i, C7g", "CPU-bound, batch, media encoding, HPC front end, ad serving"],
+              ["R / X / u-", "Memory", "R6i, X2idn, u-6tb1", "In-memory cache, large database, SAP HANA, big joins"],
+              ["I / D / H", "Local storage", "I4i, D3", "Highest local IOPS, NoSQL, data warehouse, dense HDD"],
+              ["P / Trn", "GPU/accelerator training", "P5, Trn1", "Model training, deep learning"],
+              ["G / Inf", "GPU inference and graphics", "G6, Inf2", "Inference, video transcoding, virtual workstations"]
+            ]
+          },
+          "gotchas": [
+            "T instances in standard mode throttle to baseline once credits are exhausted — the fix for 'performance degrades after some time' is unlimited mode or a move to M.",
+            "Graviton requires recompiled or multi-arch container images; an option that says 'switch to Graviton with no code changes' on a Windows or x86-only binary workload is wrong.",
+            "EFA only accelerates traffic between instances in the same subnet and works best inside a cluster placement group; it does not speed up traffic leaving the VPC.",
+            "Enhanced networking (ENA) is on by default on current generations — 'enable enhanced networking' as a fix is usually a distractor on modern instance types.",
+            "Instance network bandwidth is shared with EBS unless the instance is EBS-optimised, which is default on current families.",
+            "Nitro-based instances are required for the highest EBS performance figures such as io2 Block Express."
+          ],
+          "mnemonic": "C = CPU, R = RAM, I = IOPS, D = Dense disk, G/P = GPU, T = Tiny/bursty, M = Middle."
+        },
+        {
+          "name": "Placement groups: cluster, spread, partition",
+          "explain": "Placement groups tell EC2 how to physically position instances relative to each other, and each one solves a different problem. A cluster placement group packs instances into a single rack in one AZ so they get the lowest network latency and highest single-flow bandwidth between them — the trade-off is correlated failure, since one rack event affects everything. A spread placement group does the opposite: every instance goes on distinct underlying hardware with its own power and network, which is why it is capped at seven running instances per AZ per group. It is for a small number of critical, independent instances such as domain controllers or a quorum. A partition placement group is the middle ground built for distributed data stores: up to seven partitions per AZ, each on its own set of racks, and instances learn their partition through metadata so software like HDFS, HBase, Cassandra and Kafka can place replicas in different partitions.",
+          "exam_tests": "'Lowest latency between nodes' or 'tightly coupled HPC' is cluster. 'Small number of critical instances that must not share hardware' is spread, and if the count exceeds seven per AZ the option is impossible. 'Large distributed data store, replicas must not share a rack, hundreds of instances' is partition. The seven-per-AZ number on spread is a favourite discriminator.",
+          "example": {
+            "scenario": "A company deploys a 30-node Cassandra ring across three Availability Zones and wants replica nodes to survive a rack-level hardware failure without losing more than one replica.",
+            "answer": "Use a partition placement group with partitions spread across the three Availability Zones.",
+            "why": "Partition groups isolate racks and expose partition identity so Cassandra can place replicas in different partitions, which is exactly the rack-fault-isolation requirement. A spread group cannot hold 30 instances since it allows only seven running instances per AZ, and a cluster group concentrates the risk instead of spreading it."
+          },
+          "compare": {
+            "columns": ["Type", "Placement", "AZ span", "Limit", "Use case"],
+            "rows": [
+              ["Cluster", "Same rack, packed together", "Single AZ", "Bounded by capacity of one AZ/rack", "HPC, MPI, low-latency and high-throughput node-to-node"],
+              ["Spread", "Distinct hardware, separate power and network", "Multi-AZ allowed", "7 running instances per AZ per group", "Small set of critical instances that must fail independently"],
+              ["Partition", "Groups of racks, isolated per partition", "Multi-AZ allowed", "7 partitions per AZ, many instances each", "HDFS, HBase, Cassandra, Kafka — replica placement"]
+            ]
+          },
+          "gotchas": [
+            "Spread groups allow only seven running instances per Availability Zone — any option asking for more in one spread group is invalid.",
+            "Cluster placement groups live in a single AZ, so they trade availability for latency; they are never the answer to a high-availability stem.",
+            "You cannot merge placement groups, and moving a running instance into one requires it to be stopped.",
+            "Cluster groups work best when all instances are launched at once with the same instance type; a later launch can fail with insufficient capacity.",
+            "Dedicated Hosts do not support spread placement groups.",
+            "A placement group is free — cost is never a reason to reject one."
+          ],
+          "numbers": ["Spread: 7 running instances per AZ per group", "Partition: up to 7 partitions per AZ"],
+          "mnemonic": "Cluster = Close. Spread = Separate (7 per AZ). Partition = Per-rack groups for big data."
+        },
+        {
+          "name": "Auto Scaling policies: target tracking, step, scheduled, predictive",
+          "explain": "Auto Scaling questions come down to how much you know about future demand. If you know nothing but you have a metric that represents load, use target tracking: pick a metric such as average CPU or ALBRequestCountPerTarget and a target value, and Auto Scaling creates the alarms and does the math. It is the default correct answer and the one with the least operational overhead. Step scaling is for when the response should differ by how badly the threshold is breached — add two instances at 60 percent, add six at 90 percent. Simple scaling is its legacy predecessor and should never be the answer. Scheduled scaling is for calendar-known patterns: business hours, a batch window, a Monday morning spike. Predictive scaling uses machine learning over at least 24 hours (ideally 14 days) of history to forecast the next 48 hours and provisions capacity in advance, which is the answer when the stem complains that reactive scaling is too slow for a recurring daily pattern.\nTwo supporting mechanisms matter. Cooldown (default 300 seconds) stops a policy from firing again while the previous action settles. Warm pools keep pre-initialised instances in a stopped or hibernated state so a long boot or application-warm-up does not delay scale-out, which is the answer whenever the stem says instances take many minutes to become useful.",
+          "exam_tests": "'Least operational overhead' plus a maintainable metric equals target tracking. 'Traffic increases every weekday at 9am' equals scheduled. 'Cyclical, recurring pattern, and reactive scaling lags behind' equals predictive. 'Application takes 15 minutes to warm up and users see errors during scale-out' equals a warm pool (or lifecycle hooks). 'Different responses depending on how far the metric is over the threshold' equals step scaling.",
+          "example": {
+            "scenario": "A retail application sees a large, repeatable traffic spike every day between 18:00 and 21:00. Instances take about eight minutes to boot and register, and users report slow responses during the first 20 minutes of the spike even though CPU-based scaling is configured.",
+            "answer": "Add predictive scaling (or scheduled scaling) so capacity is provisioned before the spike, keeping target tracking for unexpected load.",
+            "why": "Reactive target tracking only acts after the metric moves, and an eight-minute boot means capacity always arrives late. Predictive scaling forecasts the recurring daily pattern and warms capacity ahead of it; scheduled scaling achieves the same when the pattern is fixed and known. Lowering the CPU target only wastes capacity all day without removing the lag."
+          },
+          "compare": {
+            "columns": ["Policy", "Reacts to", "Effort", "Best for"],
+            "rows": [
+              ["Target tracking", "A single metric against a target value", "Lowest", "Default choice; keep CPU at 50 percent or requests per target at N"],
+              ["Step scaling", "Alarm breach magnitude, tiered adjustments", "Medium", "Non-linear response to increasing load"],
+              ["Simple scaling", "One alarm, one adjustment, then cooldown", "Medium (legacy)", "Never — superseded by target tracking and step"],
+              ["Scheduled", "The clock", "Low", "Known business-hours or batch-window patterns"],
+              ["Predictive", "ML forecast of historic pattern", "Low", "Recurring cyclical demand where boot time causes lag"],
+              ["Warm pool", "Not a policy — pre-initialised capacity", "Medium", "Long boot or application warm-up times"]
+            ]
+          },
+          "gotchas": [
+            "Predictive scaling needs at least 24 hours of history and only adds capacity; you still need target tracking to scale in and to handle surprises.",
+            "Default cooldown is 300 seconds; too long a cooldown is a classic cause of 'the group scales too slowly'.",
+            "Health check grace period must exceed application start-up time, or the ASG kills instances before they pass the load balancer health check.",
+            "Attaching an ALB and using ELB health checks (rather than EC2 status checks) is what makes the ASG replace instances whose application has failed but whose OS is fine.",
+            "Auto Scaling never scales the instance size — an option that says 'scale vertically automatically' is wrong for ASG.",
+            "Lifecycle hooks pause instances in Pending:Wait or Terminating:Wait so you can bootstrap or drain; they are the answer for 'run a script before an instance goes into service'."
+          ],
+          "numbers": ["Default cooldown 300 seconds", "Predictive scaling forecasts up to 48 hours ahead from at least 24 hours of history"]
+        },
+        {
+          "name": "Lambda limits, and the serverless-versus-container decision",
+          "explain": "Lambda's limits are the most frequently tested numbers in this domain because they are the discriminating fact that eliminates it as an answer. Fifteen minutes maximum execution, 128 MB to 10,240 MB of memory (CPU scales with memory, so raising memory is how you make a Lambda faster), 10 GB of ephemeral /tmp, a 6 MB synchronous request and response payload, and 256 KB for asynchronous events and for SQS or SNS messages. Cold starts are addressed by provisioned concurrency (keeps initialised environments warm, costs per hour) or SnapStart (caches a snapshot of the initialised runtime for Java, Python and .NET, at no extra charge).\nWhen the limits do not fit, you move up the container ladder. ECS on Fargate removes host management and bills per task — the low-overhead default for containers. ECS on EC2 gives you GPUs, Spot control, larger local storage and better economics at sustained high utilisation. EKS is the answer when the stem says Kubernetes, portability, or an existing Kubernetes toolchain. App Runner is the simplest path from a container image or repository to an HTTPS service. AWS Batch handles queued batch jobs with dependencies and Spot. Elastic Beanstalk is the 'deploy my app without learning the infrastructure but keep the EC2 instances visible' option.",
+          "exam_tests": "Any workload described as running longer than 15 minutes rules Lambda out and points at Fargate, Batch or EC2. 'Large payload' beyond 6 MB means write to S3 and pass a reference. 'Cold start latency for a Java API' means SnapStart or provisioned concurrency. 'Needs a shared filesystem across invocations' means mount EFS to Lambda. 'Existing Kubernetes manifests' means EKS. 'Long-running batch jobs with dependencies and Spot' means AWS Batch.",
+          "example": {
+            "scenario": "A team processes uploaded video files with a job that takes 25 to 40 minutes and needs 8 vCPUs and 30 GB of memory. Uploads arrive irregularly, a few dozen per day, and the team does not want to manage servers.",
+            "answer": "Run the job as an ECS task on Fargate, triggered by the upload event (AWS Batch on Fargate is equally valid).",
+            "why": "The 15-minute Lambda timeout and 10 GB memory ceiling both eliminate Lambda regardless of how the code is written. Fargate has no execution time limit, supports the required vCPU and memory, and still removes server management. Provisioning an EC2 Auto Scaling group would work but adds host management the stem explicitly rejects."
+          },
+          "compare": {
+            "columns": ["Limit", "Value", "What it rules out"],
+            "rows": [
+              ["Execution timeout", "15 minutes (900 s)", "Any long-running batch or transcoding job"],
+              ["Memory", "128 MB – 10,240 MB", "Large in-memory processing; note CPU scales with memory"],
+              ["Ephemeral /tmp", "512 MB – 10,240 MB", "Working with very large files locally"],
+              ["Sync payload", "6 MB request and response", "Large uploads through API Gateway — use S3 presigned URLs"],
+              ["Async event payload", "256 KB", "Large SNS/SQS/EventBridge messages — use the claim-check pattern"],
+              ["Deployment package", "50 MB zipped, 250 MB unzipped, 10 GB container image", "Fat dependency trees — use layers or a container image"],
+              ["Concurrency", "1,000 per Region by default (adjustable)", "Very high fan-out without a quota increase"]
+            ]
+          },
+          "gotchas": [
+            "Increasing Lambda memory increases CPU proportionally — the standard answer to 'the function is too slow' when the code cannot change.",
+            "Provisioned concurrency costs money whether used or not; SnapStart is free but only for Java, Python and .NET managed runtimes.",
+            "Reserved concurrency both guarantees and caps a function's concurrency — it is how you protect a downstream database from a Lambda storm.",
+            "Lambda inside a VPC uses Hyperplane ENIs and no longer has the old cold-start penalty, but it still needs a NAT gateway or VPC endpoints for AWS API calls.",
+            "Fargate does not support GPUs, privileged containers, or host networking — those requirements force the EC2 launch type.",
+            "Elastic Beanstalk is not serverless; it provisions EC2 instances you can see and pay for."
+          ],
+          "numbers": [
+            "15 minutes, 10,240 MB memory, 10 GB /tmp",
+            "6 MB synchronous payload, 256 KB asynchronous payload",
+            "~1,769 MB of memory gives roughly one full vCPU"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "database-picker",
+      "title": "Database picker: relational, key-value, cache, purpose-built",
+      "summary": "Data shape and access pattern choose the engine; read scaling, connection handling and caching choose the fix when the engine is right but slow.",
+      "concepts": [
+        {
+          "name": "Relational scaling: RDS, Aurora, read replicas and RDS Proxy",
+          "explain": "For relational workloads the exam splits three ways: read scaling, write scaling, and connection scaling. Read scaling is read replicas — up to five for RDS engines, up to fifteen for Aurora — pointed at by a reader endpoint. Read replicas are asynchronous and exist for performance, not for high availability; Multi-AZ is the availability answer, and confusing the two is the single most common trap in this area. Write scaling on relational is hard: you go bigger, or you shard, or you move the hot part to DynamoDB.\nAurora's architecture is what gets tested. Storage is a shared distributed volume that auto-grows in 10 GB increments up to 128 TiB and keeps six copies across three AZs, which is why adding a replica is fast and cheap — replicas attach to the same storage instead of copying data. The cluster endpoint always points at the writer, the reader endpoint load-balances across replicas, and custom endpoints let you route, say, reporting queries to specific larger instances. Parallel query pushes work down into the storage layer for analytical scans. Aurora Serverless v2 scales in Aurora Capacity Units where one ACU is roughly 2 GiB of memory, adjusting in fine-grained steps for unpredictable load.\nRDS Proxy solves the connection problem. Thousands of concurrent Lambda invocations each opening a database connection exhausts the engine's connection limit; RDS Proxy pools and multiplexes those connections, and it also shortens failover time because clients hold their connection to the proxy.",
+          "exam_tests": "'Too many connections' or 'Lambda spikes overwhelm the database' is RDS Proxy. 'Reporting queries slow down the production workload' is a read replica plus the reader or a custom endpoint. 'Unpredictable and intermittent load, do not want to size an instance' is Aurora Serverless v2. 'Needs to survive an AZ failure automatically' is Multi-AZ, not a read replica. 'Sub-second cross-Region reads and disaster recovery' is Aurora Global Database.",
+          "example": {
+            "scenario": "A serverless API backed by Lambda writes to an Amazon RDS for PostgreSQL instance. During traffic spikes the functions fail with too-many-connections errors, although CPU on the database stays below 30 percent.",
+            "answer": "Put RDS Proxy in front of the database and have Lambda connect through the proxy.",
+            "why": "The failure is connection exhaustion, not compute — CPU at 30 percent proves the instance is not the bottleneck, so scaling it up buys connections only incidentally and expensively. RDS Proxy pools and reuses connections so thousands of invocations share a small pool. Read replicas do not help because the workload is writes."
+          },
+          "compare": {
+            "columns": ["Need", "Answer", "Why not the alternative"],
+            "rows": [
+              ["Survive an AZ failure automatically", "Multi-AZ deployment", "Read replicas are async and need manual promotion"],
+              ["Scale read throughput", "Read replicas + reader endpoint", "Multi-AZ standby serves no reads (single-instance Multi-AZ)"],
+              ["Isolate reporting from OLTP", "Aurora custom endpoint or a dedicated replica", "Bigger writer instance costs more and still contends"],
+              ["Too many connections", "RDS Proxy", "Scaling instance size raises connections only marginally"],
+              ["Unpredictable, spiky load", "Aurora Serverless v2 (ACUs)", "Provisioned instances need a peak-sized guess"],
+              ["Cross-Region low-latency reads and DR", "Aurora Global Database", "Cross-Region read replica has higher lag and slower failover"],
+              ["Analytical scans over the OLTP data", "Aurora parallel query or Redshift zero-ETL", "Running them on the writer starves transactions"]
+            ]
+          },
+          "gotchas": [
+            "Read replicas are for performance; Multi-AZ is for availability. The exam swaps these deliberately.",
+            "The single-instance RDS Multi-AZ standby is not readable; the Multi-AZ DB cluster deployment gives two readable standbys and faster failover.",
+            "Aurora storage grows automatically to 128 TiB — 'provision more storage' is never the Aurora answer.",
+            "Aurora replicas double as failover targets with a priority tier, so they give both read scaling and HA; plain RDS read replicas do not fail over automatically.",
+            "RDS Proxy must live in the VPC and is not internet-accessible; it also enforces IAM authentication and Secrets Manager credentials.",
+            "Aurora Serverless v2 scales in place without dropping connections; v1 paused and had cold starts — do not carry v1 behaviour into a v2 answer."
+          ],
+          "numbers": [
+            "RDS read replicas: up to 5 per source; Aurora: up to 15 replicas",
+            "Aurora storage: 10 GB increments to 128 TiB, six copies across three AZs",
+            "Aurora Serverless v2: 1 ACU is roughly 2 GiB of memory"
+          ]
+        },
+        {
+          "name": "DynamoDB: partition keys, indexes, capacity and DAX",
+          "explain": "DynamoDB performance is a partition-key design problem. The table is split into partitions, and each physical partition sustains about 3,000 read capacity units, 1,000 write capacity units and 10 GB. If your partition key has low cardinality or a skewed distribution — a status field, a single tenant ID, today's date — all traffic lands on one partition and you get throttling while the table-level capacity looks fine. That is the hot partition problem, and the fix is a higher-cardinality key or write sharding by appending a suffix. Adaptive capacity now isolates hot partitions automatically and borrows unused throughput, but it cannot rescue a key with only three possible values.\nIndexes come in two flavours. A global secondary index has its own partition and sort key and its own provisioned capacity, is eventually consistent only, and can be added at any time. A local secondary index shares the table's partition key, offers a different sort key, supports strongly consistent reads, shares table capacity, and must be created with the table. If a scenario needs a completely different access pattern, it is a GSI; if it needs another sort order on the same item collection, it can be an LSI.\nCapacity mode is a cost and predictability decision: on-demand for unknown or spiky traffic with no capacity planning, provisioned with auto scaling for steady predictable traffic at lower cost. DAX is the read accelerator — a DynamoDB-specific, in-VPC write-through cache that turns single-digit-millisecond reads into microseconds without any application rewrite.",
+          "exam_tests": "'Throttling on a small number of items despite plenty of provisioned capacity' is a hot partition. 'Microsecond read latency for DynamoDB with minimal code change' is DAX, never ElastiCache. 'Query by a different attribute' is a GSI. 'Automatically delete records after N days' is TTL. 'React to every item change' is DynamoDB Streams into Lambda. 'Unpredictable traffic, no capacity planning' is on-demand mode.",
+          "example": {
+            "scenario": "An IoT platform stores telemetry in DynamoDB with the partition key set to the device model (about 12 values) and a sort key of timestamp. Writes are throttled during peak hours even though only 40 percent of provisioned WCUs are consumed at the table level.",
+            "answer": "Redesign the partition key to the device ID (or device ID plus a shard suffix) so writes spread across many partitions.",
+            "why": "Twelve distinct partition-key values means writes concentrate on twelve partitions, each capped at 1,000 WCU, so the table appears under-utilised while individual partitions throttle. Raising table capacity spreads across more partitions but keeps the same skew and wastes money. DAX would not help because the problem is writes, and DAX accelerates reads."
+          },
+          "compare": {
+            "columns": ["Feature", "GSI", "LSI"],
+            "rows": [
+              ["Partition key", "Any attribute", "Same as the table"],
+              ["Sort key", "Any attribute", "Different from the table"],
+              ["When created", "Any time", "Only at table creation"],
+              ["Capacity", "Its own RCU/WCU", "Shares the table's"],
+              ["Consistency", "Eventually consistent only", "Strong reads supported"],
+              ["Limit per table", "20 by default", "5"],
+              ["Size constraint", "None", "10 GB per item collection"]
+            ]
+          },
+          "gotchas": [
+            "One RCU is one strongly consistent read of up to 4 KB per second, or two eventually consistent reads; one WCU is one write of up to 1 KB per second.",
+            "Maximum item size is 400 KB — larger payloads go to S3 with a pointer stored in the item.",
+            "DAX caches reads only, and strongly consistent reads bypass the cache entirely.",
+            "TTL deletions are best-effort and can take up to 48 hours to appear — never the answer when the stem requires immediate deletion.",
+            "Switching between on-demand and provisioned can be done only once every 24 hours per table.",
+            "Scans are the wrong answer nearly always; if an option says 'Scan with a filter', look for the Query or GSI option instead."
+          ],
+          "numbers": [
+            "Per partition: ~3,000 RCU, ~1,000 WCU, 10 GB",
+            "Item size limit 400 KB",
+            "Streams retention 24 hours (365 days via Kinesis Data Streams for DynamoDB)"
+          ],
+          "mnemonic": "GSI = Global = anything goes, own capacity. LSI = Local = Locked to the table's key and created at Launch."
+        },
+        {
+          "name": "Caching: ElastiCache Redis vs Memcached vs DAX vs MemoryDB",
+          "explain": "Caching questions test two things: which cache engine, and which caching strategy. Memcached is a simple multi-threaded key-value cache with no persistence, no replication and no failover — you scale it by adding nodes and the client shards across them. Redis (now ElastiCache for Valkey or Redis OSS) has data structures (sorted sets, lists, hashes), replication with automatic failover, Multi-AZ, backups, pub/sub and transactions, which makes it the answer for leaderboards, session stores that must survive a node failure, and anything needing more than plain strings. MemoryDB is the durable version: a Redis-compatible primary database with a multi-AZ transactional log, microsecond reads and single-digit-millisecond writes, used when the in-memory store is the system of record rather than a cache. DAX is neither — it is a DynamoDB-only, API-compatible cache that requires no application changes.\nStrategies matter too. Lazy loading (cache-aside) only populates on a miss, so the cache holds just what is asked for, but the first request after a miss pays the full latency and data can go stale. Write-through updates the cache on every write, so reads are always fresh, but you pay a write penalty and cache data nobody reads. Adding a TTL to either bounds staleness, and the combination of lazy loading plus TTL is the standard pragmatic answer.",
+          "exam_tests": "'Session store that must survive a node failure' or 'leaderboard' or 'needs replication and Multi-AZ' is Redis. 'Simple object caching, multi-threaded, scale horizontally, no persistence needed' is Memcached. 'DynamoDB reads in microseconds with no application rewrite' is DAX. 'In-memory with durability, as the primary database' is MemoryDB. 'Stale data appears after an update' points at write-through or a shorter TTL.",
+          "example": {
+            "scenario": "An e-commerce site stores shopping-cart sessions in an ElastiCache for Memcached cluster. When a node fails, affected customers lose their carts. The company wants the same in-memory latency without losing sessions on a node failure and with minimal application redesign.",
+            "answer": "Move the session store to ElastiCache for Redis with replication and Multi-AZ automatic failover enabled.",
+            "why": "Memcached has no replication or persistence, so a lost node is lost data by design — no configuration fixes it. Redis replicates to a replica in another AZ and fails over automatically, keeping the same key-value latency profile. DynamoDB would also survive the failure but is a larger redesign than the stem allows, and DAX is irrelevant since there is no DynamoDB table."
+          },
+          "compare": {
+            "columns": ["Engine", "Data model", "Replication / failover", "Persistence", "Pick when"],
+            "rows": [
+              ["ElastiCache Memcached", "Simple key-value strings", "None", "None", "Simple caching, multi-threaded, horizontal node scaling"],
+              ["ElastiCache Redis / Valkey", "Rich structures, pub/sub, sorted sets", "Yes, Multi-AZ auto failover", "Snapshots and AOF", "Sessions, leaderboards, HA cache, geospatial"],
+              ["MemoryDB", "Redis-compatible", "Yes, multi-AZ transaction log", "Durable, 11 nines", "In-memory as the primary database of record"],
+              ["DAX", "DynamoDB items and queries", "Multi-AZ cluster", "Cache only", "Microsecond DynamoDB reads, no code change"],
+              ["CloudFront", "HTTP objects at the edge", "Global", "Cache only", "Static and cacheable dynamic content near users"]
+            ]
+          },
+          "gotchas": [
+            "Memcached cannot do Multi-AZ failover or backups — any stem mentioning durability, replication or persistence eliminates it.",
+            "DAX only fronts DynamoDB; using ElastiCache for a DynamoDB cache is possible but requires application changes, which loses on 'minimal changes'.",
+            "Redis cluster mode enabled shards the keyspace and is how you scale writes and memory past one node; cluster mode disabled scales reads only.",
+            "Lazy loading serves stale data until eviction or TTL; write-through guarantees freshness but caches items that may never be read.",
+            "Caching in front of a database only helps read-heavy workloads — an option offering a cache for a write-heavy problem is a distractor.",
+            "ElastiCache is in-VPC and not internet-accessible; it also does not encrypt in transit unless you enable it."
+          ],
+          "mnemonic": "Memcached = Mere cache. Redis = Rich and Resilient. MemoryDB = Memory that is a Database. DAX = DynamoDB Accelerator, nothing else."
+        },
+        {
+          "name": "Purpose-built databases and migrating into them",
+          "explain": "The exam gives you a data shape and expects the matching engine. Highly connected data with relationship traversal (fraud rings, social graphs, recommendations) is Neptune. JSON documents with a MongoDB API is DocumentDB. Wide-column Cassandra workloads are Keyspaces. Time-stamped measurements at massive scale with time-window queries are Timestream. Full-text search, log analytics and observability dashboards are OpenSearch Service. Petabyte-scale analytical SQL over structured data with complex joins and aggregations is Redshift — a columnar MPP warehouse where RA3 nodes separate compute from managed storage, Spectrum extends queries to data still sitting in S3, and Redshift Serverless removes cluster sizing entirely.\nGetting data in is a two-tool story. Database Migration Service moves the data and can run continuous change data capture so the source stays live until cutover. It requires the target to already exist and works both homogeneously (Oracle to Oracle) and heterogeneously (Oracle to Aurora PostgreSQL). For heterogeneous moves you first run the Schema Conversion Tool to translate schema, stored procedures and application SQL. The rule to memorise: SCT converts the schema, DMS moves the rows.",
+          "exam_tests": "'Relationships between entities, traverse connections' is Neptune. 'MongoDB workload with minimal application change' is DocumentDB. 'Cassandra, CQL, serverless' is Keyspaces. 'Trillions of events per day with time-based queries and automatic tiering' is Timestream. 'Search across documents, log analytics, Kibana-style dashboards' is OpenSearch. 'Complex analytical queries joining terabytes' is Redshift; if the data is already in S3 and should stay there, Spectrum or Athena. 'Migrate with minimal downtime' is DMS with CDC.",
+          "example": {
+            "scenario": "A bank stores 15 years of transaction history in Amazon S3 in Parquet format and wants analysts to run complex joins between that history and the current-quarter data held in a Redshift cluster, without duplicating the historical data.",
+            "answer": "Use Redshift Spectrum to query the S3 data as external tables and join it to the cluster's local tables.",
+            "why": "Spectrum exists precisely to join warehouse tables with data that stays in S3, using the Glue Data Catalog for schema. Loading 15 years into the cluster duplicates storage and defeats the requirement. Athena can query the S3 data but cannot join it to tables that live inside the Redshift cluster."
+          },
+          "compare": {
+            "columns": ["Service", "Data model", "Signature phrase", "Scaling unit"],
+            "rows": [
+              ["RDS", "Relational, six engines", "Lift-and-shift a commercial or open-source database", "Instance class + read replicas"],
+              ["Aurora", "Relational, MySQL/PostgreSQL-compatible", "Cloud-native relational, 15 replicas, global", "Instance or ACUs, shared 128 TiB storage"],
+              ["DynamoDB", "Key-value and document", "Single-digit-millisecond at any scale, serverless", "RCU/WCU or on-demand"],
+              ["ElastiCache", "In-memory cache", "Microsecond reads, offload the database", "Node type and shards"],
+              ["Redshift", "Columnar MPP warehouse", "Complex analytical SQL over petabytes", "RA3 nodes or serverless RPUs"],
+              ["Neptune", "Graph", "Relationships, traversal, recommendations, fraud", "Instance + replicas"],
+              ["DocumentDB", "JSON documents (MongoDB API)", "MongoDB compatibility, managed", "Instance + replicas"],
+              ["Timestream", "Time series", "IoT and telemetry with time-window queries", "Serverless, memory + magnetic tiers"],
+              ["OpenSearch Service", "Search and log index", "Full-text search, log analytics, dashboards", "Data nodes + UltraWarm + cold"]
+            ]
+          },
+          "gotchas": [
+            "Redshift is a warehouse, not an OLTP database — an option using it for high-concurrency single-row transactions is wrong.",
+            "OpenSearch is not a database of record; it indexes data that lives elsewhere.",
+            "DMS requires the target schema to exist; for heterogeneous migrations run the Schema Conversion Tool first.",
+            "DMS continuous replication (CDC) is what enables minimal-downtime cutovers — plain full load implies an outage window.",
+            "Amazon QLDB is retired; ledger-style immutability questions in older banks now resolve to Aurora PostgreSQL with verifiable history or to purpose-built application design.",
+            "Timestream automatically tiers from a memory store to a magnetic store by retention policy, which is why it beats building the same thing on DynamoDB."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "network-performance",
+      "title": "Network performance: edge, hybrid links, and VPC interconnects",
+      "summary": "Latency for end users is solved at the edge, latency and bandwidth for on-premises is solved by the link type, and connectivity between many VPCs is solved by picking the right interconnect topology.",
+      "concepts": [
+        {
+          "name": "CloudFront vs Global Accelerator (and Route 53 latency routing)",
+          "explain": "All three reduce user-perceived latency, but by different mechanisms, and the exam separates them cleanly. CloudFront is a content delivery network: it caches HTTP and HTTPS responses at hundreds of edge locations, so the second and subsequent users get a response without ever reaching the origin. Cache behaviour is controlled by cache policies (which headers, cookies and query strings form the cache key) and origin request policies. Origin groups give automatic failover to a secondary origin on defined 4xx or 5xx responses, and Origin Shield adds a regional caching tier that raises the cache-hit ratio and shields the origin from many edge requests. Origin Access Control is how you lock an S3 origin so only CloudFront can read it.\nGlobal Accelerator does not cache anything. It gives you two static anycast IP addresses; traffic enters the AWS backbone at the nearest edge and travels privately to your endpoints, which cuts jitter and hop count. It works for any TCP or UDP port, not just HTTP, it health-checks endpoints and fails traffic over between Regions in seconds, and the static IPs make it the answer whenever clients must allow-list fixed addresses. Route 53 latency-based routing simply hands out the DNS record for the lowest-latency Region — it is DNS-level, so failover is bounded by TTL and client caching, and it does nothing for the transport path.",
+          "exam_tests": "'Cacheable static or dynamic content, global viewers' is CloudFront. 'Non-HTTP protocol, gaming, VoIP, MQTT, UDP' or 'static IP addresses for firewall allow-listing' or 'fast regional failover measured in seconds' is Global Accelerator. 'Send users to the closest Region' with no other constraint is Route 53 latency routing. When both CloudFront and Global Accelerator appear, ask whether the content is cacheable — if yes, CloudFront.",
+          "example": {
+            "scenario": "A multiplayer game server uses UDP and runs in three Regions. Players report inconsistent latency and long recovery times when a Region becomes unhealthy. The game client is hard-coded with a small set of server IP addresses.",
+            "answer": "Put AWS Global Accelerator in front of the regional endpoints and use its two static anycast IPs.",
+            "why": "CloudFront is HTTP and HTTPS only, so it cannot carry UDP game traffic at all. Global Accelerator gives fixed anycast IPs that satisfy the hard-coded client, routes over the AWS backbone to cut jitter, and shifts traffic away from an unhealthy Region within seconds. Route 53 would need a DNS change and is throttled by client-side TTL caching."
+          },
+          "compare": {
+            "columns": ["Dimension", "CloudFront", "Global Accelerator", "Route 53 latency routing"],
+            "rows": [
+              ["Layer", "HTTP/HTTPS content delivery", "TCP/UDP network layer", "DNS"],
+              ["Caches content", "Yes", "No", "No"],
+              ["IP addresses", "Distributed edge IPs, use a CNAME", "Two static anycast IPs", "N/A"],
+              ["Failover speed", "Origin groups, near-immediate", "Seconds, health-check driven", "Bounded by DNS TTL"],
+              ["Best for", "Static sites, media, APIs with cacheable responses", "Gaming, IoT, VoIP, non-HTTP, IP allow-lists", "Steering users to the nearest Region"],
+              ["Edge compute", "CloudFront Functions and Lambda@Edge", "None", "None"]
+            ]
+          },
+          "gotchas": [
+            "CloudFront Functions run only on viewer request and response, are JavaScript-only, cannot make network calls or read the body, and are for header rewrites, redirects and simple auth. Lambda@Edge can call other services, access the request body, and runs at origin request and response too.",
+            "Origin Access Control replaced Origin Access Identity and additionally supports Lambda function URLs and SSE-KMS S3 origins.",
+            "Global Accelerator has no cache, so it never reduces origin load — only path quality and failover time.",
+            "A cache-hit ratio problem is usually a cache-key problem: forwarding all cookies, headers or query strings fragments the cache.",
+            "Origin Shield is a paid extra regional cache layer, chosen when many edge locations independently miss to the same origin.",
+            "Route 53 alias records are free and can point at the zone apex; CNAMEs cannot be used at the apex."
+          ]
+        },
+        {
+          "name": "Hybrid links: Direct Connect vs Site-to-Site VPN vs Client VPN",
+          "explain": "Direct Connect is a private physical circuit from your network into an AWS Direct Connect location. Dedicated connections come at 1, 10, 100 or 400 Gbps; hosted connections from a partner start far lower and are how you get sub-1 Gbps. Because it is a dedicated circuit, it delivers consistent bandwidth and predictable latency that the public internet cannot promise — and it takes weeks or months to provision, which is why 'we need it now' answers pair a Site-to-Site VPN as the interim link. Crucially, Direct Connect is not encrypted by default: if the stem requires encryption in transit you either run an IPsec VPN over a public virtual interface, enable MACsec on supported dedicated ports, or accept the private-circuit argument only when encryption is not required.\nVirtual interfaces define what the circuit reaches. A private VIF reaches VPC resources through a virtual private gateway or Direct Connect gateway. A public VIF reaches AWS public endpoints such as S3 and DynamoDB over public IPs, still on the private circuit. A transit VIF connects to Transit Gateway through a Direct Connect gateway, which is how one circuit serves many VPCs across Regions. Link Aggregation Groups bond up to four connections for more bandwidth and link redundancy.\nSite-to-Site VPN is IPsec over the internet with two tunnels per connection, each capped at about 1.25 Gbps. To exceed that you terminate multiple VPN connections on a Transit Gateway and use ECMP to spread traffic across them. Client VPN is the unrelated remote-user product: individual laptops connecting into the VPC.",
+          "exam_tests": "'Consistent, predictable bandwidth and latency for a hybrid workload' is Direct Connect. 'Needs connectivity within days' or 'lowest cost hybrid link' is Site-to-Site VPN. 'Direct Connect but the data must be encrypted' means VPN over Direct Connect or MACsec. 'Needs more than 1.25 Gbps over VPN' means multiple tunnels with ECMP on a Transit Gateway. 'Highly available Direct Connect' means two connections at two different Direct Connect locations, and a VPN backup is the cheaper resilient option.",
+          "example": {
+            "scenario": "A company has a 10 Gbps Direct Connect link to AWS. A compliance requirement states that all data traversing any network outside the company data centre must be encrypted in transit. Network engineers claim Direct Connect already satisfies this.",
+            "answer": "Run an IPsec Site-to-Site VPN over the Direct Connect public virtual interface (or enable MACsec on the dedicated connection).",
+            "why": "Direct Connect is private but unencrypted at layer 2 and 3, so a compliance requirement for encryption in transit is not met by the circuit alone. Layering IPsec on top gives encryption while keeping the dedicated path's predictable performance. Moving entirely to an internet VPN would satisfy encryption but throw away the bandwidth and latency consistency the company paid for."
+          },
+          "compare": {
+            "columns": ["Aspect", "Direct Connect", "Site-to-Site VPN"],
+            "rows": [
+              ["Path", "Private dedicated circuit", "Public internet"],
+              ["Bandwidth", "1 / 10 / 100 / 400 Gbps dedicated; hosted from 50 Mbps", "~1.25 Gbps per tunnel; scale with ECMP over TGW"],
+              ["Latency", "Consistent and predictable", "Variable"],
+              ["Encryption", "Not encrypted by default (add IPsec or MACsec)", "IPsec by default"],
+              ["Provisioning time", "Weeks to months", "Minutes"],
+              ["Cost", "Port hours plus lower data-transfer-out rates", "Low hourly plus standard data transfer"],
+              ["Reaches public AWS services", "Yes, via a public VIF", "No, VPC only"],
+              ["Resilience pattern", "Two connections at two DX locations, or DX plus VPN backup", "Two tunnels per connection, two customer gateways"]
+            ]
+          },
+          "gotchas": [
+            "A single Direct Connect connection is a single point of failure; high availability needs a second connection, ideally at a different Direct Connect location.",
+            "Private VIF reaches VPC private IPs; public VIF reaches AWS public service endpoints. Choosing the wrong VIF type is a common trap.",
+            "A Direct Connect gateway is what lets one connection serve VPCs in multiple Regions; a virtual private gateway alone is tied to one VPC.",
+            "MACsec is available only on dedicated 10, 100 and 400 Gbps connections at supported locations.",
+            "Accelerated Site-to-Site VPN routes the tunnel over Global Accelerator to improve internet path quality — the answer for 'VPN performance is inconsistent across long distances'.",
+            "Client VPN is for individual users; it never answers a data-centre-to-VPC question."
+          ],
+          "numbers": [
+            "Site-to-Site VPN: 2 tunnels per connection, ~1.25 Gbps per tunnel",
+            "Direct Connect dedicated: 1, 10, 100, 400 Gbps; LAG bonds up to 4 connections"
+          ]
+        },
+        {
+          "name": "Connecting many VPCs: peering, Transit Gateway, PrivateLink, and MTU",
+          "explain": "VPC peering is a one-to-one, non-transitive link. Two peered VPCs route to each other directly with no bandwidth bottleneck and no extra hop, but a VPC cannot route through a peer to reach a third VPC, and the CIDR blocks must not overlap. With more than a handful of VPCs the number of peering connections grows quadratically, which is the classic setup for the Transit Gateway answer. Transit Gateway is a regional hub that attaches VPCs, VPN connections and Direct Connect transit VIFs, routes transitively between them, supports route tables for segmentation, peers with Transit Gateways in other Regions over encrypted AWS backbone links, and is the only one of these that supports multicast.\nPrivateLink solves a different problem: exposing one service, not connecting whole networks. The provider puts a Network Load Balancer (or Gateway Load Balancer) behind an endpoint service; consumers create interface endpoints in their own VPCs. Traffic is one-way — consumers reach the service, the service cannot reach back into consumer VPCs — overlapping CIDRs are irrelevant because nothing is routed, and it scales to thousands of consumers without touching route tables.\nMTU is the quiet performance detail. Inside a VPC and over a Direct Connect private virtual interface you get 9001-byte jumbo frames. Traffic across a Transit Gateway or a Direct Connect transit VIF is capped at 8500 bytes. Anything crossing an internet gateway, a Site-to-Site VPN or an inter-Region peering connection falls back to 1500 bytes, which is why 'throughput dropped after we moved traffic onto the VPN' has a physical explanation.",
+          "exam_tests": "'Dozens or hundreds of VPCs, simplify routing' is Transit Gateway. 'Two VPCs only, lowest cost, lowest latency' is peering. 'Expose a SaaS or internal service to other accounts, including ones with overlapping CIDRs, without exposing the whole network' is PrivateLink. 'Multicast' is Transit Gateway. 'Transitive routing' is Transit Gateway — peering never routes transitively. Watch for overlapping CIDR blocks, which instantly eliminate peering and Transit Gateway attachments and leave PrivateLink.",
+          "example": {
+            "scenario": "A software company hosts an internal API in its own VPC and needs to make it available to 200 customer VPCs across many AWS accounts. Several customers use the same private CIDR range as the provider, and customers must not be able to reach anything else in the provider's VPC.",
+            "answer": "Publish the API through an AWS PrivateLink endpoint service backed by a Network Load Balancer, and have each customer create an interface endpoint.",
+            "why": "PrivateLink exposes a single service rather than a network, so overlapping CIDRs are irrelevant and connectivity is one-way from consumer to provider. VPC peering fails outright on overlapping CIDRs and would need 200 connections. Transit Gateway would connect the networks rather than one endpoint, which breaks the isolation requirement."
+          },
+          "compare": {
+            "columns": ["Option", "Topology", "Transitive?", "Overlapping CIDRs OK?", "Pick when"],
+            "rows": [
+              ["VPC peering", "One-to-one between VPCs", "No", "No", "Two or a few VPCs, full network access, no extra hop"],
+              ["Transit Gateway", "Hub-and-spoke, regional", "Yes", "No", "Many VPCs, VPNs and DX in one routing domain; multicast"],
+              ["PrivateLink / interface endpoint", "Consumer to a single service", "N/A", "Yes", "Expose one service to many accounts with isolation"],
+              ["Site-to-Site VPN", "On-premises to VPC or TGW", "Via TGW", "No", "Encrypted hybrid link over the internet, fast to set up"],
+              ["Direct Connect", "On-premises to VPC or TGW", "Via DX gateway + TGW", "No", "Dedicated bandwidth and consistent latency"]
+            ]
+          },
+          "gotchas": [
+            "VPC peering is not transitive and does not support edge-to-edge routing through a NAT gateway, VPN or Direct Connect in the peer VPC.",
+            "Transit Gateway adds a small per-attachment hourly charge and per-GB processing, so for exactly two VPCs peering is cheaper and lower latency.",
+            "Interface endpoints (PrivateLink) cost per hour and per GB; gateway endpoints for S3 and DynamoDB are free — that cost contrast is tested constantly.",
+            "Transit Gateway inter-Region peering encrypts traffic over the AWS backbone and does not support multicast or security-group referencing across the peering.",
+            "MTU falls to 1500 over VPN, internet gateway and inter-Region peering; jumbo frames are 9001 in-VPC and 8500 through a Transit Gateway.",
+            "PrivateLink requires an NLB (or GWLB) in the provider VPC — an option using an ALB as the endpoint-service target is wrong unless it is fronted by an NLB."
+          ],
+          "numbers": ["MTU: 9001 in-VPC and DX private VIF, 8500 via Transit Gateway, 1500 over VPN, IGW and inter-Region peering"]
+        }
+      ]
+    },
+    {
+      "id": "ingestion-analytics",
+      "title": "Data ingestion and analytics",
+      "summary": "Streaming choice hinges on whether you need replay and custom processing or just delivery; analytics choice hinges on whether the data stays in S3 and how often you query it.",
+      "concepts": [
+        {
+          "name": "Streaming ingestion: Kinesis Data Streams vs Firehose vs Managed Flink vs MSK",
+          "explain": "Kinesis Data Streams is a durable, replayable log. Capacity is measured in shards: each shard takes 1 MB per second or 1,000 records per second of writes and serves 2 MB per second of reads shared across all standard consumers. Enhanced fan-out gives each registered consumer its own dedicated 2 MB per second per shard with roughly 70-millisecond latency, which is the answer when multiple applications read the same stream and interfere with one another. Data is retained from 24 hours up to 365 days, so consumers can replay. On-demand mode removes shard management and scales automatically.\nFirehose is not a stream — it is a delivery pipeline. You cannot replay from it and there are no shards or consumers; it buffers by size or time (roughly 1 to 128 MB, or 60 to 900 seconds) and writes to S3, Redshift, OpenSearch, Splunk or an HTTP endpoint, optionally transforming records with Lambda and converting JSON to Parquet or ORC on the way. That buffering is why Firehose is near-real-time, not real-time.\nManaged Service for Apache Flink is the stateful processing layer on top: windowed aggregations, joins across streams, anomaly detection in SQL or Java. MSK is managed Apache Kafka, and it wins exactly when the stem mentions Kafka APIs, existing Kafka producers and consumers, or a migration from a self-managed Kafka cluster.",
+          "exam_tests": "'Multiple consumers, replay, ordered per key, real-time' is Kinesis Data Streams. 'Simply load streaming data into S3, Redshift or OpenSearch with the least operational overhead' is Firehose. 'ProvisionedThroughputExceeded errors' means add shards or fix the partition key. 'Existing Kafka application' is MSK. 'Compute a rolling five-minute average over the stream' is Managed Service for Apache Flink. If the stem says 'no code to manage and near-real-time is fine', Firehose beats Streams.",
+          "example": {
+            "scenario": "A telemetry pipeline ingests 8 MB per second into a Kinesis data stream configured with 6 shards. A newly added analytics consumer causes the existing alerting consumer to fall behind and see read throttling. The team wants both consumers to read at full speed.",
+            "answer": "Increase the shard count to cover the ingest rate and register both consumers for enhanced fan-out.",
+            "why": "Six shards give only 6 MB per second of write capacity against an 8 MB per second ingest, so the stream is under-provisioned, and standard consumers share a single 2 MB per second per shard read budget, which is why the second consumer starved the first. Enhanced fan-out gives each consumer its own dedicated read throughput per shard. Switching to Firehose would lose the replay and multi-consumer capability entirely."
+          },
+          "compare": {
+            "columns": ["Service", "Replay?", "Latency", "Ops overhead", "Pick when"],
+            "rows": [
+              ["Kinesis Data Streams", "Yes, 24 h to 365 days", "Real-time (~200 ms, ~70 ms with EFO)", "Manage shards, or use on-demand", "Multiple consumers, ordering, replay, custom processing"],
+              ["Kinesis Data Firehose", "No", "Near-real-time (buffer 60–900 s)", "None — fully managed", "Just deliver to S3, Redshift, OpenSearch or Splunk"],
+              ["Managed Service for Apache Flink", "Reads from a stream", "Real-time", "Low", "Windowed aggregation, joins, anomaly detection"],
+              ["Amazon MSK", "Yes, configurable retention", "Real-time", "Higher (or MSK Serverless)", "Kafka API compatibility or migrating existing Kafka"]
+            ]
+          },
+          "gotchas": [
+            "Firehose cannot replay and has no consumers — any requirement for reprocessing historical records eliminates it.",
+            "Ordering in Kinesis is guaranteed only within a shard, and the partition key decides the shard, so a poor partition key both breaks ordering assumptions and creates hot shards.",
+            "Firehose to Redshift actually stages through S3 and issues COPY; there is no direct streaming write.",
+            "Format conversion to Parquet in Firehose needs a Glue Data Catalog table to supply the schema.",
+            "Kinesis on-demand mode removes shard management but costs more per GB at steady high volume than a well-sized provisioned stream.",
+            "SQS is not a streaming service: no replay after deletion, no multiple independent consumers of the same message, no ordering except FIFO. If the stem needs several consumers to see every record, it is Kinesis or SNS fan-out, not SQS."
+          ],
+          "numbers": [
+            "Per shard: 1 MB/s or 1,000 records/s in, 2 MB/s out shared",
+            "Enhanced fan-out: 2 MB/s per consumer per shard, ~70 ms",
+            "Retention 24 hours default, up to 365 days",
+            "Firehose buffer: 1–128 MB or 60–900 seconds"
+          ]
+        },
+        {
+          "name": "Analytics engines: Athena, Glue, EMR and Redshift Spectrum",
+          "explain": "Athena is serverless SQL over data sitting in S3. You pay per terabyte scanned — roughly five dollars — so every Athena performance and cost question has the same three-part answer: partition the data, convert it to a columnar format such as Parquet or ORC, and compress it. Partitioning lets Athena skip whole directories; columnar formats let it read only the columns in the SELECT; compression shrinks what remains. Together they routinely cut scanned bytes by an order of magnitude.\nGlue is the serverless ETL and metadata layer. The Glue Data Catalog is the shared Hive-compatible metastore that Athena, EMR, Redshift Spectrum and Lake Formation all read. Crawlers infer schema and partitions from S3 automatically. Glue jobs run Spark without a cluster, and DataBrew provides visual, no-code preparation for analysts.\nEMR is managed Hadoop, Spark, Hive, Presto and HBase on clusters you shape. It wins when you need specific framework versions, custom libraries, long-running Spark jobs, or fine-grained cost control — notably running task nodes on Spot while keeping core nodes On-Demand, because core nodes hold HDFS data. EMR Serverless removes cluster sizing. Redshift Spectrum is the fourth option and is only relevant when a Redshift cluster already exists and you want to join warehouse tables to S3 data.",
+          "exam_tests": "'Occasional ad-hoc SQL over S3 with no infrastructure' is Athena. 'Reduce Athena cost or query time' is partition plus Parquet plus compress. 'Discover schema automatically' is a Glue crawler. 'Serverless ETL with no cluster' is Glue jobs; 'visual data preparation for non-engineers' is DataBrew. 'Existing Spark or Hadoop jobs, custom frameworks, or cost control with Spot' is EMR. 'Join S3 data to tables inside an existing Redshift cluster' is Spectrum.",
+          "example": {
+            "scenario": "Analysts query a 60 TB S3 dataset of JSON logs with Athena. Queries almost always filter on a single day and select four of the forty available columns, but each query scans the full dataset and the monthly Athena bill is high.",
+            "answer": "Convert the data to partitioned, compressed Parquet (partitioned by date) and repoint the Glue table at it.",
+            "why": "Athena charges by bytes scanned, and JSON is row-oriented, so every query reads all forty columns for all days. Partitioning by date lets Athena prune to one partition, and Parquet lets it read only the four requested columns; together that cuts scanned bytes dramatically. Moving to Redshift would work technically but adds a cluster and a load pipeline the stem does not ask for."
+          },
+          "compare": {
+            "columns": ["Service", "What it is", "Cost model", "Pick when"],
+            "rows": [
+              ["Athena", "Serverless Presto/Trino SQL over S3", "Per TB scanned (~$5)", "Ad-hoc SQL, no infrastructure, data stays in S3"],
+              ["Glue", "Serverless Spark ETL + Data Catalog + crawlers", "Per DPU-hour, catalog mostly free", "Schema discovery, scheduled ETL, no cluster to run"],
+              ["EMR", "Managed Hadoop/Spark/Hive/Presto clusters", "Per instance-hour (Spot on task nodes)", "Existing big-data frameworks, custom libraries, heavy sustained jobs"],
+              ["Redshift Spectrum", "Redshift querying external S3 tables", "Per TB scanned, plus the cluster", "Joining S3 data with tables already in Redshift"],
+              ["Redshift (native)", "Columnar MPP warehouse", "Node-hours or serverless RPUs", "Repeated complex analytical SQL with high concurrency"]
+            ]
+          },
+          "gotchas": [
+            "Athena cost is driven by bytes scanned, not by rows returned — LIMIT does not reduce the bill.",
+            "EMR core nodes hold HDFS data, so putting them on Spot risks data loss; only task nodes belong on Spot.",
+            "Glue crawlers cost money per run and are unnecessary when the schema is stable and defined manually.",
+            "Redshift Spectrum requires a Redshift cluster or serverless workgroup; if there is no warehouse in the scenario, Athena is the cheaper answer.",
+            "Lake Formation adds column-, row- and cell-level permissions on top of the Glue Catalog and is the answer for 'restrict analysts to a subset of columns across Athena, Redshift and EMR'.",
+            "OpenSearch UltraWarm stores indexes in S3 for read-only, much cheaper long-tail log retention; cold storage is cheaper still but must be attached before querying."
+          ],
+          "numbers": ["Athena: about $5 per TB scanned", "Parquet plus partitioning routinely cuts scanned bytes by 90 percent or more"],
+          "mnemonic": "Athena question? Partition, Parquet, comPress — the three P's."
+        },
+        {
+          "name": "Governance and consumption: Lake Formation, QuickSight, OpenSearch tiers",
+          "explain": "Once data lands in S3, three services complete the picture. Lake Formation sits over the Glue Data Catalog and centralises fine-grained permissions — database, table, column, row and even cell level — which are then enforced consistently whether the analyst queries through Athena, Redshift Spectrum, EMR or Glue. It is the answer whenever the requirement is 'different teams see different columns of the same table' with the least operational overhead, because the alternative is hand-crafting S3 bucket policies per team.\nQuickSight is the BI layer: dashboards, embedded analytics, and SPICE, an in-memory engine that caches a dataset so dashboards render without re-querying the source. That caching is the standard answer to 'dashboards are slow and hammering Redshift'.\nOpenSearch Service handles search and log analytics, and its tiered storage is a favourite of cost-and-performance questions. Hot storage lives on the data nodes' EBS or local NVMe for fast writes and queries. UltraWarm keeps indexes in S3 with local caching for read-only access at a fraction of the cost. Cold storage is the cheapest tier, also in S3, but an index must be attached back into UltraWarm before it can be queried. Index State Management policies move indexes down the tiers automatically by age.",
+          "exam_tests": "'Column-level or row-level access control across the data lake with the least effort' is Lake Formation. 'Dashboards for business users, embedded in an application' is QuickSight; 'dashboards are slow' points at SPICE. 'Keep 18 months of logs searchable but cut cost' is OpenSearch UltraWarm and cold with an ISM policy. 'Natural-language questions about the data' is QuickSight Q.",
+          "example": {
+            "scenario": "A company keeps 18 months of application logs in OpenSearch Service. Only the last 14 days are queried regularly; older data is searched a few times a month during investigations. Storage cost has become the largest line item.",
+            "answer": "Keep 14 days in hot storage and use an Index State Management policy to move older indexes to UltraWarm, then to cold storage.",
+            "why": "UltraWarm backs indexes with S3 while keeping them directly searchable, cutting storage cost sharply for read-only data, and cold storage cuts it further for the rarely touched tail. Moving everything to S3 as raw files would satisfy cost but lose the search interface the investigations need. Adding data nodes addresses capacity but increases the cost the stem is trying to reduce."
+          },
+          "compare": {
+            "columns": ["Tier", "Where data lives", "Query behaviour", "Relative cost"],
+            "rows": [
+              ["Hot", "Data node storage (EBS or NVMe)", "Read and write, fastest", "Highest"],
+              ["UltraWarm", "S3 with node-local caching", "Read-only, directly searchable, slower", "Roughly an order of magnitude cheaper"],
+              ["Cold", "S3, detached", "Must be attached to UltraWarm before querying", "Cheapest"]
+            ]
+          },
+          "gotchas": [
+            "UltraWarm indexes are read-only — you cannot write new documents into them.",
+            "Cold storage indexes cannot be queried until reattached, so they fail any 'immediately searchable' requirement.",
+            "Lake Formation permissions only apply to consumers that go through the catalog; direct S3 access with a permissive bucket policy bypasses them.",
+            "QuickSight SPICE data is a snapshot and needs a refresh schedule — dashboards will show stale data otherwise.",
+            "QuickSight Enterprise edition is required for row-level security, VPC connectivity and Active Directory integration.",
+            "OpenSearch Serverless removes node sizing but is billed in OpenSearch Compute Units and is not always cheaper for steady heavy workloads."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "moving-data-in",
+      "title": "Getting data into AWS",
+      "summary": "Compute the transfer time first: if the wire cannot finish in about a week, ship a Snow device; otherwise the protocol the source speaks picks the service.",
+      "concepts": [
+        {
+          "name": "Online transfer vs Snow: DataSync, Transfer Family, and the one-week rule",
+          "explain": "Start every migration question with arithmetic. A 1 Gbps link moves roughly 10.8 TB per day at theoretical line rate, and realistically closer to 8 TB per day once you allow for overhead and shared use. Divide the dataset by that and if the answer exceeds about a week, the exam wants a Snow device. A Snowcone holds 8 TB on HDD or 14 TB on SSD and is small enough to ship anywhere; a Snowball Edge Storage Optimized device holds about 80 TB usable, with newer devices reaching around 210 TB, and multiple devices run in parallel for petabyte-scale moves.\nWhen the wire is adequate, the protocol decides. DataSync is the bulk online transfer engine: an agent on-premises reads NFS, SMB, HDFS or self-managed object storage and writes into S3, EFS or any FSx flavour, with scheduling, bandwidth throttling, incremental transfer, in-flight validation and metadata preservation. It also moves data between AWS storage services. Transfer Family is a different job entirely: it provides managed SFTP, FTPS, FTP and AS2 endpoints so external partners keep using the protocol they already have while the bytes land in S3 or EFS. If the stem mentions partners, existing SFTP scripts or an FTP server to retire, it is Transfer Family; if it mentions a one-off or recurring bulk copy of a filesystem, it is DataSync.",
+          "exam_tests": "Do the maths whenever a dataset size and a link speed both appear — that pairing is the signal. 'Partners upload over SFTP and cannot change their process' is Transfer Family. 'Migrate 200 TB of NFS shares to EFS on a schedule with bandwidth limits' is DataSync. 'No connectivity, remote site, edge processing' is Snowcone or Snowball Edge. 'Ongoing incremental sync after the initial bulk move' is DataSync following a Snow transfer.",
+          "example": {
+            "scenario": "A media company must move 300 TB of archived footage from an on-premises NAS to Amazon S3. The site has a 500 Mbps internet link that is also used by the business, and the migration must complete within one month.",
+            "answer": "Order multiple AWS Snowball Edge devices and ship the data, then use DataSync for the incremental delta.",
+            "why": "At 500 Mbps, even at full line rate, 300 TB takes roughly 55 days, and the link is shared, so the transfer cannot meet a one-month deadline over the wire. Snowball Edge devices move the bulk offline in days. DataSync alone would be correct only if the link had the headroom, and Transfer Acceleration improves upload paths but cannot create bandwidth that does not exist."
+          },
+          "compare": {
+            "columns": ["Service", "Direction and mode", "Sources / protocols", "Targets", "Pick when"],
+            "rows": [
+              ["DataSync", "Online bulk copy, scheduled or one-off", "NFS, SMB, HDFS, self-managed object, AWS-to-AWS", "S3, EFS, FSx (all four)", "Bulk migration or recurring sync over an adequate link"],
+              ["Transfer Family", "Online, partner-initiated", "SFTP, FTPS, FTP, AS2", "S3, EFS", "External partners must keep their existing protocol"],
+              ["Snowcone / Snowball Edge", "Offline, physical shipment", "NFS or S3 API on the device", "S3", "Link too slow or absent; transfer would take over a week"],
+              ["Storage Gateway", "Hybrid, ongoing", "NFS, SMB, iSCSI, VTL", "S3, Glacier, FSx", "On-premises systems keep running and need cloud-backed storage"],
+              ["DMS", "Online, database-specific", "Database engines", "RDS, Aurora, Redshift, S3, DynamoDB", "Moving a live database with change data capture"]
+            ]
+          },
+          "gotchas": [
+            "1 Gbps is about 10.8 TB per day at theory and roughly 8 TB per day in practice — memorise this to do the arithmetic fast.",
+            "Snowball Edge Compute Optimized exists for edge processing (and GPU workloads) at a disconnected site, not just for shipping bytes.",
+            "AWS Snowmobile has been discontinued; do not pick it for exabyte-scale scenarios in current material.",
+            "DataSync needs an agent for on-premises sources but not for AWS-to-AWS transfers.",
+            "Transfer Family charges per endpoint hour whether used or not, plus per GB — so it loses on cost for a one-off bulk move.",
+            "S3 Transfer Acceleration helps long-distance uploads over a healthy link; it does nothing when the bottleneck is raw local bandwidth."
+          ],
+          "numbers": [
+            "Snowcone 8 TB HDD / 14 TB SSD; Snowball Edge Storage Optimized ~80 TB usable (newer devices ~210 TB)",
+            "1 Gbps ≈ 10.8 TB/day at line rate; assume ~8 TB/day realistically",
+            "Rule of thumb: more than about one week over the wire means use Snow"
+          ]
+        },
+        {
+          "name": "Storage Gateway: File, Volume cached vs stored, and Tape",
+          "explain": "Storage Gateway is for hybrid situations where on-premises systems must keep working unchanged while their data is backed by AWS. It comes in four shapes and the exam tests the distinction between two of them relentlessly. S3 File Gateway presents an NFS or SMB share; files written to it become S3 objects one-for-one, with a local cache for recently accessed data, so on-premises applications get a file interface over S3 and lifecycle policies apply to the objects. FSx File Gateway does the same for FSx for Windows, giving remote offices a low-latency local cache of an SMB share.\nVolume Gateway presents iSCSI block volumes. In cached mode the primary copy of the data lives in S3 and only the hot subset is cached locally, so you get effectively unlimited capacity with a small local footprint. In stored mode the primary copy stays on-premises for full low-latency local access and is asynchronously backed up to S3 as EBS snapshots. The discriminator is one sentence: cached means primary in AWS, stored means primary on-premises. Tape Gateway presents a virtual tape library over iSCSI so existing backup software (NetBackup, Veeam, Commvault) writes tapes that actually land in S3 and Glacier, which is the answer to any 'eliminate physical tape' question.",
+          "exam_tests": "'Existing backup software writing to tape, want to stop buying tapes' is Tape Gateway. 'On-premises applications need low-latency access to all local data with cloud backup' is Volume Gateway stored. 'Local storage capacity is exhausted, keep only hot data on-site' is Volume Gateway cached. 'On-premises servers need an NFS or SMB share whose contents are S3 objects' is S3 File Gateway. If the scenario has no on-premises component, Storage Gateway is a distractor.",
+          "example": {
+            "scenario": "A manufacturing plant's application writes to an on-premises iSCSI volume and requires low-latency access to the entire 20 TB dataset. The company wants offsite backups in AWS without changing the application or accepting higher read latency.",
+            "answer": "Deploy a Volume Gateway in stored mode so the full dataset stays local and is asynchronously snapshotted to S3.",
+            "why": "Stored mode keeps the primary copy on-premises, which is the only way to guarantee low-latency access to the entire dataset, while EBS snapshots go to AWS for offsite protection. Cached mode would put the primary copy in S3 and serve only hot blocks locally, adding latency for cold reads. S3 File Gateway presents a file interface, not the iSCSI block device the application expects."
+          },
+          "compare": {
+            "columns": ["Gateway type", "Protocol presented", "Primary copy", "Backed by", "Signature scenario"],
+            "rows": [
+              ["S3 File Gateway", "NFS / SMB", "S3 (local cache)", "S3 objects", "File share whose contents are usable S3 objects"],
+              ["FSx File Gateway", "SMB", "FSx for Windows (local cache)", "FSx for Windows", "Branch office needs low-latency access to a Windows share"],
+              ["Volume Gateway — cached", "iSCSI block", "S3", "EBS snapshots", "Local capacity is the constraint; keep only hot blocks on-site"],
+              ["Volume Gateway — stored", "iSCSI block", "On-premises", "EBS snapshots", "Full dataset must stay local; back up offsite"],
+              ["Tape Gateway", "iSCSI VTL", "S3 / Glacier", "Virtual tapes", "Replace physical tape libraries, keep backup software"]
+            ]
+          },
+          "gotchas": [
+            "Cached versus stored is the most-tested pair here: cached puts the primary copy in AWS, stored keeps it on-premises.",
+            "S3 File Gateway writes real S3 objects, so lifecycle policies, replication and other S3 features apply — that is why it beats a plain sync script.",
+            "Tape Gateway integrates with existing backup applications over the standard VTL interface, so no backup software change is needed.",
+            "Storage Gateway runs as a VM or a hardware appliance on-premises (or on EC2 for testing) and needs a local disk for cache and upload buffer.",
+            "A Storage Gateway answer in a scenario with no on-premises footprint is always wrong.",
+            "For a one-time migration DataSync is cheaper and faster than File Gateway; File Gateway is for ongoing hybrid access."
+          ],
+          "mnemonic": "Cached = Cloud holds it. Stored = Site holds it."
+        },
+        {
+          "name": "Event-driven ingestion: S3 notifications, EventBridge and AppFlow",
+          "explain": "Once objects land in S3, processing should start by itself. S3 Event Notifications fire on object creation, deletion, restore and replication events, and can target SNS, SQS or Lambda directly — the simple, low-latency path when one bucket triggers one or two consumers. Sending S3 events to EventBridge instead unlocks richer content-based filtering, more than twenty targets, archive and replay of events, and cross-account routing, which is why 'multiple downstream systems' or 'need to replay events' points at EventBridge. The general design rule is a fan-out pattern: S3 to SNS, SNS to several SQS queues, each queue feeding its own consumer, so a slow consumer never blocks the others.\nAppFlow is the different door into AWS: a managed connector service that pulls data from SaaS applications such as Salesforce, SAP, Slack, Zendesk and Google Analytics into S3, Redshift or Snowflake on a schedule or on an event, with field mapping, filtering and validation, and no code. When a scenario says 'ingest data from a third-party SaaS product with the least development effort', AppFlow is the answer and building a Lambda that calls the vendor API is the trap.",
+          "exam_tests": "'Process each uploaded file automatically' is an S3 event notification to Lambda. 'Several independent systems must each react to the same upload' is S3 to SNS fan-out or S3 to EventBridge. 'Need to replay past events or filter on object metadata' is EventBridge. 'Pull records from Salesforce into S3 without writing code' is AppFlow. Anything describing a polling loop or a scheduled scan of a bucket is a distractor when an event-driven option exists.",
+          "example": {
+            "scenario": "Every image uploaded to an S3 bucket must be resized, virus-scanned and catalogued by three independent teams' services. Today a single Lambda function does all three and a failure in one step blocks the others.",
+            "answer": "Publish the S3 event to an SNS topic and subscribe three SQS queues, one per consuming service.",
+            "why": "SNS fan-out delivers a copy of each event to every subscriber, and the intervening SQS queues decouple the consumers so one failing or slow service cannot block the rest, with retries and a dead-letter queue per consumer. Adding more Lambda concurrency to the monolithic function does not remove the coupling. S3 can also publish to EventBridge for the same fan-out with richer filtering, which is equally defensible when advanced routing is required."
+          },
+          "compare": {
+            "columns": ["Mechanism", "Targets", "Filtering", "Replay", "Pick when"],
+            "rows": [
+              ["S3 Event Notifications", "SNS, SQS, Lambda, EventBridge", "Prefix and suffix only", "No", "Simple, direct, one or two consumers"],
+              ["S3 to EventBridge", "20+ AWS targets, cross-account", "Rich content-based rules", "Yes, via archive and replay", "Many consumers, complex routing, audit and replay"],
+              ["SNS fan-out to SQS", "Many queues, each with its own consumer", "Message filtering policies", "Within queue retention", "Independent consumers that must not block each other"],
+              ["AppFlow", "S3, Redshift, and SaaS destinations", "Field mapping and filters", "N/A", "SaaS-to-AWS ingestion with no code"]
+            ]
+          },
+          "gotchas": [
+            "S3 event notification filtering supports only prefix and suffix; anything richer requires EventBridge.",
+            "Only EventBridge offers event archive and replay — S3 notifications and plain SNS do not.",
+            "Putting SQS between the event source and the consumer is the standard answer for buffering bursts and protecting a downstream system, and it gives you retries plus a dead-letter queue.",
+            "Direct S3-to-Lambda invocation has no queue, so a Lambda throttle can drop work; the durable pattern goes through SQS.",
+            "AppFlow supports both scheduled and event-triggered flows, and it beats a hand-written Lambda integration on 'least development effort'.",
+            "EventBridge Scheduler replaces CloudWatch Events rules for cron-style triggers at scale and supports one-time schedules."
+          ]
+        }
+      ]
+    }
+  ],
+  "end_of_domain_checklist": [
+    "I can state the gp3 baseline (3,000 IOPS, 125 MB/s) and explain why it beats gp2 for an over-provisioned volume.",
+    "I can name which EBS types support Multi-Attach, in how many instances, and in how many AZs.",
+    "I can pick between EFS, FSx for Windows, FSx for Lustre and FSx for NetApp ONTAP from the protocol named in the stem.",
+    "I can say why instance store is disqualified the moment a stem says data must persist.",
+    "I can explain that S3 request limits are per prefix and give both numbers.",
+    "I can map C, R, I, T, G and P instance letters to their bottleneck in one word each.",
+    "I can state the seven-instances-per-AZ limit on spread placement groups and pick partition for Cassandra.",
+    "I can choose between target tracking, scheduled and predictive scaling from how predictable the demand is.",
+    "I can recite the Lambda limits that disqualify it: 15 minutes, 10 GB memory, 6 MB sync payload, 256 KB async.",
+    "I can explain why RDS Proxy, not a bigger instance, fixes too-many-connections from Lambda.",
+    "I can distinguish a read replica (performance) from Multi-AZ (availability) without hesitating.",
+    "I can diagnose a DynamoDB hot partition from the partition-key cardinality and quote 3,000 RCU / 1,000 WCU per partition.",
+    "I can say when DAX beats ElastiCache and why strongly consistent reads bypass DAX.",
+    "I can pick CloudFront over Global Accelerator (and the reverse) from one sentence about protocol and IP requirements.",
+    "I can say that Direct Connect is not encrypted by default and name two ways to encrypt it.",
+    "I can choose between VPC peering, Transit Gateway and PrivateLink when CIDR blocks overlap.",
+    "I can quote Kinesis shard limits and explain when enhanced fan-out is required.",
+    "I can name the three levers that cut Athena cost and say which one removes whole directories from the scan.",
+    "I can compute transfer time from dataset size and link speed and apply the one-week Snow rule.",
+    "I can distinguish Volume Gateway cached from stored in one sentence about where the primary copy lives."
+  ]
+}
