@@ -1,0 +1,696 @@
+{
+  "domain": "D4",
+  "title": "Design Cost-Optimized Architectures",
+  "weight": 0.20,
+  "intro": "Domain 4 is 20% of the exam — expect roughly 13 of the 65 questions, and expect the phrase \"MOST cost-effective\" to appear in several others across D2 and D3 as the tiebreaker. It is the most mechanical domain on the exam: almost every question reduces to one of three moves — right-size (stop paying for capacity you never use), right-price (commit or bid for a discount on capacity you do use), right-place (put the bytes in the cheapest class or the cheapest path that still meets the stated requirement). The trap is not knowing prices; it is picking the cheapest option that quietly breaks a requirement stated one sentence earlier. Learn the S3 storage-class table cold, learn the EC2 purchasing table cold, and learn which of NAT Gateway / gateway endpoint / interface endpoint costs nothing — those three tables account for the majority of the domain.",
+  "sections": [
+    {
+      "id": "cost-mental-model",
+      "title": "The cost mental model",
+      "summary": "Every cost question is right-size, right-price, or right-place — and the stated requirement always wins before price does.",
+      "concepts": [
+        {
+          "name": "The three cost verbs: right-size, right-price, right-place",
+          "explain": "AWS cost work has only three levers and the exam tests each one separately. Right-size means matching provisioned capacity to actual demand: a smaller instance, gp3 instead of an over-provisioned gp2, auto scaling instead of a fixed fleet, Aurora Serverless instead of a permanently-on db.r6g.4xlarge. Right-price means paying a lower rate for capacity you have already decided you need: Savings Plans, Reserved Instances, Spot, Graviton. Right-place means moving the workload or the data to a cheaper tier or a cheaper path: S3 Glacier instead of Standard, a gateway endpoint instead of a NAT Gateway, CloudFront instead of direct egress.\nA fourth idea sits underneath all three: managed and serverless services shift capacity risk to AWS, so you stop paying for idle. That is why \"pay only for what runs\" answers — Lambda, Fargate, Aurora Serverless v2, DynamoDB on-demand, S3 — win spiky and intermittent workloads even when their unit price looks high. Conversely, commitment buys a discount only when the load is steady and predictable. Spiky plus committed is the classic wrong pairing; steady plus on-demand is the other one.",
+          "exam_tests": "The stem tells you the demand shape, and the demand shape picks the lever. \"Unpredictable / spiky / a few hours a day / new application with unknown traffic\" means pay-per-use (serverless, on-demand capacity). \"Steady-state / baseline / runs 24/7 / predictable for the next three years\" means commitment (Savings Plans, Reserved Instances, reserved nodes). \"Fault-tolerant / stateless / can be interrupted / batch\" means Spot. \"Accessed rarely / archived / compliance retention\" means a colder storage class.",
+          "example": {
+            "scenario": "A company runs a batch analytics job on 40 EC2 instances for four hours every night. A separate always-on API tier runs on 6 instances that have been the same size for two years. The company wants the lowest cost without redesigning either workload.",
+            "answer": "Spot Instances (or Spot in an EC2 Fleet) for the nightly batch, and a Compute Savings Plan or EC2 Instance Savings Plan for the six always-on API instances.",
+            "why": "The two workloads have different demand shapes, so they take different levers — a single answer applied to both is wrong. Reserving the batch fleet wastes 20 hours a day of commitment; running the steady API tier on Spot risks interruption on a customer-facing service for a discount you could get safely with a Savings Plan."
+          },
+          "compare": {
+            "columns": ["Demand shape", "Lever", "Typical answer", "Anti-pattern"],
+            "rows": [
+              ["Steady 24/7 baseline", "Right-price via commitment", "Savings Plan / RI / reserved node", "Leaving it On-Demand"],
+              ["Spiky, unpredictable, bursty", "Right-size via pay-per-use", "Lambda, Fargate, Aurora Serverless v2, DynamoDB on-demand", "Reserving peak capacity"],
+              ["Interruptible batch / stateless workers", "Right-price via Spot", "Spot Fleet, Fargate Spot, EMR task nodes on Spot", "On-Demand, or Spot for a database"],
+              ["Runs only on a schedule (dev/test)", "Right-size via turning it off", "Instance Scheduler, scheduled scaling to zero, stop RDS", "Reserving a dev environment"],
+              ["Data accessed rarely", "Right-place", "Colder S3 class, EBS Snapshot Archive, EFS IA/Archive", "Standard storage forever"]
+            ]
+          },
+          "gotchas": [
+            "Commitment discounts apply to spend, not to instances you forgot to shut down — right-size before you right-price, or you lock in waste for three years.",
+            "Serverless is not automatically cheaper: at high, steady, always-on volume a right-priced EC2 or Fargate fleet usually beats Lambda per unit of work.",
+            "\"LEAST operational overhead\" and \"MOST cost-effective\" often point at the same managed service, but when they conflict the stem's exact phrase decides.",
+            "Turning something off beats every discount: a stopped dev RDS instance or a scaled-to-zero ASG is 100% off compute.",
+            "Capacity Reservations reserve capacity but give zero discount — they are an availability lever, not a cost lever."
+          ],
+          "mnemonic": "Size it, price it, place it — in that order."
+        },
+        {
+          "name": "Reading \"MOST cost-effective\" — requirement first, then cheapest",
+          "explain": "AWS never asks for the cheapest option full stop. It asks for the cheapest option that still meets the requirements written in the scenario. So the correct procedure is two passes: first eliminate every option that violates a stated constraint, then among the survivors pick the cheapest. Candidates lose points by doing it in the opposite order and picking the option with the lowest sticker price.\nThe constraints that most often disqualify a cheap answer are: durability or availability across AZs (kills One Zone-IA and instance store), retrieval time (kills Glacier Flexible and Deep Archive when the stem says \"within minutes\" or \"immediately\"), interruption tolerance (kills Spot for stateful or customer-facing tiers), and \"no application changes\" (kills answers that require rewriting to a new API or data model). Read the last sentence of the scenario before the options — that is where the disqualifying constraint usually hides.",
+          "exam_tests": "Look for a constraint sentence paired with a cost stem. \"Data must be retrievable within 15 minutes\" plus \"MOST cost-effective\" is Glacier Flexible with Expedited retrieval, not Deep Archive. \"The data can be recreated if lost\" unlocks One Zone-IA and instance store. \"Occasional access, milliseconds when needed\" is Glacier Instant Retrieval. \"Cannot tolerate interruption\" removes every Spot option regardless of the 90% discount.",
+          "example": {
+            "scenario": "A media company archives 400 TB of finished projects. Legal requires the archive be kept for seven years. Once or twice a year an auditor requests a file and the company must produce it within 12 hours.",
+            "answer": "S3 Glacier Deep Archive with Standard retrieval.",
+            "why": "Deep Archive Standard retrieval completes in 12 hours, which exactly satisfies the stated requirement, and it is the cheapest class that does. Glacier Flexible would also meet the SLA but costs materially more per GB, and Deep Archive's 180-day minimum is irrelevant against a seven-year retention."
+          },
+          "gotchas": [
+            "The cheapest option in the list is a distractor at least as often as it is the answer — check it against every stated constraint first.",
+            "\"Must be highly available\" or \"must survive an AZ failure\" silently eliminates One Zone-IA, single-AZ RDS, and instance store.",
+            "\"Minimal changes to the application\" eliminates re-platforming answers even when they are cheaper long-term.",
+            "A retrieval-time requirement is the single most common disqualifier in S3 archive questions — map the number in the stem to the tier before reading options.",
+            "When two survivors both meet every requirement, prefer the managed/serverless one: it wins the operational-overhead tiebreak the exam usually intends."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s3-storage-cost",
+      "title": "S3 storage classes and lifecycle",
+      "summary": "Match access frequency and required retrieval time to the cheapest class that clears both, then automate the move with lifecycle rules.",
+      "concepts": [
+        {
+          "name": "The S3 storage class ladder",
+          "explain": "S3 classes differ on four billing dimensions: per-GB storage price, minimum billable storage duration, minimum billable object size, and per-GB retrieval fee plus retrieval latency. Colder classes trade a lower storage price for a higher retrieval price and a longer wait. That trade only pays off when access is genuinely rare — a Standard-IA object read twice a month can cost more than the same object in Standard because of the retrieval fee.\nDurability is identical (eleven nines) across all classes except that One Zone-IA and Express One Zone store data in a single AZ, so an AZ loss destroys the data. Availability SLAs step down as you go colder: 99.99% design for Standard, 99.9% for Standard-IA, 99.5% for One Zone-IA. Express One Zone is the odd one out — it is the most expensive per GB but has the cheapest requests and single-digit-millisecond latency, so it targets request-heavy, latency-sensitive workloads, not archival savings.",
+          "exam_tests": "The stem gives you an access pattern and a retrieval-time tolerance; you map those onto the table. Trigger phrases: \"accessed once a month but needs millisecond access\" is Glacier Instant Retrieval; \"reproducible / can be regenerated / secondary copy\" is One Zone-IA; \"unknown or changing access patterns\" is Intelligent-Tiering; \"within minutes\" is Glacier Flexible Expedited; \"within 12 hours, lowest cost\" is Deep Archive.",
+          "example": {
+            "scenario": "A genomics firm stores 2 PB of raw sequencer output. Files are heavily read during the first 30 days, then almost never — but when a researcher does request one, it must open immediately. Regulations require the data be kept indefinitely.",
+            "answer": "Lifecycle transition from S3 Standard to S3 Glacier Instant Retrieval after 30 days.",
+            "why": "\"Must open immediately\" rules out both Glacier Flexible and Deep Archive, whose fastest retrievals are minutes and hours. Glacier Instant Retrieval gives millisecond access at roughly a fifth of Standard's storage price, which beats Standard-IA for data this cold."
+          },
+          "compare": {
+            "columns": ["Class", "Min duration", "Retrieval time", "Retrieval fee", "Use when"],
+            "rows": [
+              ["S3 Standard", "None", "Milliseconds", "None", "Frequent access, hot data, default"],
+              ["Intelligent-Tiering", "None", "Milliseconds (async archive tiers slower)", "None (small monitoring fee per 1,000 objects)", "Unknown or changing access patterns"],
+              ["Standard-IA", "30 days", "Milliseconds", "Per-GB", "Infrequent but rapid access, multi-AZ needed"],
+              ["One Zone-IA", "30 days", "Milliseconds", "Per-GB", "Infrequent, re-creatable, single AZ acceptable (~20% cheaper than Standard-IA)"],
+              ["Glacier Instant Retrieval", "90 days", "Milliseconds", "Per-GB (higher than IA)", "Archive that must open instantly, ~1 access per quarter"],
+              ["Glacier Flexible Retrieval", "90 days", "Expedited 1–5 min / Standard 3–5 h / Bulk 5–12 h", "Per-GB by tier (Bulk is free)", "Archive with minutes-to-hours tolerance, 1–2 accesses per year"],
+              ["Glacier Deep Archive", "180 days", "Standard 12 h / Bulk 48 h", "Per-GB (lowest)", "Long-term compliance retention, cheapest storage in AWS"],
+              ["S3 Express One Zone", "None", "Single-digit ms", "None", "Very high request rates, latency-sensitive; highest per-GB, cheapest requests"]
+            ]
+          },
+          "gotchas": [
+            "Standard-IA and One Zone-IA bill a minimum of 128 KB per object — 10 million 20 KB objects cost the same as 10 million 128 KB objects, so IA is often more expensive than Standard for tiny files.",
+            "Deleting an object before its minimum duration still bills the remainder: delete a Deep Archive object on day 10 and you pay for 180 days.",
+            "One Zone-IA is not \"cheap Standard-IA\" — an AZ failure loses the data, so any stem mentioning availability or resilience disqualifies it.",
+            "Glacier Flexible's Bulk retrieval (5–12 h) has no retrieval charge; Expedited (1–5 min) is the expensive one.",
+            "Express One Zone is a performance class, not a savings class — do not pick it in a cost question about archival data.",
+            "All classes share the same 11 nines of durability; the differences are availability, latency, and price."
+          ],
+          "mnemonic": "IA 30 / Glacier 90 / Deep 180 — minimum days double-double-double."
+        },
+        {
+          "name": "S3 Intelligent-Tiering",
+          "explain": "Intelligent-Tiering is the answer whenever the scenario says access patterns are unknown, unpredictable, or changing, and the customer does not want to manage lifecycle rules. It monitors each object and moves it automatically: Frequent Access, then Infrequent Access after 30 days without access, then Archive Instant Access after 90 days. Two additional opt-in asynchronous tiers exist — Archive Access (configurable from 90 days) and Deep Archive Access (from 180 days) — but objects in those require a restore before they can be read, so enabling them changes the access semantics of your bucket.\nThe economics: there are no retrieval fees and no minimum storage duration charge, but there is a small per-object monitoring and automation fee per 1,000 objects. That fee is why Intelligent-Tiering is a bad fit for buckets full of millions of tiny objects, and why objects smaller than 128 KB are not monitored or auto-tiered at all — they simply stay billed at the Frequent Access rate.",
+          "exam_tests": "\"Access patterns are unknown / unpredictable / change over time\" plus \"no operational overhead\" or \"without performance impact\" is Intelligent-Tiering, nearly every time. The distractor is a lifecycle rule with fixed day counts, which is wrong precisely because the pattern is not known. The other discriminator is the <128 KB rule when the stem says the objects are small.",
+          "example": {
+            "scenario": "A SaaS company stores user-uploaded documents in S3. Some documents are read daily for years; most are never opened after the first week. The team cannot predict which is which and does not want to build or maintain tiering logic.",
+            "answer": "Store all objects in S3 Intelligent-Tiering.",
+            "why": "Unpredictable per-object access with no appetite for management is exactly what Intelligent-Tiering automates, and it charges no retrieval fee when a cold document is unexpectedly opened. A fixed lifecycle rule to Standard-IA would move the daily-read documents too and incur retrieval charges on every access."
+          },
+          "compare": {
+            "columns": ["Tier inside Intelligent-Tiering", "Moves after", "Access", "Opt-in?"],
+            "rows": [
+              ["Frequent Access", "Default on ingest", "Milliseconds", "No"],
+              ["Infrequent Access", "30 days no access", "Milliseconds", "No"],
+              ["Archive Instant Access", "90 days no access", "Milliseconds", "No"],
+              ["Archive Access", "90+ days (configurable)", "Minutes to hours, restore required", "Yes"],
+              ["Deep Archive Access", "180+ days (configurable)", "Hours, restore required", "Yes"]
+            ]
+          },
+          "gotchas": [
+            "Objects under 128 KB are never auto-tiered and stay at the Frequent Access rate — a bucket of thumbnails gains nothing but pays monitoring fees.",
+            "The optional Archive Access and Deep Archive Access tiers break millisecond access; if the stem says data must always be immediately available, do not enable them.",
+            "No retrieval fees is the killer feature — that is what separates it from a Standard-IA lifecycle rule when access is erratic.",
+            "The monitoring fee is per object, not per GB, so cost scales with object count; huge numbers of small objects make it uneconomic.",
+            "Intelligent-Tiering does not remove the need for an expiration rule — it never deletes anything."
+          ]
+        },
+        {
+          "name": "Lifecycle rules, expiration, and the multipart leak",
+          "explain": "A lifecycle configuration is a set of rules scoped by prefix or tag that does two kinds of thing: transition actions move objects to a colder class, and expiration actions delete them. Both can target current versions, noncurrent versions, or expired delete markers independently, which matters enormously in versioned buckets where old versions silently accumulate at full Standard price.\nTwo rules trip people up. First, an object must sit at least 30 days in Standard before a lifecycle rule can transition it to Standard-IA or One Zone-IA — AWS enforces this, so a \"transition after 7 days to Standard-IA\" answer is simply invalid. Second, failed or abandoned multipart uploads leave parts in the bucket that do not appear in the object listing but are billed for storage forever. The AbortIncompleteMultipartUpload lifecycle action is the fix and it is a recurring exam answer for \"our S3 bill is higher than the sum of our objects\".",
+          "exam_tests": "Recognise the 30-day floor as an invalidity test on options. Recognise \"storage costs keep growing but our object count is flat\" as either noncurrent versions or incomplete multipart uploads. Recognise \"delete logs after N days\" as an expiration action, not a transition. \"Transition then expire\" chains are common: Standard → Standard-IA at 30 → Glacier Flexible at 90 → expire at 365.",
+          "example": {
+            "scenario": "An operations team notices its S3 bill has grown 40% over six months while the number of visible objects has stayed flat. The bucket is versioned and receives large nightly uploads from an unreliable on-premises agent that frequently loses its connection mid-transfer.",
+            "answer": "Add a lifecycle configuration that aborts incomplete multipart uploads after 7 days and expires noncurrent object versions after 30 days.",
+            "why": "Orphaned multipart parts and noncurrent versions are billed as storage but do not show in a normal object listing, which is exactly the symptom described. Transitioning to a colder class would shave the rate but leave the invisible garbage in place, so it does not address the cause."
+          },
+          "compare": {
+            "columns": ["Lifecycle action", "What it does", "Classic trigger phrase"],
+            "rows": [
+              ["Transition (current version)", "Moves live objects to a colder class", "\"After 90 days move to archive\""],
+              ["Transition (noncurrent version)", "Moves old versions to a colder class", "\"Retain previous versions cheaply\""],
+              ["Expiration (current version)", "Deletes the live object", "\"Logs are only needed for 1 year\""],
+              ["NoncurrentVersionExpiration", "Deletes old versions", "\"Bill grows though object count is flat\""],
+              ["ExpiredObjectDeleteMarker", "Cleans delete markers left behind", "Versioned bucket housekeeping"],
+              ["AbortIncompleteMultipartUpload", "Deletes orphaned upload parts", "\"Unexplained storage cost\", flaky large uploads"]
+            ]
+          },
+          "gotchas": [
+            "You cannot transition to Standard-IA or One Zone-IA earlier than 30 days after object creation — an option that does is wrong on its face.",
+            "Transitions cost a per-1,000-request fee; transitioning millions of tiny objects can cost more than the storage you save.",
+            "By default, lifecycle transitions skip objects smaller than 128 KB when moving to a smaller-billing class.",
+            "Lifecycle rules are asynchronous — billing changes at the scheduled time, but the physical move may lag; do not expect same-second effect.",
+            "Expiration in a versioned bucket only adds a delete marker; you need NoncurrentVersionExpiration to actually stop paying.",
+            "Lifecycle is free to configure and run — there is no charge for the rule itself, only for the transition requests."
+          ]
+        },
+        {
+          "name": "Seeing where the S3 money goes: Storage Lens, Storage Class Analysis, Inventory, Requester Pays",
+          "explain": "Before you optimize you need visibility, and the exam distinguishes four S3 tools by what question they answer. S3 Storage Lens is the organization-wide dashboard: usage and activity trends across all accounts and buckets, with recommendations — free metrics by default, advanced metrics for a fee. S3 Storage Class Analysis is narrower and answers one question: for this bucket or prefix, when do objects stop being accessed, so what transition age should my lifecycle rule use. S3 Inventory produces a scheduled flat file (CSV, ORC, or Parquet) listing objects and metadata such as size, storage class, and encryption status — far cheaper than paging LIST requests, and queryable with Athena.\nRequester Pays is a different lever: it flips who pays for requests and data transfer out of a bucket onto the requester, who must be an authenticated AWS principal. It is the answer for publishing large shared datasets without absorbing everyone else's egress bill.",
+          "exam_tests": "\"Which prefix should we transition and when\" is Storage Class Analysis. \"Visibility across hundreds of buckets in the organization\" is Storage Lens. \"Report of every object and its storage class for audit or a custom analysis\" is S3 Inventory. \"Share a large dataset with partners without paying their download costs\" is Requester Pays.",
+          "example": {
+            "scenario": "A research institute publishes a 300 TB public dataset in S3. Downloads by external universities have driven data transfer charges to a level the institute cannot sustain, but it wants to keep the dataset available.",
+            "answer": "Enable Requester Pays on the bucket.",
+            "why": "Requester Pays shifts request and data-transfer-out charges to the downloading AWS account while the institute keeps paying only for storage. Fronting the bucket with CloudFront would reduce the per-GB rate but the institute would still be paying for every download."
+          },
+          "compare": {
+            "columns": ["Tool", "Answers", "Output", "Scope"],
+            "rows": [
+              ["S3 Storage Lens", "Where is storage growing across the org?", "Dashboard + metrics export", "Org, account, bucket, prefix"],
+              ["Storage Class Analysis", "When do objects go cold?", "Transition-age recommendation", "Bucket or prefix"],
+              ["S3 Inventory", "What objects exist and in which class?", "Scheduled CSV/ORC/Parquet to S3", "Bucket or prefix"],
+              ["Requester Pays", "Who pays for downloads?", "Billing behaviour change", "Bucket"]
+            ]
+          },
+          "gotchas": [
+            "Requester Pays blocks anonymous access — every requester must be authenticated and must pass x-amz-request-payer, so it cannot serve a public unauthenticated website.",
+            "Storage Class Analysis only recommends the Standard to Standard-IA transition age; it does not plan Glacier transitions.",
+            "S3 Inventory is delivered on a daily or weekly schedule, not on demand — it is not a live query interface.",
+            "Storage Lens free tier gives 28 days of usage metrics; advanced metrics with activity data and 15-month retention are a paid upgrade.",
+            "None of these tools moves data — they inform the lifecycle rule you still have to write."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "block-file-backup-cost",
+      "title": "Block, file, and backup cost",
+      "summary": "Default to gp3, delete what nothing is attached to, tier cold file data automatically, and know which data transfer is free.",
+      "concepts": [
+        {
+          "name": "EBS volume economics: gp3, orphans, and when io2 is justified",
+          "explain": "gp3 is the default answer for general-purpose EBS on a cost question. It costs roughly 20% less per GB than gp2 and, crucially, decouples performance from capacity: every gp3 volume includes 3,000 IOPS and 125 MB/s of throughput regardless of size, and you can provision up to 16,000 IOPS and 1,000 MB/s independently for an extra charge. gp2 derives 3 IOPS per GB, which forced people to buy a 1 TB volume just to get 3,000 IOPS on 100 GB of data — that over-provisioning is the waste the exam wants you to eliminate. Migrating gp2 to gp3 is an in-place volume modification with no downtime.\nProvisioned IOPS io1/io2 are for sustained IOPS above what gp3 offers or for the 99.999% durability of io2, and you pay for the IOPS separately, so they are almost never the cost-optimized answer unless the stem demands that performance. st1 and sc1 are HDD-backed and cheaper per GB than any SSD: st1 for large sequential throughput workloads like log processing and big data, sc1 for the coldest infrequently-accessed volumes. Neither can be a boot volume. The other lever is hygiene: unattached volumes and elastic IPs keep billing, and Trusted Advisor and Cost Explorer both flag them.",
+          "exam_tests": "\"Reduce EBS cost without changing performance\" is gp2 to gp3. \"Needs 3,000 IOPS on a small volume\" is gp3 (gp2 would force an oversized volume). \"Large sequential scans, throughput-oriented, lowest cost\" is st1. \"Cheapest possible cold block storage, rarely accessed\" is sc1. Watch for the io2 distractor when the stem never states an IOPS requirement above 16,000.",
+          "example": {
+            "scenario": "An application uses 200 GB of data but was given 1 TB gp2 volumes solely to reach 3,000 IOPS. Finance wants the storage bill reduced with no loss of performance and no downtime.",
+            "answer": "Modify the volumes to gp3 at 200–250 GB with 3,000 baseline IOPS.",
+            "why": "gp3 includes 3,000 IOPS at any size, so the capacity bought purely for performance can be released, and gp3's per-GB rate is about 20% below gp2 on top of that. Moving to io2 would meet the IOPS target but adds a separate provisioned-IOPS charge, increasing cost."
+          },
+          "compare": {
+            "columns": ["Type", "Cost angle", "Performance model", "Pick when"],
+            "rows": [
+              ["gp2", "~20% more per GB than gp3", "3 IOPS/GB, burst to 3,000", "Legacy only — migrate to gp3"],
+              ["gp3", "Cheapest SSD per GB", "3,000 IOPS + 125 MB/s included, scalable independently", "Default for boot and general workloads"],
+              ["io2 / io2 Block Express", "Volume + separate per-IOPS charge; most expensive", "Up to 256,000 IOPS, 99.999% durability", "Only when the stem demands extreme IOPS or durability"],
+              ["st1", "Cheaper than SSD per GB", "Throughput-optimized HDD, sequential", "Big data, log processing, streaming reads"],
+              ["sc1", "Cheapest EBS per GB", "Cold HDD, low throughput", "Rarely accessed cold block data"]
+            ]
+          },
+          "gotchas": [
+            "Detached EBS volumes bill in full — terminating an instance does not delete volumes whose DeleteOnTermination is false.",
+            "st1 and sc1 cannot be used as boot volumes.",
+            "gp2 to gp3 is an online modification; \"requires a snapshot and restore with downtime\" is a wrong option.",
+            "io2 Block Express needs a supported Nitro instance type — the option can be invalid on the stated instance family.",
+            "Instance store is free with the instance but is ephemeral; it is only the answer when the stem says the data is temporary or reproducible.",
+            "You pay for provisioned EBS capacity, not used capacity — a 1 TB volume holding 10 GB bills 1 TB."
+          ]
+        },
+        {
+          "name": "Snapshots, Data Lifecycle Manager, and Snapshot Archive",
+          "explain": "EBS snapshots are incremental: the first snapshot copies every used block, and every subsequent snapshot stores only the blocks that changed. That means deleting a middle snapshot in a chain rarely frees much space, because the blocks it holds are still referenced by later snapshots. The cost problem is almost always volume of retained snapshots rather than the size of each one.\nAmazon Data Lifecycle Manager (DLM) automates creation, cross-Region copy, retention, and deletion of EBS snapshots and AMIs on a tag-based schedule — it is the standard \"least operational overhead\" answer for snapshot hygiene versus a cron job or a custom Lambda. EBS Snapshots Archive moves a snapshot to a separate archive tier roughly 75% cheaper per GB, with a 90-day minimum retention and a restore that takes 24 to 72 hours. Archived snapshots are stored as full snapshots, not incremental, so archiving a snapshot that shares most blocks with others can actually raise cost — archive only long-retention, rarely-restored snapshots such as annual compliance copies.",
+          "exam_tests": "\"Automate snapshot creation and deletion with the least operational overhead\" is DLM (or AWS Backup when multiple service types are involved). \"Retain snapshots for years for compliance at the lowest cost, restore time is not a concern\" is Snapshot Archive. The trap is applying Archive to daily operational snapshots, where the 90-day minimum and full-snapshot billing wipe out the saving.",
+          "example": {
+            "scenario": "A company keeps one EBS snapshot of each production volume at the end of every month for seven years to satisfy an auditor. Restores have never been requested but must be possible within three days if they are.",
+            "answer": "Move the monthly snapshots to the EBS Snapshots Archive tier.",
+            "why": "A three-day restore window comfortably covers the 24–72 hour archive restore, and seven-year retention dwarfs the 90-day minimum, so the roughly 75% storage discount applies cleanly. Ordinary snapshot storage would cost about four times as much for data that is never read."
+          },
+          "compare": {
+            "columns": ["Option", "Cost", "Restore time", "Minimum retention", "Use when"],
+            "rows": [
+              ["Standard snapshot", "Baseline, incremental", "Immediate (lazy load)", "None", "Operational recovery points"],
+              ["Snapshots Archive", "~75% cheaper, billed as full snapshot", "24–72 hours", "90 days", "Long-retention compliance copies"],
+              ["Data Lifecycle Manager", "Free service, you pay for snapshots", "N/A", "N/A", "Automating schedule + retention"],
+              ["AWS Backup cold storage", "Cheaper tier for EFS, DynamoDB, and others", "Restore lag", "90 days", "Centralized multi-service backup policy"]
+            ]
+          },
+          "gotchas": [
+            "Snapshots are incremental for storage but each one is logically complete for restore — deleting one does not corrupt the others.",
+            "Archiving a snapshot converts it to a full snapshot, so archiving incremental daily snapshots can cost more, not less.",
+            "Snapshot Archive has a 90-day minimum billable retention; pulling it back early still bills 90 days.",
+            "DLM covers EBS snapshots and EBS-backed AMIs only; if the scenario spans RDS, EFS, DynamoDB, and FSx, the answer is AWS Backup.",
+            "Cross-Region snapshot copies are billed for the transfer and then stored in both Regions — do not copy everything by default.",
+            "AWS Backup cold storage also carries a 90-day minimum, and data must sit at least 90 days before transitioning."
+          ]
+        },
+        {
+          "name": "EFS, FSx, and data transfer basics",
+          "explain": "EFS costs are driven by storage class and throughput mode. Lifecycle management transitions files not accessed for a configured window (7, 14, 30, 60, 90 days and similar) to EFS Infrequent Access — up to about 92% cheaper per GB — and then to EFS Archive for data untouched for 90+ days. EFS One Zone drops the multi-AZ replication for roughly 47% less, appropriate only for dev or reproducible data. Elastic Throughput bills for what you actually read and write instead of provisioning MB/s, which is the cost-optimized default for spiky file workloads.\nFSx for Lustre has one dominant cost decision: scratch file systems are cheaper and non-replicated, designed for short-term processing where you can re-hydrate from S3 if a server fails; persistent file systems replicate within an AZ and are for longer-running workloads. FSx for Windows and NetApp ONTAP both offer HDD-backed options and deduplication.\nData transfer is the invisible line item the exam loves. Inbound from the internet is free. Traffic between resources in the same AZ over private IPv4 is free. Cross-AZ traffic in the same Region is about $0.01/GB in each direction. Cross-Region and internet egress are more expensive still, with internet egress tiered downward by volume and a small monthly free allowance.",
+          "exam_tests": "\"Files are rarely accessed after a month, reduce EFS cost automatically\" is EFS lifecycle to IA/Archive. \"Dev/test file share, cost is the priority\" is EFS One Zone. \"Temporary HPC scratch space hydrated from S3\" is FSx for Lustre scratch. On transfer: \"reduce inter-AZ charges for chatty services\" means co-locate in one AZ or route AZ-locally.",
+          "example": {
+            "scenario": "A team runs a genomics pipeline for six hours a week on FSx for Lustre, loading input from S3 and writing results back to S3 at the end of each run. They want the lowest possible file system cost.",
+            "answer": "Use an FSx for Lustre scratch file system linked to the S3 data repository, and delete it when the run completes.",
+            "why": "Scratch deployments skip replication and cost less per GB, which is acceptable because the authoritative copy of both input and output lives in S3. A persistent file system would pay for durability the workload does not need, for a file system that only matters six hours a week."
+          },
+          "compare": {
+            "columns": ["Traffic path", "Charge", "Cost note"],
+            "rows": [
+              ["Internet inbound to AWS", "Free", "Never a cost lever"],
+              ["Same AZ, private IPv4", "Free", "Use private IPs — public/elastic IPs incur charges even in-AZ"],
+              ["Cross-AZ, same Region", "~$0.01/GB each direction", "Chatty tiers across AZs are a hidden bill"],
+              ["Cross-Region", "Per-GB, higher than cross-AZ", "Replication and cross-Region reads add up"],
+              ["Internet egress from EC2/S3", "Tiered per-GB, small free monthly allowance", "CloudFront is usually cheaper per GB"],
+              ["Through NAT Gateway / TGW / interface endpoint", "Per-GB processing on top of the above", "Stacked charges — check the path, not just the endpoints"]
+            ]
+          },
+          "gotchas": [
+            "EFS IA has no benefit if files are read constantly — older configurations charge per-GB for IA reads, so a hot file in IA costs more than in Standard.",
+            "EFS One Zone loses the file system if that AZ fails; disqualified by any availability requirement.",
+            "FSx for Lustre scratch has no replication — a failed server loses the file system, which is fine only because S3 holds the source data.",
+            "Traffic between two instances in the same AZ using their public or elastic IPs is charged; only private IPv4 in the same AZ is free.",
+            "Multi-AZ RDS, cross-AZ ALB targets, and cross-AZ replication all quietly generate cross-AZ transfer charges.",
+            "Data transfer inbound is free, which is why \"upload cost\" is almost never the right thing to optimize."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "compute-purchasing",
+      "title": "Compute purchasing and right-sizing",
+      "summary": "Commit for steady load, bid for interruptible load, and shrink or switch off everything else before you do either.",
+      "concepts": [
+        {
+          "name": "The EC2 purchasing options landscape",
+          "explain": "There are six things you can buy and they answer different questions. On-Demand is the no-commitment baseline. Reserved Instances and Savings Plans are one- or three-year commitments that trade flexibility for a discount. Spot buys spare capacity at a deep discount with the risk that AWS reclaims it on two minutes' notice. Dedicated Hosts give you a whole physical server with visibility into sockets and cores, which is what makes BYOL licensing (Windows Server, SQL Server, Oracle per-socket) legal — that licensing angle, not price, is why they appear. Dedicated Instances give you hardware isolation without socket visibility, so they do not enable BYOL. On-Demand Capacity Reservations guarantee capacity in a specific AZ and bill at On-Demand rates whether or not you launch into them; they provide zero discount on their own but do stack with Savings Plans and RIs.\nThe discount ladder to memorize: Spot up to 90%, Standard RI and EC2 Instance Savings Plans up to 72%, Convertible RI and Compute Savings Plans up to 66%, On-Demand 0%. One-year commitments land nearer 40%.",
+          "exam_tests": "The stem's constraint picks the row. \"Existing per-socket licenses we must bring\" is Dedicated Host. \"Regulatory isolation from other customers\" without licensing is Dedicated Instance. \"Must be able to launch in a specific AZ during a seasonal peak\" is Capacity Reservation. \"Fault-tolerant, stateless, can be interrupted\" is Spot. \"Steady baseline for three years\" is a Savings Plan or Standard RI.",
+          "example": {
+            "scenario": "An enterprise is migrating a Windows SQL Server estate to AWS and holds per-core SQL Server licenses under Software Assurance that it must continue to use. The workload runs constantly and the company wants the lowest cost.",
+            "answer": "Dedicated Hosts with a Dedicated Host Reservation, using bring-your-own SQL Server licenses.",
+            "why": "Only Dedicated Hosts expose the physical socket and core count that per-core BYOL licensing requires, so Dedicated Instances cannot satisfy the licensing constraint however cheap they look. Reserving the host applies a commitment discount to the always-on workload."
+          },
+          "compare": {
+            "columns": ["Option", "Discount", "Commitment", "Flexibility", "Best for"],
+            "rows": [
+              ["On-Demand", "0%", "None", "Total", "Short, unpredictable, or first-time workloads"],
+              ["Standard RI", "Up to 72% (3-yr); ~40% (1-yr)", "1 or 3 years", "Size/AZ within one family; sellable on Marketplace", "Stable workload on a known instance family"],
+              ["Convertible RI", "Up to 66%", "1 or 3 years", "Exchange family, OS, tenancy; not sellable", "Stable spend, uncertain instance choice"],
+              ["Compute Savings Plan", "Up to 66%", "1 or 3 years, $/hour", "Any family, size, Region, OS, tenancy + Fargate + Lambda", "Mixed and evolving compute estate"],
+              ["EC2 Instance Savings Plan", "Up to 72%", "1 or 3 years, $/hour", "Any size/OS/AZ within one family in one Region", "Committed to a family in a Region"],
+              ["Spot", "Up to 90%", "None", "Reclaimed with a 2-minute notice", "Stateless batch, CI, big data task nodes"],
+              ["Dedicated Host", "Host-level pricing, reservable", "Optional 1 or 3 years", "Whole physical server, socket/core visible", "BYOL per-socket/per-core licensing, compliance"],
+              ["Dedicated Instance", "Per-instance + per-Region fee", "None", "Isolated hardware, no socket visibility", "Isolation requirement without BYOL"],
+              ["Capacity Reservation", "None", "None (billed while reserved)", "Specific AZ and instance type", "Guaranteeing capacity; combine with SP/RI for discount"]
+            ]
+          },
+          "gotchas": [
+            "Capacity Reservations give no discount and bill even when idle — never the answer to a pure cost question.",
+            "Dedicated Instances do not enable per-socket BYOL; only Dedicated Hosts do.",
+            "Standard RIs can be sold in the Reserved Instance Marketplace; Convertible RIs cannot.",
+            "Savings Plans commit to a dollar-per-hour spend, not to instance counts — that is what makes them flexible.",
+            "Spot is never correct for a stateful database, a primary node, or anything the stem describes as customer-facing and interruption-sensitive.",
+            "There are no Savings Plans for RDS, ElastiCache, or Redshift — those use Reserved Instances / reserved nodes."
+          ],
+          "mnemonic": "Ninety Spot, seventy-two locked-to-family, sixty-six free-to-roam."
+        },
+        {
+          "name": "Savings Plans vs Reserved Instances",
+          "explain": "Both are one- or three-year commitments with the same payment options (All Upfront cheapest, Partial Upfront, No Upfront). The difference is what you commit to. An RI commits to a specific instance configuration and, in exchange, can also provide a capacity reservation in a chosen AZ if you buy a zonal RI. A Savings Plan commits to a dollar amount of compute spend per hour and automatically applies the discount to whatever matching usage you run — it never reserves capacity.\nCompute Savings Plans are the most flexible instrument AWS sells: the discount follows you across instance families, sizes, Regions, operating systems, and tenancy, and it also covers Fargate and Lambda. EC2 Instance Savings Plans give a deeper discount (up to 72%, matching Standard RIs) in return for locking to one instance family in one Region, while still floating across size, OS, and AZ. Because Savings Plans need no exchange process and no Marketplace, they are also the lower-operational-overhead answer, which matters when the stem asks for both cost and simplicity.",
+          "exam_tests": "\"Flexibility to change instance families or move Regions\" plus discount is a Compute Savings Plan. \"Also want the discount to cover Fargate and Lambda\" is decisive for Compute Savings Plans — RIs cannot do it. \"Guarantee capacity in a specific AZ\" is a zonal RI or a Capacity Reservation, not a Savings Plan. \"Least effort to manage the commitment\" favours Savings Plans over Convertible RI exchanges.",
+          "example": {
+            "scenario": "A company runs a steady mix of EC2 instances, ECS on Fargate tasks, and Lambda functions. It expects to keep total compute spend roughly constant for three years but plans to shift workloads between EC2 and Fargate as teams containerize.",
+            "answer": "Buy a three-year Compute Savings Plan sized to the steady-state hourly spend.",
+            "why": "A Compute Savings Plan is the only commitment that covers EC2, Fargate, and Lambda together and follows the spend as workloads migrate between them. Standard or Convertible RIs would strand the commitment on EC2 as containerization moves the load."
+          },
+          "compare": {
+            "columns": ["Dimension", "Standard RI", "Convertible RI", "Compute SP", "EC2 Instance SP"],
+            "rows": [
+              ["Max discount", "Up to 72%", "Up to 66%", "Up to 66%", "Up to 72%"],
+              ["Commit to", "Instance config", "Instance config (exchangeable)", "$/hour of compute", "$/hour in one family + Region"],
+              ["Family flexible", "No", "Yes, via exchange", "Yes, automatic", "No"],
+              ["Region flexible", "No", "Yes, via exchange", "Yes, automatic", "No"],
+              ["Covers Fargate / Lambda", "No", "No", "Yes", "No"],
+              ["Can reserve capacity", "Yes (zonal RI)", "Yes (zonal)", "No", "No"],
+              ["Resellable", "Yes, Marketplace", "No", "No", "No"]
+            ]
+          },
+          "gotchas": [
+            "Savings Plans never reserve capacity — if the stem needs guaranteed capacity in an AZ, you need a zonal RI or an On-Demand Capacity Reservation.",
+            "RIs cover RDS, ElastiCache, Redshift, OpenSearch and DynamoDB reserved capacity; Savings Plans do not touch any of those (SageMaker has its own separate Savings Plans).",
+            "Regional RIs give size flexibility within a family for Linux instances but no capacity reservation.",
+            "All Upfront is always the deepest discount; No Upfront still beats On-Demand meaningfully.",
+            "Savings Plans apply automatically to the highest-discount eligible usage first — you do not assign them to instances.",
+            "In an Organization, RI and Savings Plan benefits are shared across accounts by default under consolidated billing; sharing can be disabled per account."
+          ]
+        },
+        {
+          "name": "Spot: 90% off, with rules",
+          "explain": "Spot Instances use spare EC2 capacity at up to a 90% discount off On-Demand. AWS can reclaim them when it needs the capacity, giving a two-minute interruption notice through instance metadata and EventBridge, and often a rebalance recommendation earlier than that. Spot prices now move smoothly with supply and demand rather than through bid wars, so the design question is not what to bid but how to survive interruption.\nThe durability techniques are what the exam rewards: request capacity across many instance types and Availability Zones through an EC2 Fleet, Spot Fleet, or an Auto Scaling group with a mixed instances policy; choose the capacity-optimized allocation strategy so AWS draws from the deepest, least-likely-to-be-interrupted pools; and keep the work itself idempotent and checkpointed so an interrupted task simply reruns. A very common production pattern is a mixed ASG with a small On-Demand or Savings-Plan-covered base capacity for reliability plus Spot for everything above the baseline.",
+          "exam_tests": "\"Fault-tolerant\", \"stateless\", \"can be interrupted\", \"flexible start and end times\", \"batch\", \"CI/CD build fleet\", and \"big data task nodes\" are Spot triggers. \"Minimize interruptions\" points at the capacity-optimized allocation strategy plus diversification across instance types. Spot is wrong whenever the scenario has state that cannot be lost or a user waiting on the response.",
+          "example": {
+            "scenario": "A studio renders frames on a fleet of hundreds of EC2 instances. Each frame takes about eight minutes, results are written to S3, and a lost frame can simply be re-rendered. Cost is the dominant concern but they want as few restarts as possible.",
+            "answer": "Run the render fleet on Spot through an EC2 Fleet diversified across multiple instance types and AZs, using the capacity-optimized allocation strategy.",
+            "why": "The work is stateless, idempotent, and checkpointed to S3 per frame, which is exactly the Spot profile, and diversification with capacity-optimized draws from the deepest pools to minimize reclaim events. A Savings Plan would cap the discount near 66% for a workload that can safely take 90%."
+          },
+          "compare": {
+            "columns": ["Spot mechanism", "What it does", "When it is the answer"],
+            "rows": [
+              ["Spot Instance (single request)", "One instance from spare capacity", "Simple, tolerant single worker"],
+              ["Spot Fleet / EC2 Fleet", "Mixed On-Demand + Spot across types and AZs", "Large interruptible fleets needing diversification"],
+              ["ASG mixed instances policy", "Base On-Demand + Spot above baseline", "Web/worker tier that needs a reliable floor"],
+              ["capacity-optimized strategy", "Picks deepest capacity pools", "\"Minimize interruptions\""],
+              ["lowest-price strategy", "Picks cheapest pools", "Absolute cost priority, interruption tolerated"],
+              ["Fargate Spot", "Up to ~70% off Fargate", "Interruptible containers without managing instances"]
+            ]
+          },
+          "gotchas": [
+            "Two-minute interruption notice, not two hours — architect for immediate loss.",
+            "Never Spot for a stateful database primary, a licence server, or anything the stem calls business-critical and always-on.",
+            "Spot Blocks (defined-duration Spot) are no longer generally available; do not pick an option that relies on them.",
+            "Diversifying across instance types is the single biggest lever on interruption rate — an option locked to one instance type is weaker.",
+            "Spot works with ECS, EKS, EMR, and Batch; EMR core nodes hold HDFS data, so Spot belongs on task nodes.",
+            "Fargate Spot is not available for Windows containers."
+          ]
+        },
+        {
+          "name": "Right-sizing, Graviton, schedules, and the serverless cost model",
+          "explain": "Before any discount, remove the waste. AWS Compute Optimizer analyses CloudWatch metrics with machine learning and recommends smaller or different instance types for EC2, Auto Scaling groups, EBS volumes, Lambda functions, ECS on Fargate services, and RDS instances; it needs about 14 days of history and, for memory-based recommendations, the CloudWatch agent, because memory is not a default EC2 metric. Switching to Graviton (arm64) instance families typically delivers up to 40% better price-performance for compatible workloads. Burstable T-family instances suit low, spiky CPU, but unlimited mode bills surplus credits, so a permanently busy T instance costs more than the right M instance. Non-production environments should be scheduled off: the AWS Instance Scheduler or scheduled scaling actions that set an ASG to zero outside business hours remove roughly two-thirds of the hours in a week.\nServerless pricing has its own shape. Lambda bills per request plus GB-seconds of memory-time at millisecond granularity, and arm64 (Graviton2) functions cost about 20% less per GB-second than x86. Counter-intuitively, adding memory can lower total cost because CPU scales with memory and the function finishes sooner — Lambda Power Tuning exists to find that optimum empirically. Provisioned Concurrency bills continuously whether or not the function is invoked, so it is a latency purchase, not a cost saving. Fargate bills per vCPU-second and GB-second of the task's requested size, so over-requesting CPU or memory in a task definition is a direct and permanent overcharge.",
+          "exam_tests": "\"Which instances are over-provisioned, with minimal effort\" is Compute Optimizer. \"Reduce cost of dev/test environments running only during business hours\" is scheduled stop/start or scheduled scaling. \"Same workload, better price-performance, minimal change\" is Graviton. \"Lambda function costs too much\" points at memory tuning and arm64, not at more concurrency.",
+          "example": {
+            "scenario": "A company runs 60 EC2 instances for development and testing. Engineers work 09:00 to 19:00, Monday to Friday, but the instances run continuously. The company wants the largest cost reduction with minimal engineering effort.",
+            "answer": "Use scheduled scaling or the AWS Instance Scheduler to stop the instances outside working hours.",
+            "why": "A 50-hour week against 168 hours removes roughly 70% of the compute cost immediately, which beats any purchasing discount available on those instances. Buying Reserved Instances would lock in payment for the 118 hours a week nobody uses."
+          },
+          "compare": {
+            "columns": ["Lever", "Saving", "Effort", "Watch out for"],
+            "rows": [
+              ["Right-size via Compute Optimizer", "Varies, often 20–40%", "Low, recommendations only", "Needs ~14 days of data; memory needs CloudWatch agent"],
+              ["Move to Graviton (arm64)", "Up to ~40% better price-performance", "Rebuild/redeploy for arm64", "Third-party agents or binaries may not have arm64 builds"],
+              ["Schedule dev/test off", "~65–70% on a 12x5 schedule", "Low", "Stopped EC2 still bills EBS volumes"],
+              ["T-family for low CPU", "Cheap baseline", "Low", "Unlimited mode surplus credit charges"],
+              ["Lambda memory tuning + arm64", "Often 20–50% combined", "Low", "More memory can be cheaper — measure, do not guess"],
+              ["Fargate Spot", "Up to ~70%", "Low", "Interruptible only; no Windows containers"]
+            ]
+          },
+          "gotchas": [
+            "A stopped EC2 instance still bills its EBS volumes and any attached Elastic IP — stopping is not free.",
+            "Compute Optimizer memory recommendations require the CloudWatch agent because EC2 does not publish memory by default.",
+            "Lambda Provisioned Concurrency bills 24/7; it lowers cold-start latency, never cost.",
+            "Fargate charges the vCPU and memory you request in the task definition, not what the container uses.",
+            "Graviton requires arm64-compatible container images and binaries; a same-architecture assumption is the usual trap.",
+            "Trusted Advisor's low-utilization EC2 check and Compute Optimizer overlap; Compute Optimizer is the deeper, ML-driven one."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "database-cost",
+      "title": "Database and analytics cost",
+      "summary": "Commit on steady database capacity, go serverless or on-demand on spiky capacity, and stop scanning data you do not need.",
+      "concepts": [
+        {
+          "name": "RDS and Aurora cost levers",
+          "explain": "RDS has no Savings Plans — the commitment instrument is the Reserved DB Instance, one or three years, up to roughly 69% off for a fixed instance class and engine in a Region. Beyond that, the levers are structural. Multi-AZ roughly doubles the instance cost, so development and test databases should be Single-AZ; the exam is comfortable with that as long as the scenario does not require high availability. RDS and Aurora instances can be stopped for up to seven days, after which AWS automatically starts them again, which suits nightly and weekend shutdowns of dev databases — storage and backups keep billing while stopped. Read replicas each cost a full instance, so they are a performance answer, not a cost answer.\nAurora adds two specific decisions. Aurora Serverless v2 scales capacity in 0.5 ACU increments in seconds and, on supported engine versions, can scale all the way to zero when idle — the right choice for spiky, intermittent, or unpredictable database load, and for dev environments used a few hours a day. Aurora I/O-Optimized is a cluster configuration with a higher instance and storage price but no per-request I/O charges; the break-even is around the point where I/O is more than about 25% of your total Aurora spend for that cluster, which is typical of write-heavy or scan-heavy workloads. RDS Proxy pools and reuses connections; it costs per vCPU of the database instance, and it saves money indirectly by letting you run a smaller instance and by preventing connection storms from serverless callers.",
+          "exam_tests": "\"Unpredictable or intermittent database traffic, minimize cost\" is Aurora Serverless v2. \"Steady 24/7 production database for three years\" is a Reserved DB Instance. \"Dev database used only during the working day\" is stop/start or Serverless v2. \"I/O charges are a large and unpredictable share of the Aurora bill\" is Aurora I/O-Optimized. \"Thousands of Lambda connections exhausting the database\" is RDS Proxy.",
+          "example": {
+            "scenario": "A startup's Aurora PostgreSQL cluster is idle most of the night and spikes hard for three hours each morning when partners submit files. The team currently runs a fixed db.r6g.4xlarge sized for the peak and wants to cut cost without hurting the peak.",
+            "answer": "Convert the cluster to Aurora Serverless v2 with a low minimum and a maximum ACU sized for the morning peak.",
+            "why": "Serverless v2 scales in 0.5 ACU steps within seconds, so the cluster pays peak capacity only during the three-hour spike and drops to near-nothing overnight. A Reserved Instance on the provisioned cluster would lock in the peak size for all 24 hours."
+          },
+          "compare": {
+            "columns": ["Aurora configuration", "You pay for", "Best for", "Avoid when"],
+            "rows": [
+              ["Aurora Standard (provisioned)", "Instance hours + storage + per-request I/O", "Steady, moderate-I/O workloads", "I/O is a large share of spend"],
+              ["Aurora I/O-Optimized", "Higher instance + storage, zero I/O charges", "I/O-heavy clusters (I/O above ~25% of spend)", "Low-I/O clusters — you overpay"],
+              ["Aurora Serverless v2", "ACU-seconds, 0.5 ACU steps, can reach zero", "Spiky, intermittent, unpredictable, dev/test", "Flat 24/7 load — provisioned + RI is cheaper"]
+            ]
+          },
+          "gotchas": [
+            "There are no Savings Plans for RDS — only Reserved DB Instances.",
+            "A stopped RDS instance restarts automatically after 7 days, and storage plus backups bill the whole time.",
+            "Multi-AZ doubles instance cost and adds cross-AZ replication traffic; dev/test rarely needs it.",
+            "Read replicas cost a full instance each — never the cost-optimized answer to \"reduce database cost\".",
+            "Aurora Serverless v1 is superseded; v2 is the answer on a current exam.",
+            "Graviton (r6g/r7g, m6g) RDS instance classes are cheaper than the equivalent x86 classes for the same workload."
+          ]
+        },
+        {
+          "name": "DynamoDB capacity and storage cost",
+          "explain": "DynamoDB's main cost decision is capacity mode. On-demand charges per read and write request with no capacity planning and handles any traffic instantly — ideal for new applications, unpredictable spikes, and workloads that idle. Provisioned mode charges per hour for reserved RCUs and WCUs and is substantially cheaper per request when utilization is high and steady; adding auto scaling keeps provisioned capacity tracking a target utilization so you neither throttle nor waste. On top of provisioned, DynamoDB reserved capacity buys a one- or three-year commitment on a baseline of RCUs/WCUs at a deep discount. As a rule of thumb, provisioned with auto scaling wins when you can keep utilization consistently high; on-demand wins when the peak-to-average ratio is large or the traffic is unknown.\nStorage has its own lever. The Standard-Infrequent Access table class cuts storage cost by around 60% while raising read and write throughput cost by about 25% — the right call when a table holds a lot of data that is rarely read, such as historical records or event archives. TTL deletes expired items automatically at no charge for the delete operations, which shrinks both storage and the size of scans. DAX in front of a read-heavy table absorbs repeated reads so they never consume RCUs, cutting both latency and cost.",
+          "exam_tests": "\"Unpredictable, new application, or traffic that spikes unpredictably\" is on-demand. \"Predictable steady traffic and lowest cost\" is provisioned plus auto scaling, and reserved capacity if there is a commitment appetite. \"Storage dominates and data is rarely read\" is the Standard-IA table class. \"Automatically remove records after 90 days at no cost\" is TTL. \"Repeated reads of the same items driving RCU cost\" is DAX.",
+          "example": {
+            "scenario": "A logistics company stores seven years of shipment events in DynamoDB. The current year is queried constantly; older years are read only for occasional audits. Storage is now the largest line item on the table's bill.",
+            "answer": "Move the historical data to a table using the DynamoDB Standard-IA table class, keeping current data on the Standard table class.",
+            "why": "Standard-IA cuts storage cost by roughly 60% at the price of about 25% higher throughput cost, which is a clear win when reads are rare and storage dominates. Switching the hot current-year table to Standard-IA would raise cost, because its throughput charges outweigh its storage charges."
+          },
+          "compare": {
+            "columns": ["Mode / feature", "Billing", "Best for", "Avoid when"],
+            "rows": [
+              ["On-demand", "Per read/write request", "Unknown, spiky, or idle-heavy traffic", "High steady utilization — costs several times provisioned"],
+              ["Provisioned", "Per RCU/WCU-hour", "Predictable, steady traffic", "Unpredictable spikes — you throttle or over-provision"],
+              ["Provisioned + auto scaling", "Per RCU/WCU-hour, tracked to target", "Predictable with daily cycles", "Very sudden spikes — scaling lags"],
+              ["Reserved capacity", "1 or 3-year commitment on provisioned", "Known long-term baseline", "On-demand tables — it does not apply"],
+              ["Standard table class", "Higher storage, lower throughput cost", "Frequently accessed data", "Cold archival data"],
+              ["Standard-IA table class", "~60% lower storage, ~25% higher throughput", "Large, rarely read datasets", "Hot tables"]
+            ]
+          },
+          "gotchas": [
+            "Reserved capacity applies only to provisioned mode — it does nothing for an on-demand table.",
+            "You can switch capacity mode, but only a limited number of times in a 24-hour window.",
+            "Global tables replicate every write to each Region, so a second Region roughly doubles write cost.",
+            "Global secondary indexes carry their own storage and throughput charges — an unused GSI is pure waste.",
+            "TTL deletes are free but not instantaneous; items may persist for up to a couple of days after expiry.",
+            "DAX is a read-through cache for eventually consistent reads; it does not reduce write cost."
+          ]
+        },
+        {
+          "name": "Analytics and caching cost: Redshift, Athena, ElastiCache",
+          "explain": "Redshift charges by node hour, so the levers are node type, commitment, and uptime. Reserved nodes cut up to about 75% for a one- or three-year commitment. RA3 nodes separate compute from managed storage so you size compute for query load rather than for data volume. A provisioned cluster can be paused, which stops compute billing while storage continues — the standard answer for a cluster used only during business hours. Redshift Serverless bills RPU-seconds and is the low-overhead answer for intermittent analytics. Redshift Spectrum queries data that stays in S3 at a per-TB-scanned rate, so infrequently queried history should stay in S3 rather than being loaded into cluster storage.\nAthena charges roughly $5 per TB of data scanned, with no infrastructure to run. Every cost optimization is therefore about scanning less: partition the data by the columns you filter on (commonly date), convert to a columnar format such as Parquet or ORC so only the referenced columns are read, and compress. Together these routinely cut cost by an order of magnitude. Workgroups can enforce per-query and per-workgroup data scan limits as a guardrail.\nElastiCache follows the RDS pattern: reserved nodes for steady clusters, and right-sized node types. Its bigger cost effect is indirect — offloading repeated reads from an expensive database tier lets that tier shrink.",
+          "exam_tests": "\"Reduce Athena cost\" is always partitioning plus columnar format plus compression — never a bigger instance, because there is no instance. \"Data warehouse used only during business hours\" is pause/resume or Redshift Serverless. \"Query rarely-used historical data without loading it\" is Redshift Spectrum or Athena over S3. \"Predictable 24/7 warehouse\" is reserved nodes.",
+          "example": {
+            "scenario": "An analytics team queries five years of JSON clickstream logs in S3 with Athena, filtering almost every query to a single month. Athena costs have become the team's largest analytics expense.",
+            "answer": "Convert the logs to Parquet with Snappy compression and partition the table by year and month.",
+            "why": "Athena bills per TB scanned, and partitioning by month means a single-month query reads a sixtieth of the data while Parquet's columnar layout reads only the referenced columns. Moving to a Redshift cluster would replace a per-query charge with a permanent node charge for data queried occasionally."
+          },
+          "compare": {
+            "columns": ["Service", "Billing unit", "Main cost lever", "Trigger phrase"],
+            "rows": [
+              ["Athena", "~$5 per TB scanned", "Partition + Parquet/ORC + compress", "\"Ad hoc SQL over S3, no infrastructure\""],
+              ["Redshift provisioned", "Node hours", "Reserved nodes; pause when idle", "\"Steady heavy BI workload\""],
+              ["Redshift Serverless", "RPU-seconds", "Pay only while queries run", "\"Intermittent analytics, no cluster management\""],
+              ["Redshift Spectrum", "Per TB scanned in S3", "Keep cold history in S3, do not load it", "\"Occasionally query archived history\""],
+              ["ElastiCache", "Node hours", "Reserved nodes; offload reads from the DB", "\"Repeated identical reads hitting the database\""]
+            ]
+          },
+          "gotchas": [
+            "Athena has no instance to right-size — any option about instance types or cluster sizing for Athena is wrong.",
+            "A paused Redshift cluster still bills for its storage and any manual snapshots.",
+            "Redshift Spectrum and Athena both bill per TB scanned, so unpartitioned S3 data is expensive in either.",
+            "RA3 managed storage bills per GB-month separately from node hours; DC2 bundles fixed local storage.",
+            "ElastiCache reserved nodes lock the node type — resizing outside the reservation loses the discount.",
+            "Compression alone helps, but partitioning is what removes whole files from the scan; the exam wants both."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "network-cost",
+      "title": "Network and data transfer cost",
+      "summary": "Egress and per-GB processing are where the invisible money goes — pick the cheapest path, and know which endpoints are free.",
+      "concepts": [
+        {
+          "name": "NAT Gateway vs VPC endpoints vs NAT instance",
+          "explain": "A NAT Gateway costs an hourly charge per gateway plus a per-GB data-processing charge, and then internet egress on top. Private subnets that pull large volumes from S3 or DynamoDB through a NAT Gateway are burning money for no reason, because those two services have gateway VPC endpoints and gateway endpoints are completely free — no hourly charge, no data-processing charge. They are implemented as a route table entry, they work only for S3 and DynamoDB, and they never leave the AWS network.\nInterface endpoints (AWS PrivateLink) cover most other AWS services and are not free: roughly a cent per hour per endpoint per Availability Zone plus about a cent per GB processed. They are still usually cheaper than routing the same traffic through a NAT Gateway, and they keep traffic off the internet, but at very low volume across many AZs the hourly charges can add up. NAT instances are the legacy self-managed alternative: cheaper at trivial scale on a t-class instance, but you own patching, failover, and the source/destination check, so they lose any question that mentions operational overhead or high availability.\nSeparately, cross-AZ traffic costs about a cent per GB in each direction, so chatty tiers that talk across Availability Zones incur charges that co-location or AZ-aware routing removes.",
+          "exam_tests": "\"Instances in a private subnet download large amounts of data from S3 and NAT Gateway costs are high\" is a gateway VPC endpoint, every time. \"Private access to Kinesis, Secrets Manager, SQS, or another AWS service\" is an interface endpoint. \"Reduce data transfer between application tiers\" is co-locating in one AZ. \"NAT with the least operational overhead\" is NAT Gateway over NAT instance.",
+          "example": {
+            "scenario": "An EC2 fleet in private subnets processes 80 TB per month from an S3 bucket in the same Region. All traffic currently egresses through a NAT Gateway, and the NAT data-processing charges dominate the VPC bill.",
+            "answer": "Create a gateway VPC endpoint for S3 and route the subnets' S3 traffic through it.",
+            "why": "Gateway endpoints for S3 carry no hourly charge and no per-GB processing charge, so the 80 TB stops being billed entirely on that path. An interface endpoint would also bypass the NAT Gateway but would still charge per GB processed."
+          },
+          "compare": {
+            "columns": ["Option", "Hourly", "Per GB", "Covers", "Pick when"],
+            "rows": [
+              ["Gateway VPC endpoint", "Free", "Free", "S3 and DynamoDB only", "Any private-subnet access to S3/DynamoDB — always"],
+              ["Interface endpoint (PrivateLink)", "~$0.01/hr per AZ per endpoint", "~$0.01/GB", "Most AWS services + partner/private services", "Private access to a non-gateway service"],
+              ["NAT Gateway", "~$0.045/hr per gateway", "~$0.045/GB processed + egress", "All outbound internet", "General internet egress from private subnets"],
+              ["NAT instance", "EC2 instance cost only", "Standard transfer only", "All outbound internet", "Tiny/dev workloads where you accept the ops burden"]
+            ]
+          },
+          "gotchas": [
+            "Gateway endpoints exist only for S3 and DynamoDB — for anything else the answer is an interface endpoint.",
+            "You need one NAT Gateway per AZ for AZ-resilient egress, and each one bills separately plus cross-AZ traffic if you cheap out with one.",
+            "Interface endpoints bill per endpoint per AZ per hour, so twenty services across three AZs is sixty hourly charges.",
+            "NAT instances require disabling the source/destination check and give you no built-in failover.",
+            "A NAT Gateway is not needed at all for traffic reaching S3 or DynamoDB via a gateway endpoint — the route table decides.",
+            "NAT Gateway charges data processing in both directions plus the normal internet egress rate on outbound bytes."
+          ],
+          "mnemonic": "Gateway endpoints: free, but only S3 and DynamoDB."
+        },
+        {
+          "name": "CloudFront, price classes, and Global Accelerator",
+          "explain": "Data transfer out to the internet from CloudFront is priced lower per GB than data transfer out directly from S3 or EC2, and origin fetches from AWS origins — S3, EC2, ELB — to CloudFront carry no data-transfer-out charge. That combination means putting CloudFront in front of a high-egress origin usually lowers the bill even before caching reduces origin requests. Caching then compounds the saving by cutting origin requests and origin compute.\nPrice classes control which edge locations serve your content: Price Class 100 uses North America and Europe, Price Class 200 adds most of Asia, the Middle East, and Africa, and Price Class All uses every location including South America and Australia at the highest rates. Restricting to a cheaper class lowers cost but increases latency for users outside the included Regions — a legitimate trade only when the audience is regional. Origin Shield adds a regional caching layer in front of the origin, which costs extra per request but collapses many edge misses into a single origin fetch, reducing origin load and origin egress.\nAWS Global Accelerator is not a cost tool. It charges a fixed hourly fee per accelerator plus premium data-transfer rates above standard egress. It buys static anycast IPs, fast regional failover, and TCP/UDP acceleration for non-cacheable traffic — pick it for those properties, never to save money.",
+          "exam_tests": "\"Reduce data transfer costs for a global website or large downloads\" is CloudFront. \"All users are in Europe and North America, minimize CloudFront cost\" is Price Class 100. \"Reduce load and cost at the origin\" is caching plus Origin Shield. Global Accelerator appears as the distractor in cost questions — it is the answer only for static IPs, UDP, or fast failover.",
+          "example": {
+            "scenario": "A software vendor distributes 5 TB per day of installers from an S3 bucket directly to customers worldwide. Egress charges have become the largest AWS line item and the files change only at each release.",
+            "answer": "Serve the installers through CloudFront with the S3 bucket as origin, using an Origin Access Control.",
+            "why": "CloudFront's per-GB egress rate is below S3's direct internet rate, origin fetches from S3 to CloudFront are free, and immutable release files cache almost perfectly so nearly all requests never reach S3. S3 Transfer Acceleration is the wrong direction — it optimizes uploads and costs more, not less."
+          },
+          "compare": {
+            "columns": ["Path", "Cost profile", "Pick when"],
+            "rows": [
+              ["Direct S3/EC2 to internet", "Highest per-GB egress", "Low volume only"],
+              ["CloudFront", "Lower per-GB egress, free fetch from AWS origins", "Cacheable content, high egress volume"],
+              ["CloudFront Price Class 100", "Cheapest class, NA + EU edges", "Regional audience"],
+              ["CloudFront + Origin Shield", "Extra request fee, fewer origin fetches", "Many edges hitting one origin"],
+              ["Global Accelerator", "Hourly fee + premium DTR", "Static anycast IPs, UDP, fast failover — not cost"],
+              ["S3 Transfer Acceleration", "Premium surcharge", "Faster long-distance uploads — not cost"]
+            ]
+          },
+          "gotchas": [
+            "Origin fetches from S3, EC2, or ELB to CloudFront are free of data-transfer-out charges — that is half the saving.",
+            "A restricted price class degrades latency for excluded Regions; it is only correct when the audience is stated as regional.",
+            "Global Accelerator's data transfer premium makes it more expensive than plain egress — never the cost answer.",
+            "S3 Transfer Acceleration and CloudFront are not interchangeable: Transfer Acceleration is for uploads and carries a surcharge.",
+            "Invalidations are free up to a monthly allowance and then billed per path — versioned object names are cheaper than invalidating.",
+            "CloudFront does not reduce cost for uncacheable, unique-per-user dynamic responses as much as the egress rate difference alone suggests."
+          ]
+        },
+        {
+          "name": "Hybrid and inter-VPC paths, public IPv4, load balancers, and logs",
+          "explain": "Site-to-Site VPN costs about five cents per VPN connection-hour plus normal internet egress, so it is cheap to start and stays cheap at low volume. Direct Connect charges port hours for a dedicated or hosted connection but prices data transfer out far below internet rates, so it wins on sustained high volume — the break-even is roughly where the port fee is repaid by the per-GB saving, typically a matter of tens of terabytes per month rather than a handful. Direct Connect also buys consistent latency, which is often the real requirement.\nInside AWS, VPC peering has no hourly charge and no per-GB charge for traffic within a Region (cross-AZ per-GB rates still apply), while Transit Gateway charges per attachment-hour plus a per-GB processing fee. So for two or three VPCs, peering is cheaper; Transit Gateway wins when the number of connections makes a full mesh unmanageable, which is a manageability argument that the exam frames as operational overhead.\nThree smaller items appear regularly. Since February 2024 every public IPv4 address is charged about half a cent per hour — roughly $3.60 a month each — including addresses in use on EC2 instances, so estates with thousands of public IPs save real money by moving to private addressing with endpoints or to IPv6. Elastic Load Balancers bill an hourly charge plus Load Balancer Capacity Units measured on new connections, active connections, processed bytes, and rule evaluations, so consolidating many lightly-used ALBs behind host- and path-based routing rules cuts the hourly floor. VPC Flow Logs delivered to S3 cost less than the same logs ingested into CloudWatch Logs, and Parquet with hive-compatible partitioning reduces both storage and later query cost.",
+          "exam_tests": "\"Large sustained data transfer to on-premises, lowest cost per GB\" is Direct Connect; \"low volume, needs to work this week, cheap\" is Site-to-Site VPN. \"Hundreds of VPCs, simplify and reduce management\" is Transit Gateway; \"two VPCs, lowest cost\" is peering. \"Unexpected charges for idle public IP addresses\" is the IPv4 charge plus unassociated Elastic IPs. \"Reduce flow log cost\" is deliver to S3 rather than CloudWatch Logs.",
+          "example": {
+            "scenario": "A company transfers 200 TB per month from AWS to its data centre over a Site-to-Site VPN and is unhappy with both the cost and the variable throughput. The link will be needed for at least three years.",
+            "answer": "Establish an AWS Direct Connect connection and move the transfer onto it.",
+            "why": "Direct Connect's per-GB data transfer out rate is a fraction of the internet egress rate the VPN pays, and at 200 TB per month the saving repays the port hours many times over while also giving consistent throughput. A second VPN tunnel would add bandwidth but keeps paying full internet egress rates."
+          },
+          "compare": {
+            "columns": ["Path", "Fixed cost", "Per-GB", "Cheapest when"],
+            "rows": [
+              ["Site-to-Site VPN", "~$0.05/hr per connection", "Standard internet egress", "Low or bursty volume; quick to stand up"],
+              ["Direct Connect", "Port hours (dedicated or hosted)", "Well below internet egress", "Sustained high volume, long commitment"],
+              ["VPC peering", "None", "Free in-Region (cross-AZ rates still apply)", "A small number of VPCs"],
+              ["Transit Gateway", "~$0.05/hr per attachment", "~$0.02/GB processed", "Many VPCs — manageability over raw price"],
+              ["Public IPv4 address", "~$0.005/hr each", "N/A", "Remove unneeded ones; use IPv6 or private + endpoints"]
+            ]
+          },
+          "gotchas": [
+            "Unassociated Elastic IPs have always been charged; since February 2024 in-use public IPv4 addresses are charged too.",
+            "VPC peering is free per-GB only within a Region — cross-AZ and cross-Region traffic over a peering connection is still billed.",
+            "Transit Gateway charges per attachment per hour, so a large mesh has a meaningful fixed cost before any bytes flow.",
+            "Direct Connect data transfer is cheaper but the port and any cross-connect fees are fixed — at low volume a VPN wins.",
+            "A Direct Connect connection alone is not encrypted; adding a VPN over it for encryption adds cost, which the stem may make relevant.",
+            "CloudWatch Logs ingestion is priced per GB ingested; sending high-volume VPC Flow Logs there rather than to S3 is a classic overspend."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cost-tooling",
+      "title": "Cost management tooling",
+      "summary": "Analyse in Cost Explorer, alert and enforce with Budgets, get line-item detail from the Cost and Usage Report, and let ML find anomalies and right-sizing.",
+      "concepts": [
+        {
+          "name": "Cost Explorer vs Budgets vs CUR vs Cost Anomaly Detection",
+          "explain": "These four are constantly swapped in distractors, and each answers a different question. Cost Explorer is the interactive analysis console: filter and group historical spend by service, account, tag, or cost category, view up to twelve months of history plus a twelve-month forecast, and receive Reserved Instance, Savings Plans, and rightsizing recommendations. It is where you understand what happened.\nAWS Budgets is where you set a threshold and get told when you cross it. Budgets cover cost, usage, RI and Savings Plans utilization, and coverage, alert through SNS or email at actual or forecasted thresholds, and — the part the exam cares about — Budget Actions can automatically apply an IAM or service control policy or stop EC2 and RDS instances when a budget is breached. That makes Budgets the only one of the four that can enforce, not just report.\nThe AWS Cost and Usage Report (now delivered through Data Exports) is the raw, most granular data: hourly or daily line items down to individual resource IDs, written to an S3 bucket in CSV or Parquet and queried with Athena, QuickSight, or Redshift. It is the answer whenever the scenario needs custom analysis, chargeback, or joins with non-AWS data. Cost Anomaly Detection uses machine learning to learn each service's normal spend pattern and alerts on unusual deviations without you defining any threshold — the answer to \"detect unexpected spend spikes automatically\".",
+          "exam_tests": "The verb in the stem picks the tool. \"Visualize, analyse, identify trends, get RI/SP recommendations\" is Cost Explorer. \"Alert when spend exceeds\" or \"automatically stop resources when the budget is exceeded\" is Budgets with Budget Actions. \"Most granular, line-item, custom queries, chargeback\" is the Cost and Usage Report. \"Detect unusual spend without setting a threshold\" is Cost Anomaly Detection.",
+          "example": {
+            "scenario": "A company gives development teams their own accounts. Finance wants an automatic control that prevents any team from exceeding its monthly allowance, not just a notification after the fact.",
+            "answer": "Create an AWS Budget per account with a Budget Action that attaches a restrictive IAM or service control policy when the threshold is reached.",
+            "why": "Budget Actions are the only native mechanism among the cost tools that can take an enforcement step rather than send an alert. Cost Explorer and the Cost and Usage Report only report on spend that has already happened."
+          },
+          "compare": {
+            "columns": ["Tool", "Answers", "Granularity", "Can act?"],
+            "rows": [
+              ["Cost Explorer", "What did we spend and where is it going?", "Monthly/daily/hourly, resource-level optional", "No — recommends only"],
+              ["AWS Budgets", "Tell me, or stop it, when we cross a limit", "Budget threshold, actual or forecast", "Yes — SNS alerts and Budget Actions"],
+              ["Cost and Usage Report", "Give me every line item for custom analysis", "Hourly, per resource, to S3", "No — data only"],
+              ["Cost Anomaly Detection", "Is something unusual happening?", "ML-detected anomalies per monitor", "No — alerts only"],
+              ["Compute Optimizer", "Which resources are the wrong size?", "Per resource recommendation", "No — recommends only"],
+              ["Trusted Advisor", "What obvious waste and risk exists?", "Checklist across five pillars", "No — recommends only"]
+            ]
+          },
+          "gotchas": [
+            "Only AWS Budgets can take an action; every other cost tool reports or recommends.",
+            "Cost Explorer must be enabled once and then takes up to 24 hours to populate; hourly and resource-level granularity carry an extra charge.",
+            "The Cost and Usage Report is delivered to S3 on a schedule — it is not a live API for real-time alerting.",
+            "Cost Anomaly Detection needs no thresholds; an option that describes configuring anomaly thresholds manually is describing Budgets.",
+            "Budgets can also alert on RI and Savings Plans utilization and coverage falling below a target, not just on dollars.",
+            "Cost Explorer's rightsizing recommendations overlap with Compute Optimizer but Compute Optimizer covers more resource types and goes deeper."
+          ],
+          "mnemonic": "Explorer explains, Budgets bite, CUR is the raw feed, Anomaly notices."
+        },
+        {
+          "name": "Recommendation engines: Compute Optimizer, Trusted Advisor, Pricing Calculator",
+          "explain": "Compute Optimizer is the machine-learning right-sizing service. It analyses CloudWatch metrics and generates over-provisioned and under-provisioned findings with specific recommended configurations for EC2 instances, Auto Scaling groups, EBS volumes, Lambda functions, ECS services on Fargate, and RDS instances, with estimated savings attached. It works across an Organization, needs roughly fourteen days of metric history, and requires the CloudWatch agent for memory-aware recommendations.\nAWS Trusted Advisor is broader and shallower: a checklist across cost optimization, performance, security, fault tolerance, and service limits. Its cost checks catch the obvious waste — idle load balancers, underutilized EBS volumes, unassociated Elastic IPs, low-utilization EC2 instances, idle RDS instances, and RI or Savings Plans purchase opportunities. The full set of checks requires Business or Enterprise Support; core checks are available to everyone.\nAWS Pricing Calculator is the only one of the three that works before anything exists. It produces an estimate for a proposed architecture, which is what you want when the scenario says the company is planning a migration and needs to compare designs or build a business case.",
+          "exam_tests": "\"Identify over-provisioned instances with specific recommendations\" is Compute Optimizer. \"Find idle load balancers, unattached volumes, and unassociated Elastic IPs across the account\" is Trusted Advisor. \"Estimate the cost of a proposed architecture before deploying\" is Pricing Calculator. If the stem says \"before migrating\" or \"planning\", no analysis tool works — only the calculator.",
+          "example": {
+            "scenario": "A team suspects its EC2 fleet and Lambda functions are over-provisioned but has no data. It wants specific sizing recommendations with estimated savings, without installing third-party software.",
+            "answer": "Enable AWS Compute Optimizer and act on its EC2 and Lambda recommendations.",
+            "why": "Compute Optimizer analyses existing CloudWatch metrics and returns a concrete recommended configuration and estimated saving per resource, including Lambda memory sizing. Trusted Advisor would flag only grossly idle resources and would not produce a per-function memory recommendation."
+          },
+          "compare": {
+            "columns": ["Tool", "Scope", "Needs", "Best question"],
+            "rows": [
+              ["Compute Optimizer", "EC2, ASG, EBS, Lambda, Fargate, RDS", "~14 days of metrics; agent for memory", "What size should this be?"],
+              ["Trusted Advisor", "Cost, security, performance, fault tolerance, limits", "Business/Enterprise Support for full checks", "What obvious waste exists?"],
+              ["Pricing Calculator", "Any proposed architecture", "Nothing deployed", "What will this cost before we build it?"],
+              ["Cost Explorer recommendations", "RI, Savings Plans, EC2 rightsizing", "Cost Explorer enabled", "What should we commit to?"]
+            ]
+          },
+          "gotchas": [
+            "Compute Optimizer cannot recommend memory changes for EC2 without the CloudWatch agent — memory is not a default metric.",
+            "Trusted Advisor's full cost checks need Business or Enterprise Support; the free tier gives only core checks.",
+            "Pricing Calculator estimates; it never reads your actual usage.",
+            "Compute Optimizer needs about 14 days of history, so it is useless immediately after a launch.",
+            "None of these three change anything — they all produce recommendations you must implement.",
+            "Savings Plans and RI purchase recommendations come from Cost Explorer, not from Compute Optimizer."
+          ]
+        },
+        {
+          "name": "Allocation and governance: tags, cost categories, consolidated billing, Billing Conductor",
+          "explain": "Cost allocation tags are how spend gets attributed to teams, projects, and environments. User-defined tags must be activated in the Billing console before they appear as a dimension in Cost Explorer and the Cost and Usage Report, and — this is the tested detail — activation is not retroactive: tag data only shows up for usage incurred after activation. AWS-generated tags such as aws:createdBy work the same way. Tag Policies in AWS Organizations enforce consistent tag keys and values so the allocation actually holds together.\nCost Categories sit one level above tags: rules that map accounts, tags, services, or charge types into business dimensions such as Business Unit or Environment, which then appear as a grouping dimension everywhere. They are the answer when the organization's structure does not line up with either accounts or tags.\nAWS Organizations consolidated billing does three cost things automatically: it produces one bill, it aggregates usage across all member accounts so volume-tiered pricing (S3 storage tiers, data transfer tiers) is reached sooner, and it shares Reserved Instance and Savings Plans discounts across accounts in the organization — sharing that can be disabled per account when a team must keep its own reservations. AWS Billing Conductor is the niche one: it builds customized billing views with custom pricing rules for internal showback or for resellers who need to re-price AWS to their own customers.",
+          "exam_tests": "\"Attribute costs to departments or projects\" is cost allocation tags, activated in Billing. \"Group costs by a business dimension that does not match accounts or tags\" is Cost Categories. \"Reduce cost across many accounts without changing architecture\" is consolidated billing volume discounts plus RI/SP sharing. \"Show teams a custom rate or a marked-up bill\" is Billing Conductor.",
+          "example": {
+            "scenario": "A company with 40 AWS accounts in an Organization wants each engineering team's spend reported separately. Resources are already tagged with a Team key, but the tag does not appear as a filter in Cost Explorer.",
+            "answer": "Activate Team as a user-defined cost allocation tag in the Billing console, and enforce it with an Organizations tag policy.",
+            "why": "A tag only becomes a billing dimension after it is explicitly activated for cost allocation, which is exactly the symptom described. Note that activation applies going forward, so historical spend will not be retroactively attributed."
+          },
+          "compare": {
+            "columns": ["Mechanism", "What it does", "Use when"],
+            "rows": [
+              ["Cost allocation tags", "Attribute cost to resources by tag key", "Teams/projects tagged consistently"],
+              ["Tag policies (Organizations)", "Enforce tag keys and casing", "Tagging is inconsistent across accounts"],
+              ["Cost Categories", "Rule-based grouping into business dimensions", "Structure does not match accounts or tags"],
+              ["Consolidated billing", "One bill, volume tiers, RI/SP sharing", "Multiple accounts in an Organization"],
+              ["Billing Conductor", "Custom pricing and billing views", "Reseller or internal showback with custom rates"]
+            ]
+          },
+          "gotchas": [
+            "Cost allocation tags are not retroactive — activating a tag today does not attribute last month's spend.",
+            "User-defined tags must be activated in the Billing console; creating the tag on the resource is not enough.",
+            "RI and Savings Plans sharing across an Organization is on by default and can be turned off per account.",
+            "Consolidated billing aggregates usage for volume tiering — the same total spend split across unlinked accounts costs more.",
+            "Billing Conductor changes what a team sees on its bill; it does not change what AWS actually charges the payer account.",
+            "Cost Categories can be layered on top of tags, so a missing tag can still be mapped by an account-based rule."
+          ]
+        }
+      ]
+    }
+  ],
+  "end_of_domain_checklist": [
+    "I can state the minimum storage duration, retrieval latency, and retrieval fee for every S3 storage class without looking.",
+    "I can say why Standard-IA is more expensive than Standard for millions of 20 KB objects.",
+    "I can explain when Intelligent-Tiering beats a lifecycle rule, and why objects under 128 KB do not benefit.",
+    "I can name the two lifecycle actions that fix an S3 bill growing while the object count stays flat.",
+    "I can justify gp3 over gp2 in one sentence and say when io2 is actually required.",
+    "I can decide between an EBS snapshot, Snapshot Archive, DLM, and AWS Backup for a given retention scenario.",
+    "I can say which data transfer is free: inbound, same-AZ private IP, gateway endpoint to S3.",
+    "I can reproduce the EC2 purchasing table with discount, commitment, and flexibility for each option.",
+    "I can explain why a Compute Savings Plan and not an RI is the answer when Fargate and Lambda are in scope.",
+    "I can say why a Capacity Reservation is never the answer to a pure cost question.",
+    "I can list the three things that make a workload safe for Spot and the allocation strategy that minimizes interruptions.",
+    "I can say why adding memory to a Lambda function can lower its total cost.",
+    "I can pick between Aurora Standard, I/O-Optimized, and Serverless v2 from the workload description alone.",
+    "I can decide DynamoDB on-demand vs provisioned-plus-auto-scaling, and say when Standard-IA table class wins.",
+    "I can give the three Athena cost levers without mentioning instance sizes.",
+    "I can say why a gateway endpoint is free and an interface endpoint is not, and what each one covers.",
+    "I can state the break-even logic for Direct Connect versus Site-to-Site VPN, and for peering versus Transit Gateway.",
+    "I can explain the public IPv4 charge and where it silently appears.",
+    "I can pick between Cost Explorer, Budgets, CUR, Cost Anomaly Detection, Compute Optimizer, and Trusted Advisor from the stem's verb.",
+    "I can say which cost tool can actually stop a resource, and why cost allocation tags are not retroactive."
+  ]
+}

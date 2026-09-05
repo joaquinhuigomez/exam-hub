@@ -1,0 +1,538 @@
+{
+  "tier_s_must_memorize_cold": [
+    {
+      "topic": "S3 storage classes + lifecycle",
+      "fact": "Ladder (cost per GB descending): Express One Zone > Standard > Intelligent-Tiering > Standard-IA > One Zone-IA > Glacier Instant > Glacier Flexible > Deep Archive.\nMin storage duration: Standard 0 / IT 0 / IA 30 / OZ-IA 30 / GIR 90 / GFR 90 / GDA 180 days. Min billable object 128 KB for IA classes; IT does not auto-tier objects <128 KB.\nRetrieval: everything down to Glacier Instant = milliseconds. GFR: Expedited 1-5 min, Standard 3-5 h, Bulk 5-12 h (Bulk free). GDA: Standard 12 h, Bulk 48 h.\nLifecycle: objects must sit 30 days in Standard before transitioning to IA/OZ-IA; transitions only go DOWN the ladder (never IA -> Standard). Expiration deletes; noncurrent-version rules need versioning.\nOne Zone-IA = single AZ -> only for re-creatable data. Intelligent-Tiering = unknown/changing access pattern (monitoring fee per object, no retrieval fee).\nDurability 99.999999999% (11 nines) all classes; availability 99.99 Standard, 99.9 IA, 99.5 OZ-IA."
+    },
+    {
+      "topic": "EBS / EFS / FSx / instance store picker",
+      "fact": "EBS = one instance, one AZ, block. gp3 baseline 3,000 IOPS + 125 MB/s (max 16k / 1,000 MB/s, independent of size); gp2 3 IOPS/GB. io2 Block Express up to 256k IOPS, 64 TiB, sub-ms. st1 throughput HDD 500 MB/s (logs, big data); sc1 cold 250 MB/s; HDD cannot boot. Multi-Attach io1/io2 only, up to 16 Nitro instances same AZ.\nEFS = shared POSIX NFS for Linux, Regional (multi-AZ) or One Zone, thousands of clients, ~3x EBS $/GB; classes Standard / IA / Archive with lifecycle; throughput Bursting / Provisioned / Elastic; performance General Purpose vs Max I/O. Not Windows.\nFSx for Windows = SMB + NTFS + Active Directory + DFS, Multi-AZ. FSx for Lustre = HPC / ML, 100s GB/s, sub-ms, S3-linked (lazy load + export), scratch vs persistent. FSx for NetApp ONTAP = multi-protocol NFS+SMB+iSCSI, snapshots, SnapMirror migration from NetApp. FSx for OpenZFS = NFS, ZFS snapshots/clones, up to 1M IOPS, migrate ZFS/Linux file servers.\nInstance store = ephemeral NVMe physically attached, millions of IOPS, lost on stop/terminate; scratch, buffers, replicated caches only.\nS3 = object, HTTP API, static assets, data lake; not a POSIX file system (Mountpoint is read-mostly)."
+    },
+    {
+      "topic": "RDS Multi-AZ vs read replica vs Aurora",
+      "fact": "Multi-AZ (instance) = SYNCHRONOUS standby in another AZ, NOT readable, auto failover 60-120 s via DNS CNAME flip, same Region only, backups taken from standby. It is HA, not scaling.\nMulti-AZ DB cluster = 1 writer + 2 READABLE standbys, semi-sync, failover <35 s (MySQL/PostgreSQL only).\nRead replica = ASYNCHRONOUS, readable, up to 15 (MySQL/MariaDB/PostgreSQL; 5 for Oracle/SQL Server), same or cross-Region, own endpoint, manually promotable (DR), can itself be Multi-AZ. No automatic failover.\nEncryption: only at creation. Encrypt an existing DB: snapshot -> copy snapshot with KMS key -> restore. Replicas of an encrypted primary are encrypted.\nBackups: automated 0-35 days (default 7), PITR to any second; manual snapshots persist until deleted; snapshots restore to a NEW endpoint.\nAurora: storage 6 copies across 3 AZs, self-healing, grows 10 GB -> 128 TiB; up to 15 replicas that double as failover targets (priority tier 0-15); writer + reader endpoints; failover ~30 s; Global Database = 1 primary + secondary Regions, <1 s lag, RPO ~1 s, RTO <1 min; Serverless v2 scales in 0.5 ACU steps; Backtrack rewinds MySQL up to 72 h with no restore; cloning is copy-on-write.\nRDS Proxy: connection pooling (Lambda bursts), IAM auth, cuts failover time up to 66%."
+    },
+    {
+      "topic": "DynamoDB essentials",
+      "fact": "Key-value/document, single-digit ms, serverless, horizontal. Item max 400 KB. RCU = 1 strongly-consistent 4 KB read/s (or 2 eventually consistent); WCU = 1 KB write/s. Transactions cost 2x.\nCapacity: Provisioned (+ auto scaling, reserved capacity for steady) vs On-Demand (unpredictable/spiky, pay per request, ~5-7x unit price). Standard-IA table class for cold tables.\nDAX = in-memory, in-VPC, API-compatible read cache, microsecond latency, for read-heavy/hot items -> NOT ElastiCache (that is for RDS). Hot partition -> fix the partition key (high cardinality, write sharding), not more RCUs.\nGlobal tables = multi-Region ACTIVE-ACTIVE, needs Streams; last-writer-wins. Streams = 24 h ordered change log -> Lambda triggers; Kinesis Data Streams for DynamoDB = up to 365 days.\nTTL = free background expiry (no WCU). PITR 35 days; on-demand backups; export to S3 (no RCU).\nGSI = any partition/sort key, own capacity, eventually consistent, add any time (GSI throttling throttles the base table). LSI = same partition key + alternate sort key, create at table creation only, 10 GB per partition key, strongly consistent reads.\nRead DynamoDB when: no joins, schema flexible, millions of TPS, serverless; pick RDS/Aurora when relational joins/ACID across many tables."
+    },
+    {
+      "topic": "SQS / SNS / EventBridge / Kinesis picker",
+      "fact": "SQS Standard = decouple + buffer, unlimited TPS, at-least-once, best-effort order. FIFO = exactly-once + ordering per message group, 300 msg/s (3,000 batched), dedup ID 5-min window. Both: 256 KB (Extended Client Library -> S3 for bigger), retention 1 min-14 days (default 4), visibility timeout default 30 s max 12 h, long polling <=20 s, delay <=15 min, DLQ + redrive. Scale ASG on ApproximateNumberOfMessagesVisible per instance.\nSNS = push pub/sub, fan-out to SQS/Lambda/HTTP/email/SMS/Firehose, message filtering, FIFO topic -> FIFO queue. Pattern: SNS -> multiple SQS = durable fan-out.\nEventBridge = event bus with rules; 100+ SaaS partners, cross-account buses, schedules (cron/rate), archive + replay, schema registry, content-based filtering. Pick for SaaS/cross-account/scheduled/routing on content.\nKinesis Data Streams = real-time, ordered per shard, REPLAY (24 h default, up to 365 days), shard 1 MB/s or 1,000 rec/s in, 2 MB/s out (enhanced fan-out 2 MB/s per consumer), record 1 MB; consumers: Lambda, KCL, Flink, Firehose. On-demand mode exists.\nFirehose = near-real-time (buffer 60-900 s / 1-128 MB) delivery to S3/Redshift/OpenSearch/Splunk/HTTP, no storage, no replay, optional Lambda transform, Parquet/ORC conversion, zero admin.\nManaged Service for Apache Flink (ex Kinesis Data Analytics) = SQL/Flink over streams. MSK = Kafka. Amazon MQ = lift-and-shift ActiveMQ/RabbitMQ (AMQP/MQTT/JMS). Step Functions = orchestration/workflow with retries (Standard 1 yr exactly-once; Express 5 min at-least-once, high volume). SWF = legacy."
+    },
+    {
+      "topic": "Route 53 policies + DR ladder",
+      "fact": "Simple (one record, random if multiple values, no health check). Weighted (0-255 split, A/B, canary; weight 0 = stop). Latency (lowest RTT Region). Failover (active-passive; primary needs health check). Geolocation (WHERE user is: compliance/localized content; set a default). Geoproximity (bias +/- to shift traffic; needs Traffic Flow). Multivalue answer (up to 8 healthy records, client-side LB with health checks; not a load balancer). IP-based (by client CIDR).\nAlias = free, zone apex OK, targets ELB/CloudFront/S3 website/API GW/Global Accelerator/VPC endpoint/another record in same zone; NOT an EC2 IP. CNAME never at apex.\nHealth checks: endpoint (30 s default, 10 s fast), calculated (parent of children), CloudWatch alarm (for PRIVATE resources). Checkers are public -> private endpoints need the alarm type.\nHybrid DNS: Resolver inbound endpoint (on-prem -> VPC names), outbound endpoint + forwarding rules (VPC -> on-prem names).\nDR ladder (cost up, RTO/RPO down): Backup & Restore (hours/hours, cheapest, AWS Backup + cross-Region copy) -> Pilot Light (data live e.g. replicated DB, compute off; RPO minutes, RTO 10s of min) -> Warm Standby (scaled-down full stack running; RPO seconds, RTO minutes) -> Multi-site active/active (full stack both Regions, Route 53 latency/weighted; RPO ~0, RTO ~0).\nRPO = data you can lose; RTO = downtime you can tolerate."
+    },
+    {
+      "topic": "SG vs NACL + VPC endpoints + NAT",
+      "fact": "Security group: instance/ENI level, STATEFUL (return traffic auto-allowed), ALLOW rules only, all rules evaluated, default deny all inbound / allow all outbound, can reference other SGs (same Region incl. peered VPC).\nNACL: subnet level, STATELESS (must allow ephemeral 1024-65535 for return traffic), ALLOW + DENY, rules evaluated lowest number first, first match wins; default NACL allows all, custom NACL denies all. Use NACL to block a specific IP.\nGateway endpoint: S3 + DynamoDB ONLY, route-table entry, FREE, same Region, not reachable from on-prem/peered VPC. Interface endpoint (PrivateLink): ENI with private IP, ~all services incl. S3, $0.01/h per AZ + per GB, reachable over DX/VPN, private DNS. Endpoint policy restricts what the endpoint can reach; bucket policy aws:sourceVpce locks S3 to the endpoint.\nNAT gateway: managed, lives in ONE AZ (one per AZ for HA), 5-100 Gbps, no SG, $/hour + $/GB processed, needs Elastic IP, in public subnet; private subnet route 0.0.0.0/0 -> NAT GW. NAT instance: EC2, disable source/dest check, has SG, cheaper, you patch it. Egress-only IGW = IPv6 outbound.\nBastion -> replace with SSM Session Manager (no inbound ports, IAM, logged). IMDSv2 (session token, hop limit) defeats SSRF credential theft.\nVPC Flow Logs -> CloudWatch Logs / S3 / Firehose; captures ACCEPT/REJECT metadata, not payload; misses DNS to AmazonProvidedDNS, DHCP, metadata traffic."
+    },
+    {
+      "topic": "IAM / Organizations / KMS essentials",
+      "fact": "Policy types: identity-based (grants), resource-based (grants, enables cross-account without AssumeRole; S3/SQS/KMS/Lambda/Secrets), permission boundary (CAPS one principal, grants nothing), SCP (CAPS every identity incl. root in member accounts; no effect on management account; grants nothing), session policy (caps an AssumeRole session). Effective = intersection; explicit Deny always wins.\nCross-account: resource policy + caller identity policy, OR AssumeRole into a role that trusts the account. STS creds 15 min-12 h (role chaining max 1 h). SAML 2.0 IdP -> AssumeRoleWithSAML; OIDC (Google/Cognito) -> AssumeRoleWithWebIdentity. Workforce SSO -> IAM Identity Center permission sets. Cognito user pool = authentication (JWT, sign-up, MFA, social/SAML); identity pool = authorization (temp AWS creds, guest access).\nOrganizations: consolidated billing (RI/SP sharing, volume tiers), OUs, SCPs, tag/backup policies; aws:PrincipalOrgID condition. Control Tower = landing zone + guardrails (preventive = SCP, detective = Config) + Account Factory.\nKMS keys: AWS-owned (free, invisible), AWS-managed aws/<service> (free, auto-rotate yearly, no policy control), customer-managed ($1/mo, key policy + grants, optional yearly automatic rotation for symmetric only, cross-account, imported material = no auto rotation), multi-Region keys (same ID, DR/Global tables), asymmetric (sign/verify, no auto rotation). Envelope encryption via GenerateDataKey; direct Encrypt limited to 4 KB. Deletion waiting period 7-30 days. Regional service.\nCloudHSM = single-tenant FIPS 140-2 Level 3, you own keys, Oracle TDE/SSL offload, KMS custom key store.\nS3 SSE: SSE-S3 (default, free, no audit), SSE-KMS (CloudTrail audit, per-key access control, KMS API quota -> S3 Bucket Keys), DSSE-KMS (two layers), SSE-C (you send the key, HTTPS only), client-side. Secrets Manager rotates (native RDS/Redshift/DocumentDB), $0.40/secret; Parameter Store free standard tier, SecureString via KMS, no native rotation. ACM public certs free + auto-renew, not exportable; CloudFront cert must be in us-east-1."
+    },
+    {
+      "topic": "EC2 purchasing options",
+      "fact": "On-Demand: no commitment, per-second billing (60 s min), spiky/unpredictable/short.\nStandard RI: 1 or 3 yr, up to 72%, locked to instance FAMILY (size flex within family for Linux default tenancy, AZ change OK), sellable on RI Marketplace. Convertible RI: up to 66%, can change family/OS/tenancy, not sellable. Payment: All upfront > Partial > No upfront discount. Zonal RI reserves capacity; Regional RI does not.\nSavings Plans: Compute SP up to 66%, $/hour commit, any family/size/Region/OS/tenancy, covers EC2 + Fargate + Lambda. EC2 Instance SP up to 72%, locked to family + Region. Default answer for steady compute unless capacity reservation or marketplace resale needed.\nSpot: up to 90% off, 2-minute interruption warning, stateless/fault-tolerant/batch/CI/big data/containers; Spot Fleet + capacity rebalancing; NEVER for stateful DBs or must-finish jobs. Spot blocks retired.\nDedicated Host: physical server visible sockets/cores -> BYOL per-socket/per-core licenses (Windows Server, SQL Server), host affinity, compliance; can be reserved. Dedicated Instance: hardware isolated to your account but no socket visibility, may share host with your other instances. Capacity Reservation: guarantees AZ capacity any duration, On-Demand price (no discount) -> stack with RI/SP for discount.\nRDS/ElastiCache/Redshift/OpenSearch/DynamoDB have their own reserved pricing (SPs do not cover them)."
+    },
+    {
+      "topic": "ELB types + ASG policies",
+      "fact": "ALB = L7 HTTP/HTTPS/gRPC/WebSocket; route by path, host, header, query, method, source IP; targets instances/IPs/Lambda/another ALB (or on-prem IPs); fixed-response/redirect; sticky cookies; SNI multi-cert; Cognito/OIDC auth; WAF; X-Forwarded-For; NO static IP (front with NLB or Global Accelerator); cross-zone always on and free.\nNLB = L4 TCP/UDP/TLS, millions rps, ultra-low latency, ONE static/Elastic IP per AZ, preserves source IP, TLS termination, PrivateLink endpoint service target, targets incl. ALB; cross-zone off by default.\nGWLB = L3 transparent bump-in-the-wire for 3rd-party appliances (firewall/IDS/IPS), GENEVE 6081, GWLB endpoint. CLB = legacy, avoid.\nDeregistration delay (draining) default 300 s. ELB health check for ASG = app-level (default EC2 check only catches hardware). Deletion protection.\nASG: launch TEMPLATE (versioned, mixed instances/Spot) not launch configuration; min/desired/max; health check grace 300 s; default cooldown 300 s; lifecycle hooks (pending:wait for bootstrap, terminating:wait for log drain); termination policy default = AZ with most instances -> oldest launch template -> closest to billing hour; scale-in protection; instance refresh; warm pools.\nPolicies: Target tracking (keep metric at value: CPU 40%, ALBRequestCountPerTarget, SQS backlog per instance custom metric) = default pick. Step scaling (alarm breach bands, add +2/+4). Simple scaling (one adjustment then cooldown; legacy). Scheduled (known peaks, e.g. 9am). Predictive (ML on 14 days of history, pre-provisions; combine with target tracking).\nSpread across AZs: ASG rebalances; scale out then in; a stopped instance is unhealthy -> replaced."
+    },
+    {
+      "topic": "CloudFront vs Global Accelerator + DX vs VPN vs TGW vs peering vs PrivateLink",
+      "fact": "CloudFront = CDN, CACHES HTTP(S) content at 600+ PoPs; origins S3/ALB/EC2/any HTTP; OAC locks S3 to CloudFront (replaces OAI, supports SSE-KMS); geo restriction; signed URL (one file) vs signed cookie (many files, no URL change); field-level encryption; TTL default 24 h; invalidations; origin groups failover; WAF + Shield; Price Classes cut cost; S3 -> CloudFront origin fetch free.\nGlobal Accelerator = 2 static anycast IPs, L4 TCP/UDP, NO caching, routes over AWS backbone to nearest healthy ALB/NLB/EC2/EIP in any Region, failover <1 min, deterministic; pick for non-HTTP, gaming/VoIP/IoT, IP allow-listing, multi-Region ALB static IP.\nVPC peering = 1:1, NON-transitive, no overlapping CIDRs, cross-account/Region, SG cross-reference same Region.\nTransit Gateway = regional hub, TRANSITIVE, up to 5,000 attachments, route tables for segmentation, inter-Region peering, multicast, VPN ECMP, DX via transit VIF; $/attachment-hour + $/GB.\nPrivateLink (interface endpoint / endpoint service) = expose ONE service via NLB/GWLB to thousands of consumer VPCs, one-directional, overlapping CIDRs fine, no IGW/NAT/peering.\nDirect Connect = private dedicated 1/10/100 Gbps (hosted 50 Mbps-10 Gbps), consistent latency, cheaper egress, weeks to months lead time, NOT encrypted by default (IPsec VPN over DX or MACsec); VIFs: private (VPC), public (S3/DynamoDB public endpoints), transit (DX Gateway -> TGW); DX Gateway spans Regions/accounts; resilience = 2 connections at 2 locations or VPN backup.\nSite-to-Site VPN = IPsec over internet, 2 tunnels, 1.25 Gbps/tunnel, minutes to deploy, VGW or TGW target, Accelerated VPN via Global Accelerator, ECMP on TGW to aggregate. Client VPN = OpenVPN users -> VPC. VPN CloudHub = branch offices hub-spoke over VGW."
+    },
+    {
+      "topic": "Cost tools + NAT / data-transfer traps",
+      "fact": "Cost Explorer = visualize + 13 months history + 12-month forecast + RI/SP purchase recommendations + rightsizing. Budgets = ALERT (cost, usage, RI/SP utilization & coverage) + Budget Actions (apply IAM/SCP, stop EC2/RDS). CUR = most granular raw line items to S3 -> Athena/QuickSight. Cost Anomaly Detection = ML alerts, free. Compute Optimizer = ML right-sizing for EC2/ASG/EBS/Lambda/ECS Fargate (14-day lookback). Trusted Advisor = best-practice checks in cost/performance/security/fault tolerance/service quotas/operational excellence; full checks need Business+ support. Cost allocation tags must be ACTIVATED. Consolidated billing pools volume tiers + shares RI/SP.\nData transfer: inbound free. Out to internet ~$0.09/GB (100 GB/mo free). Inter-Region ~$0.02/GB. Inter-AZ $0.01/GB EACH direction. Same-AZ via PRIVATE IP free; via public/Elastic IP is charged as Regional transfer. Public IPv4 $0.005/h each. S3 -> EC2 same Region free. S3 -> CloudFront free; CloudFront egress cheaper than S3/EC2 egress.\nNAT gateway = $0.045/h + $0.045/GB processed -> route S3/DynamoDB through a FREE gateway endpoint instead. Interface endpoint $0.01/h/AZ + $0.01/GB. TGW $0.05/h/attachment + $0.02/GB (peering cheaper for 2 VPCs). DX egress ~$0.02/GB (cheaper than internet).\nS3: requests cost; IA/Glacier charge per-GB retrieval; lifecycle transitions charge per 1,000 objects (millions of tiny objects -> aggregate or leave in Standard; IT does not tier <128 KB). Glacier early-delete fees within min duration.\nCompute: Graviton ~20-40% cheaper per perf; Spot 90%; SP over RI; Fargate for spiky, EC2 for steady dense; Lambda = requests + GB-s. Aurora I/O-Optimized when I/O >25% of Aurora bill. S3 Requester Pays. Reserved nodes for RDS/ElastiCache/Redshift/OpenSearch."
+    }
+  ],
+  "domains": {
+    "D1": [
+      {"topic": "IAM policy evaluation", "fact": "Explicit Deny > SCP > resource policy > permission boundary > session policy > identity policy. Default is implicit deny. Effective permissions = intersection of identity policy with each cap (SCP, boundary, session)."},
+      {"topic": "SCP scope", "fact": "SCPs cap member-account identities including root; never affect the management account; never grant. Service-linked roles are exempt. Deny-list strategy (FullAWSAccess + deny statements) is the default and recommended."},
+      {"topic": "Permission boundary", "fact": "Managed policy attached to a user/role setting its MAX permissions. Classic use: let developers create roles but only within the boundary (iam:PermissionsBoundary condition on iam:CreateRole)."},
+      {"topic": "Resource-based vs role for cross-account", "fact": "Resource policy keeps the caller's own identity and lets them still access their own account resources in the same call; AssumeRole swaps identity. Services supporting resource policies: S3, SQS, SNS, KMS, Lambda, Secrets Manager, ECR, API Gateway, EventBridge, Glue."},
+      {"topic": "IAM roles for EC2 / Lambda / ECS", "fact": "Never store access keys on instances; attach an instance profile role. ECS task role (per task) vs container instance role (agent). Lambda execution role. Roles rotate creds automatically via IMDS."},
+      {"topic": "Federation choices", "fact": "Enterprise AD/SAML -> IAM Identity Center (multi-account) or SAML 2.0 role federation; web/mobile users -> Cognito user pool (authn) + identity pool (temp creds); Active Directory on AWS -> AWS Managed Microsoft AD (trust with on-prem), AD Connector (proxy, no cache), Simple AD (standalone Samba, small)."},
+      {"topic": "MFA and root", "fact": "Root: enable MFA, no access keys, use only for account tasks. Enforce MFA via aws:MultiFactorAuthPresent condition. S3 MFA Delete requires root + CLI + versioning."},
+      {"topic": "S3 access control", "fact": "Bucket policy (resource, cross-account, aws:SecureTransport / aws:sourceVpce / aws:PrincipalOrgID conditions) > IAM policy > ACL (disable ACLs with Bucket owner enforced). Block Public Access at account level. Access Points simplify shared buckets (per-app policies, VPC-only). Pre-signed URLs delegate temporary access (max 7 days)."},
+      {"topic": "S3 encryption enforcement", "fact": "Bucket policy Deny PutObject unless s3:x-amz-server-side-encryption = aws:kms (or AES256). Default encryption applies SSE-S3 automatically since 2023. Deny when aws:SecureTransport is false to force TLS. SSE-KMS gives CloudTrail audit + per-key control; S3 Bucket Keys reduce KMS request cost."},
+      {"topic": "S3 Object Lock and Vault Lock", "fact": "Object Lock needs versioning. Governance mode: privileged users (s3:BypassGovernanceRetention) can delete/shorten. Compliance mode: nobody including root until retention ends. Legal hold = indefinite, independent of retention. Glacier Vault Lock = immutable vault policy (legacy vaults). AWS Backup Vault Lock = WORM backups."},
+      {"topic": "KMS key policy vs grants", "fact": "Key policy is mandatory and is the primary access control; IAM policies work only if the key policy delegates to the account. Grants = temporary programmatic permissions (used by AWS services). Cross-account: key policy allows external account + their IAM policy allows kms actions. Imported key material and asymmetric keys cannot auto-rotate."},
+      {"topic": "Secrets Manager vs Parameter Store", "fact": "Secrets Manager: automatic rotation (Lambda, native RDS/Aurora/Redshift/DocumentDB), cross-Region replication, resource policy, $0.40/secret/mo + API. Parameter Store: free standard tier (4 KB, 10k params), advanced ($0.05, 8 KB, parameter policies), hierarchies, SecureString via KMS, no native rotation, integrates with CloudFormation dynamic refs."},
+      {"topic": "Edge protection stack", "fact": "WAF (L7 rules: SQLi/XSS, IP sets, geo, rate-based, managed rule groups, Bot Control, CAPTCHA) attaches to CloudFront/ALB/API GW/AppSync/Cognito, NOT NLB. Shield Standard free L3/L4 always-on. Shield Advanced $3k/mo: L7 DDoS, SRT 24x7, cost protection, protects EC2/ELB/CloudFront/GA/Route 53. Firewall Manager pushes WAF/Shield/SG/Network Firewall policies org-wide."},
+      {"topic": "Detection services", "fact": "GuardDuty = threat detection (ML on CloudTrail, VPC Flow Logs, DNS logs, EKS audit, S3 data events, RDS logins, Malware Protection), one click, findings -> EventBridge. Inspector = vulnerability/CVE + network reachability scans of EC2 (SSM agent), ECR images, Lambda. Macie = PII/sensitive data discovery in S3. Detective = investigate root cause graph after GuardDuty findings. Security Hub = aggregate findings + CSPM standards (CIS, PCI, FSBP), needs Config."},
+      {"topic": "Config vs CloudTrail vs CloudWatch", "fact": "Config = WHAT does a resource look like / is it compliant (rules, history, remediation via SSM Automation, conformance packs). CloudTrail = WHO called WHICH API (90-day event history free; trail to S3 for retention, org trail, data events extra, log file validation, Insights). CloudWatch = metrics, logs, alarms, dashboards (performance)."},
+      {"topic": "Network Firewall vs NACL/SG vs WAF", "fact": "Network Firewall = managed stateful/stateless L3-L7 VPC firewall with Suricata rules, domain filtering, IDS/IPS, deployed per AZ via firewall endpoints in an inspection subnet; centrally managed by Firewall Manager. SG/NACL = simple allow/deny by IP/port. WAF = HTTP request content. Route 53 Resolver DNS Firewall = block DNS lookups to bad domains."},
+      {"topic": "Private access to AWS APIs", "fact": "Gateway endpoints: S3 + DynamoDB, free, route table. Interface endpoints: everything else (and S3), PrivateLink, DNS names. Endpoint policy restricts actions. On-prem over DX/VPN can use interface endpoints only. API Gateway private endpoint = REST API reachable only from VPC via interface endpoint + resource policy."},
+      {"topic": "Secure EC2 admin", "fact": "SSM Session Manager: no SSH port, no bastion, IAM-controlled, session logs to S3/CloudWatch; needs SSM agent + instance role + outbound to SSM endpoints (or interface endpoints). EC2 Instance Connect = temporary SSH keys via API. IMDSv2 enforced in launch template (HttpTokens=required)."},
+      {"topic": "Certificates and TLS", "fact": "ACM public certs free, auto-renew, usable on ELB/CloudFront/API GW/App Runner; cannot install on EC2 or export (use ACM Private CA or import). CloudFront requires the cert in us-east-1. NLB TLS listener terminates TLS; ALB HTTPS listener with SNI for multiple domains. End-to-end encryption = re-encrypt at target (self-signed OK on backend)."},
+      {"topic": "Compliance artifacts", "fact": "AWS Artifact = download SOC/PCI/ISO reports and accept agreements (BAA). Audit Manager = continuous evidence collection against frameworks. Shared responsibility: AWS secures OF the cloud (hardware, managed service patching), customer secures IN the cloud (data, IAM, OS on EC2, SG rules)."}
+    ],
+    "D2": [
+      {"topic": "Resilience vocabulary", "fact": "RPO = max acceptable data loss (time between last backup/replica and failure). RTO = max acceptable downtime. Availability 99.99% = 52 min/yr. Multi-AZ = survive AZ loss; multi-Region = survive Region loss. Stateless tiers + externalized state (S3, DynamoDB, ElastiCache sessions) enable horizontal scaling and self-healing."},
+      {"topic": "Multi-AZ everything", "fact": "ALB/NLB spans AZs; ASG across >=2 AZs (3 preferred); RDS Multi-AZ; Aurora 3 AZs; ElastiCache Redis Multi-AZ with auto failover (Memcached has none); EFS Regional; NAT gateway per AZ (a single NAT GW is a cross-AZ single point of failure); interface endpoint ENI per AZ; DynamoDB/S3/SQS are multi-AZ by design."},
+      {"topic": "RDS failover mechanics", "fact": "Multi-AZ failover flips the DNS CNAME to the standby (apps must reconnect/not cache DNS); triggers: AZ outage, primary failure, instance type change, OS patching, manual reboot with failover. Read replica promotion is MANUAL and breaks replication. Multi-AZ cluster gives readable standbys + faster failover."},
+      {"topic": "Aurora HA extras", "fact": "Replicas are failover targets (tier 0-15; same-size preferred); no replica -> Aurora recreates the instance (slower). Reader endpoint load balances; custom endpoints group replicas (analytics vs OLTP). Global Database: managed planned failover (RPO 0) vs unplanned detach-and-promote (RPO ~1 s); write forwarding from secondaries. Backtrack (MySQL) vs PITR vs clone."},
+      {"topic": "DynamoDB resilience", "fact": "Global tables active-active multi-Region (replicated within ~1 s), PITR 35 days, on-demand backups, Streams + Lambda for reacting to changes, DAX Multi-AZ clusters. Conflict = last writer wins."},
+      {"topic": "S3 resilience", "fact": "Versioning protects against overwrite/delete (delete marker); MFA Delete; CRR (cross-Region, needs versioning both sides, new objects only unless Batch Replication, RTC 15-min SLA, optional delete-marker replication) for DR/compliance/latency; SRR for log aggregation/prod->test. Object Lock for immutability. Multi-Region Access Points route to nearest bucket."},
+      {"topic": "EBS resilience", "fact": "Volume is single-AZ; snapshots (incremental, S3, cross-Region/account copy), Fast Snapshot Restore removes first-read latency, Data Lifecycle Manager schedules snapshots, Recycle Bin recovers deleted snapshots/AMIs. To move an instance to another AZ: snapshot -> volume in new AZ / AMI -> launch."},
+      {"topic": "Decoupling for resilience", "fact": "Put SQS between tiers so consumers can fail/scale independently; DLQ isolates poison messages after maxReceiveCount; visibility timeout >= processing time (or extend via ChangeMessageVisibility); idempotent consumers for Standard's at-least-once. SNS fan-out to multiple SQS queues so each consumer has its own durable copy."},
+      {"topic": "Route 53 failover patterns", "fact": "Failover routing + health check on primary (secondary can be an S3 static maintenance page via alias). Multi-Region active-active: latency or weighted with health checks. Health checks cannot reach private IPs -> use CloudWatch alarm health checks. Evaluate Target Health for alias records to ELB."},
+      {"topic": "DR strategy selection", "fact": "Backup/restore: hours RTO, cheapest, AWS Backup + cross-Region copy + CloudFormation to rebuild. Pilot light: DB replicated (read replica / Aurora Global / DMS), servers as AMIs, ASG at 0, RTO tens of minutes. Warm standby: scaled-down copy serving no/low traffic, RTO minutes, scale out on failover. Multi-site: full capacity both sides, RTO ~0. Elastic Disaster Recovery (DRS) = block-level continuous replication for lift-and-shift servers with pilot-light cost."},
+      {"topic": "AWS Backup", "fact": "Central policy-based backup across EBS, EC2, RDS, Aurora, DynamoDB, EFS, FSx, Storage Gateway, S3, DocumentDB, Neptune, Redshift, VMware; backup plans with lifecycle to cold storage; cross-Region and cross-account copy; Backup Vault Lock (WORM); Organizations backup policies; Audit Manager for compliance reports."},
+      {"topic": "ASG health and self-healing", "fact": "Use ELB health checks so app-level failures replace instances; grace period covers boot; lifecycle hooks to drain logs; instance refresh for AMI rollouts; capacity rebalancing for Spot; warm pools for slow-boot apps; Standby state for debugging without termination; scale-in protection for in-flight work."},
+      {"topic": "Stateless and session state", "fact": "Store sessions in ElastiCache Redis (Multi-AZ) or DynamoDB, not on the instance; ALB sticky sessions are a fallback that hurts balance. Uploads go to S3, not local disk. Shared config in Parameter Store/AppConfig."},
+      {"topic": "Container and serverless resilience", "fact": "ECS service scheduler keeps desired count and spreads tasks across AZs; Fargate removes host failures; Lambda is multi-AZ by default; Lambda async retries 2x then DLQ/destination; SQS event source with partial batch responses; Step Functions Retry/Catch for workflow error handling; API Gateway throttling protects backends."},
+      {"topic": "Storage Gateway and hybrid resilience", "fact": "Volume Gateway stored mode keeps full data on-prem with async EBS snapshots for DR; cached mode keeps primary in S3 (needs network). File Gateway caches recent data. Tape Gateway replaces physical tape libraries with S3/Glacier. On-prem outage -> restore Volume Gateway snapshots as EBS volumes in AWS."},
+      {"topic": "Kinesis and streaming durability", "fact": "Kinesis Data Streams replicates across 3 AZs and stores 24 h-365 d so consumers can replay after failure; Firehose retries delivery and writes failed records to an S3 error prefix; MSK Multi-AZ brokers. SQS vs Kinesis: SQS deletes on consume (one consumer group), Kinesis retains for multiple independent consumers."},
+      {"topic": "Elastic IP / static endpoints", "fact": "Elastic IP remaps to a replacement instance in seconds (script on failure) for single-instance HA. NLB gives static IP per AZ; Global Accelerator gives 2 global static IPs across Regions with health-based failover."},
+      {"topic": "Quotas and limits as failure modes", "fact": "Lambda concurrency 1,000/Region (request increase or reserved concurrency), API Gateway 10,000 rps, Kinesis per-shard throughput (resharding), DynamoDB per-partition 3,000 RCU / 1,000 WCU (hot partition), EC2 On-Demand vCPU quotas, Elastic IP 5/Region. Service Quotas console + Trusted Advisor limit checks."}
+    ],
+    "D3": [
+      {"topic": "Compute right-fit", "fact": "C = compute (batch, HPC, encode); M = general; R/X/u = memory (in-memory DB, SAP HANA); I/D/H = storage optimized (NoSQL, Hadoop, NVMe); P/G/Trn/Inf = GPU/ML (P train, G graphics+inference); T = burstable (Unlimited mode); A/Graviton = ARM price-performance; Hpc/z = HPC/high clock. Nitro-based for ENA/EFA."},
+      {"topic": "Placement groups", "fact": "Cluster = one AZ, low latency/high throughput (HPC, EFA), same instance type, launch all at once. Spread = distinct racks, max 7 instances per AZ per group, critical instances. Partition = groups of racks, up to 7 partitions per AZ, hundreds of instances, HDFS/HBase/Cassandra/Kafka aware of topology."},
+      {"topic": "EC2 networking performance", "fact": "Enhanced networking (ENA/SR-IOV) up to 100 Gbps; EFA for MPI/HPC OS-bypass (only in cluster PG); Elastic Network Interfaces for multi-homing; jumbo frames within VPC. Hibernate persists RAM to encrypted EBS root (<150 GB RAM, <=60 days)."},
+      {"topic": "EBS performance", "fact": "gp3: pick when you need IOPS/throughput without paying for size (3k/125 baseline, up to 16k/1,000). io2 Block Express for >16k IOPS or sub-ms (up to 256k, 4,000 MB/s). st1 for sequential big data/logs (500 MB/s), sc1 cheapest cold. EBS-optimized instances give dedicated EBS bandwidth. RAID 0 to stripe for IOPS; RAID 1 is redundant (rarely needed). Initialize volumes restored from snapshots (or FSR)."},
+      {"topic": "EFS performance", "fact": "Elastic throughput (default for spiky/unknown), Bursting (scales with size), Provisioned (fixed MB/s independent of size). General Purpose mode (lowest latency, up to 35k IOPS... default) vs Max I/O (higher aggregate, higher latency, not with Elastic). EFS IA + lifecycle (7-90 days) cuts cost; One Zone for non-critical. Access Points for per-app roots."},
+      {"topic": "FSx picker", "fact": "Windows/SMB/AD/NTFS/DFS -> FSx for Windows. HPC/ML/media, S3-backed, 100s GB/s -> FSx for Lustre (scratch = temp cheap; persistent = long-lived, replicated). NetApp/multi-protocol/iSCSI/SnapMirror -> FSx for ONTAP. ZFS/Linux NFS, snapshots/clones, 1M IOPS -> FSx for OpenZFS."},
+      {"topic": "S3 performance", "fact": "3,500 PUT/COPY/POST/DELETE and 5,500 GET/HEAD per prefix per second, unlimited prefixes -> spread keys across prefixes. Multipart upload (>100 MB recommended, mandatory >5 GB; 5 TB max object). Byte-range fetches parallelize downloads. Transfer Acceleration for long-distance uploads via edge. S3 Select / Glacier Select filter server-side with SQL. Strong read-after-write consistency. Express One Zone: single-digit ms, directory buckets."},
+      {"topic": "Caching layers", "fact": "CloudFront (edge, static + dynamic HTTP); API Gateway cache (0.5-237 GB, TTL 300 s default); ElastiCache in front of RDS (lazy loading vs write-through, TTL); DAX in front of DynamoDB; Redis for sessions/leaderboards/pub-sub/geospatial; Memcached for simple multi-threaded object cache with no persistence; Aurora read replicas for read scaling; Route 53 TTL for DNS caching."},
+      {"topic": "Redis vs Memcached", "fact": "Redis: replication, Multi-AZ auto failover, persistence/snapshots, sorted sets, pub/sub, Lua, geospatial, cluster mode sharding, Global Datastore cross-Region, AUTH/IAM, encryption. Memcached: multi-threaded, simple key-value, horizontal partitioning, no replication/persistence/failover. MemoryDB = Redis-compatible DURABLE primary database (Multi-AZ transaction log)."},
+      {"topic": "Database picker", "fact": "Relational OLTP -> RDS (managed engines) or Aurora (5x MySQL / 3x PG, HA, serverless). Key-value at scale -> DynamoDB. Graph -> Neptune. MongoDB -> DocumentDB. Cassandra -> Keyspaces. Time series/IoT -> Timestream. Immutable ledger -> QLDB (centralized; Managed Blockchain is decentralized). Search/logs -> OpenSearch. OLAP DW -> Redshift. Ad hoc SQL on S3 -> Athena. In-memory -> ElastiCache/MemoryDB."},
+      {"topic": "RDS performance", "fact": "Read replicas offload reads (async lag); RDS Proxy pools connections (Lambda, failover); gp3/io1 storage with Provisioned IOPS; Performance Insights + Enhanced Monitoring (OS metrics via agent); storage autoscaling; scale vertically with brief downtime (or on Multi-AZ failover); Aurora Serverless v2 for variable load; Aurora parallel query for analytics."},
+      {"topic": "Redshift performance", "fact": "Columnar MPP; RA3 nodes separate compute from managed storage (scale independently); Redshift Spectrum queries S3 in place (needs a cluster); Serverless for sporadic; distribution/sort keys; Concurrency Scaling; zero-ETL from Aurora; snapshots to S3 and cross-Region; single-AZ by default (Multi-AZ now available for RA3). Not for OLTP."},
+      {"topic": "Analytics picker", "fact": "Serverless SQL on S3 -> Athena (partition + Parquet + compress to cut $/TB). Serverless ETL + catalog + crawlers -> Glue (DataBrew for visual prep). Spark/Hadoop/Presto control, Spot task nodes -> EMR. Real-time stream SQL/Flink -> Managed Service for Apache Flink. BI dashboards -> QuickSight (SPICE). Data-lake permissions (column/row) -> Lake Formation. Search/log analytics -> OpenSearch. Kafka -> MSK. Orchestration -> Step Functions / MWAA (Airflow)."},
+      {"topic": "Ingestion picker", "fact": "Real-time with replay/multiple consumers -> Kinesis Data Streams. Just land the stream in S3/Redshift/OpenSearch with zero admin -> Firehose. Buffer work for one consumer group -> SQS. Event routing/SaaS/schedules -> EventBridge. SaaS -> S3/Redshift bulk (Salesforce, SAP) -> AppFlow. Bulk file/NFS/SMB -> DataSync. Database migration/CDC -> DMS."},
+      {"topic": "Lambda performance", "fact": "Memory 128 MB-10 GB drives CPU (6 vCPU at 10 GB) -> raise memory to speed CPU-bound code. 15-min timeout, 6 MB sync / 256 KB async payload, 10 GB /tmp, 50 MB zip / 250 MB unzipped / 10 GB image, 1,000 concurrency default. Provisioned concurrency kills cold starts (SnapStart for Java); reserved concurrency caps/guarantees. VPC Lambda needs NAT/endpoints for internet/AWS APIs. EFS mount for shared files. Event source: SQS batch up to 10,000, Kinesis/DynamoDB Streams per shard, batch window."},
+      {"topic": "API Gateway variants", "fact": "REST API: API keys + usage plans, request validation, caching, WAF, resource policies, private endpoints, canary, Lambda/Cognito/IAM authorizers, edge-optimized/regional/private; 29 s integration timeout; 10 MB payload; 10,000 rps + 5,000 burst default. HTTP API: ~70% cheaper, lower latency, JWT/OIDC authorizer, no caching/usage plans/WAF/request validation. WebSocket API: bidirectional (chat, live dashboards). AppSync = managed GraphQL with real-time subscriptions and offline sync."},
+      {"topic": "Containers picker", "fact": "ECS on EC2 = you own capacity (steady dense workloads, GPU, custom AMIs, reserved pricing). Fargate = serverless tasks (no host management, per vCPU/GB-second, awsvpc). EKS = Kubernetes portability/existing manifests. App Runner = simplest container/source web app. ECS task role for per-task IAM; ALB dynamic port mapping; ECR with image scanning + lifecycle policies; ECS Anywhere/EKS Anywhere for on-prem."},
+      {"topic": "Global performance", "fact": "CloudFront caches HTTP at edge and terminates TLS close to users; Global Accelerator gives static anycast IPs + backbone routing for TCP/UDP; Route 53 latency routing picks the closest Region; Aurora Global / DynamoDB global tables for local reads; S3 Transfer Acceleration for uploads; Local Zones / Wavelength / Outposts for single-digit-ms edge compute; Lambda@Edge / CloudFront Functions for edge logic."},
+      {"topic": "Edge compute logic", "fact": "CloudFront Functions: JavaScript, viewer request/response only, sub-ms, 2 MB memory, millions rps, cheapest -> header rewrite, URL normalization, redirects, cache-key manipulation, simple JWT check. Lambda@Edge: Node/Python, all 4 events (viewer + origin), up to 5 s viewer / 30 s origin, network + body access -> A/B, origin selection, auth calls, image resize."},
+      {"topic": "Monitoring for performance", "fact": "CloudWatch standard 5-min vs detailed 1-min EC2 metrics; custom metrics up to 1-s resolution; memory/disk need the CloudWatch agent; Logs Insights queries; metric filters -> alarms; Container Insights; X-Ray traces latency across microservices; CloudWatch Synthetics canaries; RDS Performance Insights; Compute Optimizer recommendations."}
+    ],
+    "D4": [
+      {"topic": "Compute cost ladder", "fact": "Spot (90%) > Standard RI / EC2 Instance SP (72%) > Convertible RI / Compute SP (66%) > On-Demand. Steady + flexible -> Compute Savings Plan. Steady + same family -> EC2 Instance SP or Standard RI. Need capacity guarantee -> zonal RI or Capacity Reservation. Fault-tolerant -> Spot (mixed instances ASG, capacity rebalancing). Graviton for 20-40% better price/perf."},
+      {"topic": "Right-sizing tools", "fact": "Compute Optimizer (EC2/ASG/EBS/Lambda/Fargate recommendations from 14 days of CloudWatch), Cost Explorer rightsizing, Trusted Advisor idle/underutilized checks (Business+), CloudWatch low-CPU alarms to stop dev instances, Instance Scheduler for office-hours only."},
+      {"topic": "Storage cost ladder", "fact": "S3 Standard > IT > IA > OZ-IA > Glacier IR > Glacier Flexible > Deep Archive. Watch min durations (30/30/90/90/180) and 128 KB min billable size, per-GB retrieval fees for IA/Glacier, transition request charges for millions of tiny objects. Express One Zone costs more per GB but less per request for hot data. Storage Lens + S3 Inventory find waste; Intelligent-Tiering for unknown patterns; lifecycle expiration for logs."},
+      {"topic": "EBS cost", "fact": "gp3 ~20% cheaper than gp2 at same size and lets you buy IOPS separately; sc1 cheapest for cold sequential; delete unattached volumes and stale snapshots (Data Lifecycle Manager retention); snapshots archive tier (75% cheaper, 24-72 h restore, 90-day min); Instance store is free with the instance."},
+      {"topic": "EFS and FSx cost", "fact": "EFS IA + Archive with lifecycle (files not accessed in N days); EFS One Zone ~47% cheaper; Elastic throughput avoids over-provisioning; FSx Lustre scratch cheaper than persistent; FSx ONTAP dedup/compression + capacity pool tier; FSx Windows HDD storage for cold shares."},
+      {"topic": "Database cost", "fact": "Reserved instances for RDS/ElastiCache/Redshift/OpenSearch (1-3 yr). Aurora Serverless v2 for variable; Aurora I/O-Optimized when I/O >25% of bill; RDS stop instances (7 days max, auto restart) for dev; Multi-AZ doubles cost -> only for prod. DynamoDB: provisioned + auto scaling for steady, on-demand for spiky, Standard-IA table class for cold, TTL to free storage, reserved capacity for steady baseline. Redshift pause/resume + Serverless; Spectrum/Athena to avoid loading cold data."},
+      {"topic": "Data transfer cost rules", "fact": "Inbound free; egress to internet ~$0.09/GB (100 GB free); inter-Region ~$0.02; inter-AZ $0.01 each way; same-AZ private IP free; public IP traffic within Region is charged; CloudFront egress cheaper than S3/EC2 egress and S3 -> CloudFront free; DX egress ~$0.02 vs $0.09 internet; VPC peering same-AZ free; TGW adds per-GB + per-attachment fees."},
+      {"topic": "NAT gateway cost trap", "fact": "$0.045/h + $0.045/GB processed per NAT GW. Private subnets talking to S3/DynamoDB -> gateway endpoint (free) and skip NAT. Heavy AWS API traffic -> interface endpoints ($0.01/GB) cheaper than NAT ($0.045/GB). One NAT GW per AZ costs more but avoids cross-AZ transfer + SPOF; dev can share one."},
+      {"topic": "Serverless cost", "fact": "Lambda = requests + GB-seconds (1M requests + 400k GB-s free/mo); tune memory (faster may be cheaper); Compute Savings Plans cover Lambda; provisioned concurrency costs even idle. API Gateway HTTP API ~$1/M vs REST ~$3.50/M. Step Functions Standard per state transition vs Express per request+duration (Express cheaper for high volume short). Fargate Spot up to 70% off; Fargate per-second billing."},
+      {"topic": "Cost visibility tools", "fact": "Cost Explorer (analyze, forecast, RI/SP recommendations) vs Budgets (alerts + actions) vs Cost & Usage Report (raw hourly line items to S3, query with Athena) vs Cost Anomaly Detection (ML alerts) vs Billing Conductor (custom rates for chargeback) vs Pricing Calculator (pre-deployment estimate). Cost allocation tags (activate!) + Cost Categories for chargeback. Split cost allocation data for ECS/EKS."},
+      {"topic": "Organizations savings", "fact": "Consolidated billing: one bill, volume tiers pooled (S3, data transfer), RI/SP discounts shared across accounts (can be disabled per account), free. Compute Optimizer + Trusted Advisor org-wide. Service Control Policies to block expensive Regions/services. Budgets per account/OU."},
+      {"topic": "Support plans", "fact": "Basic (free, TA core checks), Developer ($29+, business hours email), Business ($100+ min, 24x7 phone/chat, full Trusted Advisor, 1-h production-down response, IEM extra), Enterprise On-Ramp ($5.5k, 30-min business-critical), Enterprise ($15k, TAM, 15-min business-critical, concierge)."},
+      {"topic": "Snow and transfer cost logic", "fact": "Transfer time = size / bandwidth: 1 Gbps ~ 10 TB/day; 100 TB @ 1 Gbps ~ 10-12 days. If > ~1 week or link is saturated by production -> Snowball Edge (80 TB, ~$300/job + $/day after 10 days). DataSync charges per GB but uses your DX/internet. Snowball into S3 Standard then lifecycle to Glacier (cannot import directly to Glacier)."},
+      {"topic": "S3 request and retrieval costs", "fact": "GET/PUT charged per 1,000; Glacier retrieval per GB by tier (Bulk cheapest, Expedited priciest); Deep Archive restore 12-48 h; Standard-IA retrieval $0.01/GB -> frequently re-read data belongs in Standard; Intelligent-Tiering has no retrieval fee but $0.0025/1,000 objects monitoring; Requester Pays pushes transfer cost to downloader."},
+      {"topic": "Caching to cut cost", "fact": "CloudFront reduces origin egress + compute; ElastiCache/DAX reduce DB instance size or RCUs; API Gateway caching reduces Lambda invocations; S3 static hosting + CloudFront replaces web servers; Route 53 alias records are free queries."},
+      {"topic": "Licensing cost", "fact": "BYOL per-socket/per-core (Windows Server, SQL Server Enterprise, Oracle) -> Dedicated Hosts (+ License Manager). License-included RDS vs BYOL for Oracle. SQL Server Web edition cheaper. Dedicated Instances cost more than default tenancy but do not enable socket-based BYOL."},
+      {"topic": "Cheapest architecture heuristics", "fact": "Serverless for spiky/low-duty (Lambda, Fargate, Aurora Serverless, DynamoDB on-demand, Athena). Managed beats self-managed on TCO. Spot for batch/EMR task nodes/CI. Static content -> S3 + CloudFront. Logs -> S3 + lifecycle + Athena, not a DB. Stop non-prod at night (Instance Scheduler). Delete idle: EIPs, unattached EBS, old snapshots, idle ELBs, idle NAT GWs."},
+      {"topic": "Free things to remember", "fact": "Gateway endpoints, VPC peering same-AZ transfer, inbound data transfer, S3 -> CloudFront, ACM public certs, Shield Standard, Cost Anomaly Detection, CloudTrail 90-day event history + one management trail, first 2 Budgets, Compute Optimizer, IAM/Organizations/Control Tower (pay for resources), CloudWatch basic metrics, Trusted Advisor core checks."}
+    ]
+  },
+  "decision_tables": [
+    {
+      "id": "storage-picker",
+      "title": "Block vs File vs Object - which storage?",
+      "trigger_words": ["shared POSIX", "Windows SMB", "Active Directory", "HPC", "boot volume", "static assets", "NFS", "iSCSI", "scratch", "data lake"],
+      "columns": ["Service", "Use when", "Key limits / numbers", "Not for"],
+      "rows": [
+        ["EBS", "single EC2 block device: boot, databases, low-latency transactional", "gp3 3k IOPS/125 MB/s baseline; io2 Block Express 256k IOPS, 64 TiB; single AZ; Multi-Attach io1/io2 only, 16 instances same AZ", "shared access across many instances or AZs"],
+        ["Instance store", "temp scratch, buffers, caches, replicated shards needing millions of IOPS", "ephemeral: lost on stop/terminate/hardware failure; size fixed by instance type; free", "anything that must survive a stop"],
+        ["EFS", "shared POSIX file system for Linux across AZs, thousands of clients, elastic size", "NFSv4; Regional or One Zone; Standard/IA/Archive; Bursting/Provisioned/Elastic throughput; ~3x EBS $/GB", "Windows clients; ultra-low-latency single-instance DB"],
+        ["FSx for Windows File Server", "SMB shares, NTFS ACLs, Active Directory, DFS namespaces, Windows apps", "Multi-AZ option; SSD or HDD; user quotas; VSS shadow copies", "Linux-only NFS (use EFS), HPC scale"],
+        ["FSx for Lustre", "HPC, ML training, video rendering, financial modelling; S3 as data repository", "100s GB/s, millions IOPS, sub-ms; scratch (cheap, no replication) vs persistent; lazy-loads from S3, exports back", "general-purpose shares, Windows"],
+        ["FSx for NetApp ONTAP", "multi-protocol NFS + SMB + iSCSI, NetApp migration (SnapMirror), snapshots, dedup/compression", "up to petabytes; capacity pool tiering; Multi-AZ", "simple Linux share where EFS suffices"],
+        ["FSx for OpenZFS", "ZFS/Linux NFS file server migration, snapshots and clones, high IOPS small files", "up to 1M IOPS, <0.5 ms; NFS v3-4.2", "SMB/Windows, S3-linked HPC"],
+        ["S3", "object storage: static assets, backups, data lake, media, logs, archives", "5 TB object; 3,500 PUT/5,500 GET per prefix/s; 11 nines; 8 classes", "POSIX file semantics, block devices, boot volumes"]
+      ],
+      "rule_of_thumb": "One instance -> EBS; many Linux instances -> EFS; Windows/SMB -> FSx Windows; HPC+S3 -> FSx Lustre; NetApp/multi-protocol -> FSx ONTAP; objects over HTTP -> S3; disposable speed -> instance store."
+    },
+    {
+      "id": "s3-storage-classes",
+      "title": "S3 storage classes - all 8",
+      "trigger_words": ["infrequently accessed", "unknown access pattern", "archive", "retrieve within hours", "re-creatable", "compliance retention 7 years", "milliseconds"],
+      "columns": ["Class", "Min duration", "Retrieval time", "Use case", "Cost rank (1 = priciest per GB)"],
+      "rows": [
+        ["S3 Express One Zone", "none (1 h min billable)", "single-digit ms", "hottest data, ML training, latency-critical; directory buckets, single AZ", "1"],
+        ["S3 Standard", "none", "ms", "frequently accessed, default", "2"],
+        ["S3 Intelligent-Tiering", "none (objects <128 KB not tiered)", "ms (Frequent/Infrequent/Archive Instant tiers); optional Archive/Deep Archive tiers 3-12 h", "unknown or changing access patterns; small monthly monitoring fee, no retrieval fee", "3 (tracks Standard/IA/Glacier tiers)"],
+        ["S3 Standard-IA", "30 days; 128 KB min billable", "ms", "long-lived, rarely accessed but needs instant access, multi-AZ (backups, DR copies)", "4 (+ $0.01/GB retrieval)"],
+        ["S3 One Zone-IA", "30 days; 128 KB min", "ms", "re-creatable infrequent data (thumbnails, secondary backups); single AZ, ~20% cheaper than IA", "5"],
+        ["S3 Glacier Instant Retrieval", "90 days", "ms", "archives accessed ~quarterly needing immediate access (medical images, news media)", "6"],
+        ["S3 Glacier Flexible Retrieval", "90 days", "Expedited 1-5 min / Standard 3-5 h / Bulk 5-12 h (free)", "archives accessed 1-2x/yr, backups, hours-to-restore OK", "7"],
+        ["S3 Glacier Deep Archive", "180 days", "Standard 12 h / Bulk 48 h", "regulatory 7-10 yr retention, tape replacement, cheapest", "8"]
+      ],
+      "rule_of_thumb": "Need ms access? Standard/IA/OZ-IA/Glacier Instant. Hours OK? Flexible. 12+ h OK and >6 months? Deep Archive. Pattern unknown? Intelligent-Tiering. Re-creatable? One Zone."
+    },
+    {
+      "id": "ebs-types",
+      "title": "EBS volume types",
+      "trigger_words": ["IOPS", "throughput", "boot", "big data sequential", "cold", "sub-millisecond", "cost-effective SSD"],
+      "columns": ["Type", "Baseline / max", "Size", "Best for", "Boot?"],
+      "rows": [
+        ["gp3 (General Purpose SSD)", "3,000 IOPS + 125 MB/s free baseline; up to 16,000 IOPS + 1,000 MB/s provisioned independent of size", "1 GiB-16 TiB", "default choice: boot, dev/test, most DBs; ~20% cheaper than gp2", "yes"],
+        ["gp2", "3 IOPS/GiB, burst 3,000; max 16,000 at 5.3 TiB", "1 GiB-16 TiB", "legacy; migrate to gp3", "yes"],
+        ["io1 (Provisioned IOPS SSD)", "50 IOPS/GiB, up to 64,000 IOPS (Nitro)", "4 GiB-16 TiB", "I/O-intensive DBs; Multi-Attach", "yes"],
+        ["io2 Block Express", "up to 256,000 IOPS, 4,000 MB/s, 1,000 IOPS/GiB, sub-ms, 99.999% durability", "4 GiB-64 TiB", "SAP HANA, Oracle, SQL Server, mission-critical; Multi-Attach", "yes"],
+        ["st1 (Throughput HDD)", "500 MB/s max, 40 MB/s per TiB baseline, 500 IOPS", "125 GiB-16 TiB", "big data, log processing, data warehouses, sequential", "no"],
+        ["sc1 (Cold HDD)", "250 MB/s max, 12 MB/s per TiB, 250 IOPS", "125 GiB-16 TiB", "infrequently accessed cold data, lowest $/GB", "no"],
+        ["Magnetic (standard)", "~100 IOPS", "1 GiB-1 TiB", "legacy only", "yes"]
+      ],
+      "rule_of_thumb": "gp3 unless you need >16k IOPS (io2 BE), sequential throughput on the cheap (st1), or the coldest HDD (sc1). HDD never boots."
+    },
+    {
+      "id": "messaging-picker",
+      "title": "Messaging and streaming picker",
+      "trigger_words": ["decouple", "exactly once", "ordering", "fan-out", "replay", "real-time analytics", "SaaS events", "schedule", "workflow", "existing ActiveMQ/RabbitMQ"],
+      "columns": ["Service", "Model", "Ordering / delivery", "Key numbers", "Pick when"],
+      "rows": [
+        ["SQS Standard", "pull queue, one consumer group", "best-effort order, at-least-once", "unlimited TPS; 256 KB; 14 d retention; 12 h visibility max; 20 s long poll; 15 min delay", "decouple/buffer producers from consumers, absorb spikes, ASG on queue depth"],
+        ["SQS FIFO", "pull queue", "strict order per message group, exactly-once (5-min dedup)", "300 msg/s (3,000 batched); .fifo suffix", "order matters (bank transactions, commands)"],
+        ["SNS", "push pub/sub topic", "no persistence; fan-out to many subscribers; FIFO topics -> FIFO queues", "12.5M subscriptions/topic; 256 KB; filter policies", "one event, many consumers; email/SMS/mobile push; SNS -> SQS fan-out for durability"],
+        ["EventBridge", "event bus + rules", "at-least-once; content filtering; archive + replay", "100+ SaaS sources; cross-account buses; schedules; 24 h retry", "route events by content, SaaS/AWS service events, cron schedules, cross-account"],
+        ["Kinesis Data Streams", "durable shard-based stream, many consumers", "ordered per shard; replayable", "1 MB/s or 1,000 rec/s in and 2 MB/s out per shard; 1 MB record; 24 h-365 d retention; enhanced fan-out", "real-time processing, multiple consumers, replay, clickstreams, IoT telemetry"],
+        ["Kinesis Data Firehose", "managed delivery stream", "near real-time (60 s+ buffer); no replay; retries", "buffer 60-900 s / 1-128 MB; Lambda transform; Parquet/ORC", "just load streaming data into S3/Redshift/OpenSearch/Splunk with zero admin"],
+        ["Managed Service for Apache Flink", "stream processing", "SQL/Flink over Kinesis/MSK", "windowed aggregations, anomaly detection", "real-time analytics on streams"],
+        ["Amazon MQ", "managed ActiveMQ/RabbitMQ broker", "JMS, AMQP, MQTT, STOMP, OpenWire", "Multi-AZ active/standby on EFS", "migrate apps already using open protocols with minimal code change"],
+        ["Amazon MSK", "managed Kafka", "Kafka semantics", "Multi-AZ brokers; MSK Serverless; MSK Connect", "existing Kafka apps/ecosystem"],
+        ["Step Functions", "workflow orchestration state machine", "Standard: exactly-once, 1 yr; Express: at-least-once, 5 min, high volume", "Standard 2,000 exec/s; Express 100k/s; per-transition vs per-request pricing", "coordinate Lambda/ECS/services with retries, parallel, wait, human approval; replaces SWF"]
+      ],
+      "rule_of_thumb": "Buffer one consumer -> SQS; broadcast -> SNS; route by content/SaaS/schedule -> EventBridge; real-time stream with replay -> Kinesis Streams; just land it in S3 -> Firehose; orchestrate steps -> Step Functions; legacy broker protocols -> Amazon MQ."
+    },
+    {
+      "id": "database-picker",
+      "title": "Database picker",
+      "trigger_words": ["relational", "joins", "key-value", "single-digit millisecond", "graph", "MongoDB", "Cassandra", "time series", "ledger", "data warehouse", "full-text search", "in-memory"],
+      "columns": ["Service", "Model", "Scale / HA", "Pick when", "Not for"],
+      "rows": [
+        ["RDS (MySQL, PostgreSQL, MariaDB, Oracle, SQL Server, Db2)", "relational, managed engine", "vertical scale; up to 15 read replicas (5 Oracle/SQL Server); Multi-AZ; 64 TiB", "lift-and-shift relational apps, specific engine features/licenses", "massive horizontal write scale, schemaless"],
+        ["Aurora (MySQL/PostgreSQL compatible)", "relational, cloud-native storage", "6 copies/3 AZs; 15 replicas; 128 TiB; Global Database; Serverless v2", "high-performance HA relational, fast failover, cross-Region <1 s RPO, variable load", "Oracle/SQL Server workloads"],
+        ["DynamoDB", "key-value / document, serverless", "virtually unlimited; global tables; on-demand", "single-digit ms at any scale, serverless, session/cart/gaming/IoT, simple access patterns", "complex joins, ad hoc queries, >400 KB items"],
+        ["ElastiCache Redis", "in-memory data structures", "cluster mode sharding, Multi-AZ failover, Global Datastore", "sub-ms cache, sessions, leaderboards (sorted sets), pub/sub, rate limiting, geospatial", "durable primary store (use MemoryDB)"],
+        ["ElastiCache Memcached", "in-memory simple key-value", "multi-threaded, horizontal partitioning, no replication", "simplest object cache, scale-out, no persistence needed", "failover, persistence, complex types"],
+        ["Redshift", "columnar MPP data warehouse", "RA3 managed storage; Spectrum over S3; Serverless; Concurrency Scaling", "OLAP, BI at petabyte scale, complex aggregations", "OLTP, small ad hoc (use Athena)"],
+        ["Neptune", "graph (Gremlin, openCypher, SPARQL)", "15 replicas, Multi-AZ", "social graphs, recommendation, fraud rings, knowledge graphs", "tabular analytics"],
+        ["DocumentDB", "MongoDB-compatible document", "15 replicas, Multi-AZ, Global Clusters", "MongoDB workloads without self-management", "key-value at DynamoDB scale"],
+        ["Timestream", "serverless time series", "memory -> magnetic tiers, built-in time functions", "IoT metrics, DevOps telemetry, trillions of events/day", "relational workloads"],
+        ["OpenSearch Service", "search + analytics engine", "domains or Serverless; UltraWarm/cold tiers", "full-text search, log analytics, dashboards, clickstream analytics", "primary transactional store"],
+        ["Keyspaces", "Cassandra-compatible (CQL), serverless", "multi-AZ, on-demand/provisioned", "existing Cassandra apps, wide-column", "SQL joins"],
+        ["QLDB", "centralized immutable ledger", "serverless, cryptographically verifiable journal (SHA-256)", "audit trail of changes (financial, supply chain, registrations) with a trusted authority", "decentralized multi-party trust (Managed Blockchain)"],
+        ["MemoryDB for Redis", "durable in-memory Redis", "Multi-AZ transaction log, microsecond reads", "Redis as primary DB without a separate cache", "cheapest cache (ElastiCache)"]
+      ],
+      "rule_of_thumb": "Joins -> RDS/Aurora; key-value at scale -> DynamoDB; cache -> ElastiCache; analytics -> Redshift/Athena; relationships -> Neptune; documents -> DocumentDB; time -> Timestream; immutable audit -> QLDB; search -> OpenSearch."
+    },
+    {
+      "id": "rds-ha-vs-scaling",
+      "title": "Availability vs read scaling vs cross-Region - RDS/Aurora/DynamoDB",
+      "trigger_words": ["automatic failover", "offload reads", "reporting queries", "cross-Region", "RPO seconds", "active-active"],
+      "columns": ["Option", "Replication", "Readable?", "Failover", "Solves", "Does not solve"],
+      "rows": [
+        ["RDS Multi-AZ (instance)", "synchronous to 1 standby, same Region", "no", "automatic 60-120 s, DNS flip", "AZ failure, patching downtime, HA", "read scaling, Region failure"],
+        ["RDS Multi-AZ DB cluster", "semi-synchronous to 2 standbys", "yes (reader endpoint)", "automatic <35 s", "HA + some read scaling (MySQL/PG)", "cross-Region"],
+        ["RDS read replica", "asynchronous, up to 15, same or cross-Region", "yes", "manual promote (breaks replication)", "read-heavy scaling, reporting, cross-Region DR copy, migration", "automatic HA (no auto failover)"],
+        ["Aurora replicas", "shared storage, <100 ms lag, up to 15", "yes (reader endpoint, custom endpoints)", "automatic ~30 s to highest-priority replica", "HA AND read scaling in one", "cross-Region"],
+        ["Aurora Global Database", "storage-level async to up to 5 secondary Regions, <1 s lag", "yes (secondary read-only, write forwarding optional)", "managed planned failover RPO 0; unplanned promote RTO <1 min, RPO ~1 s", "cross-Region DR + local reads", "active-active writes"],
+        ["DynamoDB global tables", "multi-master async ~1 s", "yes, writable everywhere", "none needed (active-active), Route 53 routes users", "multi-Region active-active low latency", "conflict resolution beyond last-writer-wins"],
+        ["ElastiCache Redis Multi-AZ / Global Datastore", "async replicas; cross-Region Global Datastore", "yes", "automatic failover to replica", "cache HA, cross-Region cache reads", "Memcached (no failover)"]
+      ],
+      "rule_of_thumb": "'Highly available' -> Multi-AZ; 'offload/scale reads' -> read replicas; 'both' -> Aurora; 'another Region with seconds of RPO' -> Aurora Global; 'active-active multi-Region key-value' -> DynamoDB global tables."
+    },
+    {
+      "id": "route53-routing-policies",
+      "title": "Route 53 routing policies",
+      "trigger_words": ["users in Europe see EU content", "lowest latency", "A/B 10%", "active-passive", "shift traffic gradually between Regions", "return multiple healthy IPs"],
+      "columns": ["Policy", "Decides by", "Health checks", "Classic scenario"],
+      "rows": [
+        ["Simple", "nothing; returns record(s), client picks randomly", "no", "single resource, dev sites"],
+        ["Weighted", "assigned weights 0-255 (proportional)", "yes", "A/B testing, canary 10/90, gradual migration; weight 0 to drain"],
+        ["Latency", "lowest measured latency Region for the resolver", "yes", "multi-Region app, best performance"],
+        ["Failover", "primary healthy? else secondary", "required on primary", "active-passive DR, S3 static maintenance page as secondary"],
+        ["Geolocation", "user's continent/country/US state", "yes", "content localization, legal restrictions (data must stay in country); always set a default record"],
+        ["Geoproximity", "distance to resource + bias (-99..+99), via Traffic Flow", "yes", "shift more/less traffic toward a Region's resources"],
+        ["Multivalue answer", "returns up to 8 healthy records", "yes", "cheap client-side load balancing across EC2 IPs; not a replacement for ELB"],
+        ["IP-based", "client subnet CIDR -> location", "yes", "route known ISP/corporate CIDRs to specific endpoints"]
+      ],
+      "rule_of_thumb": "Where the USER is -> Geolocation; how FAR/biased -> Geoproximity; how FAST -> Latency; what PERCENT -> Weighted; if DOWN -> Failover; several healthy IPs -> Multivalue."
+    },
+    {
+      "id": "dr-strategies",
+      "title": "Disaster recovery strategies",
+      "trigger_words": ["RPO", "RTO", "minimize cost of DR", "seconds of data loss", "minutes of downtime", "secondary Region"],
+      "columns": ["Strategy", "RPO", "RTO", "What is running in DR Region", "Relative cost", "Typical AWS build"],
+      "rows": [
+        ["Backup & Restore", "hours (last backup)", "hours (rebuild)", "nothing; backups/AMIs/snapshots copied cross-Region", "$", "AWS Backup cross-Region copy, S3 CRR, CloudFormation templates, DMS/Snapshots"],
+        ["Pilot Light", "minutes-seconds (continuous data replication)", "tens of minutes", "data layer only (RDS cross-Region replica / Aurora Global / DynamoDB global), app servers off or ASG at 0", "$$", "Route 53 failover, pre-baked AMIs, ASG min 0, Elastic Disaster Recovery"],
+        ["Warm Standby", "seconds", "minutes", "scaled-down but fully functional stack serving low/no traffic", "$$$", "ASG at reduced capacity, replicated DB, Route 53 failover/weighted, scale out on failover"],
+        ["Multi-site Active/Active", "~0 (near-zero)", "~0 (real-time)", "full production capacity in both Regions taking traffic", "$$$$", "Route 53 latency/weighted + health checks, Aurora Global/DynamoDB global tables, Global Accelerator"]
+      ],
+      "rule_of_thumb": "Walk right until RPO/RTO are met, then stop: Backup -> Pilot Light -> Warm Standby -> Multi-site. Cost rises, recovery time falls."
+    },
+    {
+      "id": "load-balancer-picker",
+      "title": "Load balancer picker",
+      "trigger_words": ["path-based routing", "static IP", "millions of requests per second", "UDP", "third-party firewall appliance", "WebSocket", "gRPC", "preserve client IP", "Lambda target"],
+      "columns": ["LB", "Layer / protocols", "Routing", "Static IP?", "Targets", "Pick when"],
+      "rows": [
+        ["ALB", "L7 HTTP/HTTPS/gRPC/WebSocket", "path, host, header, query, method, source IP; redirects; fixed responses; weighted target groups", "no (use NLB in front or Global Accelerator)", "instances, IPs (incl. on-prem), Lambda, ALB", "microservices, containers (dynamic ports), HTTP routing, WAF, Cognito/OIDC auth, sticky sessions"],
+        ["NLB", "L4 TCP/UDP/TLS", "flow hash; TLS termination", "yes: one static/Elastic IP per AZ", "instances, IPs, ALB", "extreme performance, static IP allow-listing, non-HTTP (gaming, IoT, MQTT, syslog), PrivateLink endpoint service, source IP preservation"],
+        ["GWLB", "L3 (IP) + L4, GENEVE 6081", "transparent bump-in-the-wire to appliance fleet", "n/a (GWLB endpoint)", "virtual appliances (firewall, IDS/IPS, DPI)", "insert/scale third-party security appliances inline"],
+        ["CLB", "L4/L7 legacy", "basic", "no", "instances only", "never for new designs; EC2-Classic leftovers"]
+      ],
+      "rule_of_thumb": "HTTP content routing -> ALB; static IP / raw TCP-UDP / extreme throughput -> NLB; third-party appliances -> GWLB; never CLB."
+    },
+    {
+      "id": "ec2-purchasing",
+      "title": "EC2 purchasing options",
+      "trigger_words": ["steady state 3 years", "fault-tolerant batch", "may change instance family", "BYOL per-socket license", "guarantee capacity", "unpredictable", "lowest cost"],
+      "columns": ["Option", "Max discount", "Commitment", "Flexibility", "Best for"],
+      "rows": [
+        ["On-Demand", "0%", "none; per-second (60 s min Linux)", "total", "spiky, short, unpredictable, first deployment while measuring"],
+        ["Standard RI", "up to 72%", "1 or 3 yr; all/partial/no upfront", "size within family + AZ (regional) or capacity (zonal); sellable on RI Marketplace", "steady workloads with known instance family; legacy answer, Savings Plans usually preferred"],
+        ["Convertible RI", "up to 66%", "1 or 3 yr", "exchange family, OS, tenancy, payment (equal or greater value); not sellable", "steady but instance family may change"],
+        ["Compute Savings Plan", "up to 66%", "$/hour for 1 or 3 yr", "any family, size, AZ, Region, OS, tenancy; EC2 + Fargate + Lambda", "steady compute spend with maximum flexibility (default modern answer)"],
+        ["EC2 Instance Savings Plan", "up to 72%", "$/hour for 1 or 3 yr, one family in one Region", "size, OS, tenancy within family", "steady workloads locked to a family (e.g., m5 in eu-west-1)"],
+        ["Spot", "up to 90%", "none; 2-minute interruption warning", "any; Spot Fleet / mixed instances ASG; capacity rebalancing", "fault-tolerant, stateless, batch, CI/CD, big data, containers, HPC with checkpoints"],
+        ["Dedicated Host", "RI-able (up to 70%)", "on-demand or reserved host", "physical server; visibility of sockets/cores; host affinity", "BYOL per-socket/core licenses (Windows Server, SQL Server, Oracle), regulatory hardware isolation"],
+        ["Dedicated Instance", "RI-able", "none", "isolated hardware at instance level, may share with your own instances", "compliance isolation without needing socket visibility/licensing control"],
+        ["Capacity Reservation", "0% (On-Demand rate) unless stacked with RI/SP", "none (any duration, cancel anytime)", "specific AZ + instance type", "guaranteed capacity for events/DR; combine with regional RI or SP for discount"]
+      ],
+      "rule_of_thumb": "Flexible steady -> Compute SP; same family steady -> EC2 Instance SP / Standard RI; family may change -> Convertible RI; interruptible -> Spot; socket licenses -> Dedicated Host; guaranteed AZ capacity -> zonal RI or Capacity Reservation."
+    },
+    {
+      "id": "connectivity-picker",
+      "title": "Connectivity picker - VPC to VPC, on-prem to AWS, private service access",
+      "trigger_words": ["connect 50 VPCs", "overlapping CIDRs", "expose a service to customers' VPCs", "consistent bandwidth", "encrypted over internet", "quick to set up", "hub-and-spoke", "remote employees"],
+      "columns": ["Option", "Transitive?", "Encrypted?", "Cost model", "Bandwidth", "Pick when"],
+      "rows": [
+        ["VPC peering", "no (1:1 only)", "yes (AWS backbone, in-transit encryption for inter-Region)", "free same-AZ; data transfer inter-AZ/Region", "no bottleneck", "a few VPCs, no CIDR overlap, cross-account/Region OK"],
+        ["Transit Gateway", "yes (hub)", "backbone; inter-Region peering encrypted", "$0.05/h per attachment + $0.02/GB", "50 Gbps per VPC attachment; ECMP VPN aggregation", "many VPCs + on-prem, hub-and-spoke, segmentation via TGW route tables, multicast"],
+        ["PrivateLink (interface endpoint + endpoint service)", "n/a (one-way service exposure)", "TLS by the service", "$0.01/h per ENI per AZ + $0.01/GB", "NLB-scale", "expose one service to thousands of consumer VPCs/accounts, overlapping CIDRs, no route/peering exposure"],
+        ["Gateway endpoint", "n/a", "HTTPS", "free", "n/a", "S3 and DynamoDB from inside the VPC only (not from on-prem/peers)"],
+        ["Direct Connect", "via DX Gateway to many VPCs/Regions; transit VIF to TGW", "NO by default (add IPsec VPN over DX or MACsec)", "port-hour + cheaper egress (~$0.02/GB)", "1/10/100 Gbps dedicated; 50 Mbps-10 Gbps hosted; LAG", "consistent high bandwidth/low latency, large steady data volumes, weeks-months lead time acceptable"],
+        ["Site-to-Site VPN", "via TGW yes; via VGW no", "yes (IPsec)", "$0.05/h per connection + egress", "1.25 Gbps per tunnel (2 tunnels); ECMP on TGW", "quick (minutes), encrypted, lower volume, DX backup, Accelerated VPN for global sites"],
+        ["Client VPN", "n/a", "yes (OpenVPN/TLS)", "per endpoint-hour + per connection-hour", "user-scale", "remote workforce into VPC with AD/SAML/cert auth"],
+        ["VPN CloudHub", "hub-spoke between customer sites via VGW", "yes", "VPN pricing", "VPN limits", "several branch offices talking to each other and AWS via one VGW"]
+      ],
+      "rule_of_thumb": "2-3 VPCs -> peering; many -> TGW; one service to many consumers or overlapping CIDRs -> PrivateLink; on-prem fast/consistent -> DX (+VPN for encryption/backup); on-prem quick/cheap -> VPN; people -> Client VPN."
+    },
+    {
+      "id": "security-services-picker",
+      "title": "Security services - what it inspects, what it outputs",
+      "trigger_words": ["SQL injection", "DDoS", "compromised credentials", "CVE", "PII in S3", "root cause investigation", "single pane of glass", "central WAF rules", "compliance of configurations", "who deleted the bucket", "unintended external access"],
+      "columns": ["Service", "Inspects", "Outputs", "Attach / scope", "Not this"],
+      "rows": [
+        ["WAF", "HTTP(S) requests: headers, body, URI, IP, geo, rate", "allow/block/count/CAPTCHA per web ACL rule", "CloudFront, ALB, API Gateway REST, AppSync, Cognito, App Runner, Verified Access", "NLB, EC2 directly, L3/L4 floods"],
+        ["Shield Standard", "L3/L4 volumetric DDoS", "automatic mitigation", "all AWS customers, free", "L7 attacks, cost protection"],
+        ["Shield Advanced", "L3-L7 DDoS with health-based detection", "mitigation + SRT 24x7 + cost protection + WAF auto-rules", "EC2, ELB, CloudFront, Global Accelerator, Route 53; $3,000/mo, 1 yr", "web app logic attacks (WAF rules)"],
+        ["GuardDuty", "CloudTrail mgmt + S3 data events, VPC Flow Logs, DNS logs, EKS audit, RDS login, Lambda network, EBS malware", "threat findings (crypto mining, C2, exfil, anomalous API) -> EventBridge/Security Hub", "account/org-wide, agentless, one click", "vulnerability scanning, config compliance"],
+        ["Inspector", "EC2 (via SSM agent), ECR images, Lambda functions and layers", "CVE findings with risk score, network reachability", "continuous, org-wide", "runtime threat detection"],
+        ["Macie", "S3 objects", "sensitive-data findings (PII, credentials, financial), bucket exposure", "S3 only", "scanning EBS/RDS"],
+        ["Detective", "GuardDuty findings + CloudTrail + Flow Logs + EKS (behavior graph)", "visualizations for root-cause investigation", "after a finding", "prevention or detection itself"],
+        ["Security Hub", "findings from GuardDuty, Inspector, Macie, IAM Access Analyzer, Firewall Manager, Config, partners", "aggregated dashboard + CSPM scores (CIS, PCI DSS, AWS FSBP), automations", "multi-account via delegated admin; requires Config", "generating its own threat intel"],
+        ["Firewall Manager", "WAF/Shield Advanced/SG/Network Firewall/DNS Firewall policies across accounts", "auto-applied protections for new resources", "Organizations-wide, needs Config", "single-account rule authoring"],
+        ["Network Firewall", "VPC traffic L3-L7: stateful/stateless rules, Suricata IPS signatures, domain lists", "allow/drop/alert; logs to S3/CW/Firehose", "firewall endpoints per AZ in inspection subnets; TGW-centralized", "HTTP-level WAF logic, instance-level SG"],
+        ["Config", "resource configuration state over time", "compliance evaluations, timeline, auto-remediation via SSM", "account/org (aggregator), conformance packs", "API call auditing"],
+        ["CloudTrail", "API calls (management, data, Insights)", "event history 90 d; trail logs to S3/CW; log file validation", "account/org trail", "resource-state compliance"],
+        ["IAM Access Analyzer", "resource policies (S3, KMS, IAM roles, SQS, Lambda, Secrets) + CloudTrail activity", "external/public access findings, unused access, policy validation, least-privilege policy generation", "account or org zone of trust", "runtime threats"],
+        ["Amazon Verified Access / Verified Permissions", "per-request identity+device trust / app authorization policies (Cedar)", "zero-trust app access without VPN / authz decisions", "corporate apps / your app", "network firewalling"]
+      ],
+      "rule_of_thumb": "Requests -> WAF; floods -> Shield; behavior/threats -> GuardDuty; vulnerabilities -> Inspector; sensitive data -> Macie; investigate -> Detective; aggregate -> Security Hub; enforce org-wide -> Firewall Manager; VPC traffic -> Network Firewall; config drift -> Config; who did it -> CloudTrail; who can access -> Access Analyzer."
+    },
+    {
+      "id": "kms-and-encryption",
+      "title": "Encryption picker - keys, S3 SSE modes, HSM, certificates, secrets",
+      "trigger_words": ["audit trail of key usage", "rotate keys automatically", "customer provides key", "FIPS 140-2 Level 3", "control the key", "rotate database password", "TLS certificate", "envelope encryption"],
+      "columns": ["Option", "Who manages", "Rotation", "Audit / control", "Pick when"],
+      "rows": [
+        ["AWS-owned key", "AWS, shared across accounts, invisible", "AWS", "none visible", "default encryption where you do not need control (DynamoDB default)"],
+        ["AWS-managed key (aws/<service>)", "AWS, in your account", "automatic yearly, not configurable", "CloudTrail yes; cannot edit key policy or share cross-account", "cheap audit trail without managing policy"],
+        ["Customer-managed KMS key (symmetric)", "you: key policy, grants, aliases", "optional automatic yearly + on-demand rotation", "full CloudTrail + policy control, cross-account, disable/schedule delete 7-30 days", "compliance needing key control, cross-account sharing, revocation"],
+        ["Customer-managed with imported key material (BYOK)", "you generate outside", "manual only (no auto rotation), can set expiry", "full", "regulatory requirement to own key material"],
+        ["Multi-Region KMS key", "you; replicas share key ID + material", "replicas rotate together", "full", "cross-Region DR / global tables / client-side encrypt in one Region decrypt in another"],
+        ["Asymmetric KMS key (RSA/ECC) / HMAC key", "you", "no automatic rotation", "full; public key exportable", "digital signatures, encrypt outside AWS with public key, JWT signing"],
+        ["CloudHSM", "you fully (AWS cannot see keys); single-tenant FIPS 140-2 Level 3 hardware", "you", "your own HSM logs; cluster across AZs", "FIPS L3 mandate, Oracle TDE, SSL offload, PKCS#11/JCE, KMS custom key store"],
+        ["S3 SSE-S3", "S3 keys, AES-256, default since 2023", "S3", "no per-key audit", "simplest at-rest encryption, no compliance requirement on keys"],
+        ["S3 SSE-KMS", "KMS key (AWS-managed aws/s3 or customer-managed)", "KMS", "CloudTrail per object key use; separate permission to decrypt; S3 Bucket Keys cut KMS calls", "audit trail / separation of duties / cross-account"],
+        ["S3 DSSE-KMS", "KMS, two independent layers", "KMS", "as SSE-KMS", "regulatory dual-layer encryption at rest"],
+        ["S3 SSE-C", "customer supplies key in every request; S3 never stores it", "you", "you; HTTPS mandatory", "you must hold the key but want S3 to do the crypto"],
+        ["Client-side encryption", "you encrypt before upload (S3 Encryption Client, KMS or own keys)", "you", "you", "S3 must never see plaintext"],
+        ["ACM public certificate", "AWS issues + auto-renews; free", "automatic", "for ELB/CloudFront/API GW; not exportable, not on EC2", "TLS on AWS edge/LB services; CloudFront needs us-east-1"],
+        ["ACM Private CA / imported cert", "you (private CA) or third party (imported; manual renew)", "manual for imported", "certs can be exported/used on EC2", "internal PKI, EC2 TLS, custom CA"],
+        ["Secrets Manager", "encrypted secrets with automatic rotation via Lambda (native RDS/Aurora/Redshift/DocumentDB)", "automatic on schedule", "resource policy, cross-account, multi-Region replication; $0.40/secret", "DB credentials, API keys needing rotation"],
+        ["SSM Parameter Store", "plain or SecureString (KMS) parameters; hierarchies", "no native rotation", "IAM + KMS; free standard tier (4 KB), advanced 8 KB + policies", "config values, non-rotating secrets, lowest cost"]
+      ],
+      "rule_of_thumb": "Need an audit trail or control -> SSE-KMS with customer-managed key; need FIPS L3 or exclusive key custody -> CloudHSM; must rotate DB creds -> Secrets Manager; just config -> Parameter Store; TLS on ELB/CloudFront -> ACM (us-east-1 for CloudFront)."
+    },
+    {
+      "id": "data-transfer-picker",
+      "title": "Data transfer and migration picker",
+      "trigger_words": ["petabytes", "limited bandwidth", "one-time migration", "ongoing sync", "SFTP partners", "on-prem file share backed by S3", "tape backups", "database migration with minimal downtime", "upload from users worldwide"],
+      "columns": ["Service", "Online/offline", "Capacity / speed", "Use case", "Watch out"],
+      "rows": [
+        ["AWS DataSync", "online (agent VM or agentless AWS-to-AWS)", "up to 10 Gbps per agent; scheduled incremental; verification", "NFS/SMB/HDFS/object -> S3/EFS/FSx one-time or scheduled migration; EFS <-> S3 archiving", "not continuous real-time sync; per-GB fee"],
+        ["AWS Transfer Family", "online managed endpoint", "SFTP/FTPS/FTP/AS2", "partners upload with existing FTP clients directly into S3/EFS; custom IdP", "hourly endpoint fee even if idle"],
+        ["Snowcone", "offline (or online via DataSync agent)", "8 TB HDD / 14 TB SSD; 2 vCPU, 4 GB", "rugged edge collection, small offline moves, IoT sites", "tiny compute"],
+        ["Snowball Edge Storage Optimized", "offline", "80 TB usable (210 TB variant); 40 vCPU", "10s of TB to PB in batches; local S3-compatible storage", "lands in S3 Standard only -> lifecycle to Glacier; ~1 week round trip"],
+        ["Snowball Edge Compute Optimized", "offline / edge", "52 vCPU, optional GPU, 28 TB NVMe / 42 TB HDD", "edge processing (ML inference, video analytics) in disconnected sites", "not for pure bulk transfer"],
+        ["Snowmobile", "offline truck", "up to 100 PB", "exabyte-scale data-center migration (>10 PB)", "extreme scale only"],
+        ["Storage Gateway - S3 File Gateway", "online hybrid", "local cache; NFS/SMB", "on-prem apps write files that become S3 objects; lifecycle to Glacier; AD for SMB", "not a full sync tool; cache is limited"],
+        ["Storage Gateway - Volume Gateway cached", "online hybrid", "iSCSI; volumes up to 32 TiB, 1 PiB total", "primary data in S3, hot subset cached locally; expand storage without buying arrays", "needs network for cold reads"],
+        ["Storage Gateway - Volume Gateway stored", "online hybrid", "iSCSI; volumes up to 16 TiB", "entire dataset on-prem for low latency, async EBS snapshots to AWS for DR/backup", "local capacity limits"],
+        ["Storage Gateway - Tape Gateway", "online hybrid", "VTL via iSCSI to backup software", "replace physical tape with virtual tapes in S3 -> Glacier/Deep Archive", "needs backup app (Veeam, NetBackup...)"],
+        ["Storage Gateway - FSx File Gateway", "online hybrid", "SMB cache of FSx for Windows", "low-latency on-prem access to FSx Windows shares", "Windows only"],
+        ["AWS DMS (+ SCT)", "online, continuous CDC", "replication instance sized by you; Multi-AZ", "homogeneous or heterogeneous DB migration with near-zero downtime; SCT converts schemas; targets incl. S3/Kinesis/Redshift", "source stays live; large initial loads -> Snowball + DMS"],
+        ["S3 Transfer Acceleration", "online", "uses CloudFront edge -> backbone", "long-distance uploads from global users to one bucket", "only pay when it is faster; not for intra-Region"],
+        ["S3 multipart + byte-range", "online", "parallel parts; >100 MB recommended, >5 GB required", "large objects, resume on failure", "5 TB object max"],
+        ["Application Migration Service (MGN) / Elastic Disaster Recovery", "online block replication agent", "continuous", "lift-and-shift servers; DR with pilot-light cost", "not for data-only moves"]
+      ],
+      "rule_of_thumb": "Compute days = TB x 8 / Gbps / 86,400... shortcut: 1 Gbps ~ 10 TB/day. Under a week and link free -> DataSync; over a week or link saturated -> Snowball Edge; ongoing hybrid access -> Storage Gateway; partners with FTP -> Transfer Family; databases -> DMS."
+    },
+    {
+      "id": "analytics-picker",
+      "title": "Analytics picker",
+      "trigger_words": ["ad hoc SQL on S3", "ETL", "Spark cluster", "data warehouse", "real-time dashboards", "BI", "column-level permissions", "log analytics", "catalog"],
+      "columns": ["Service", "What it is", "Pricing driver", "Pick when", "Not for"],
+      "rows": [
+        ["Athena", "serverless Presto/Trino SQL over S3 (via Glue Data Catalog)", "$5/TB scanned -> partition, Parquet/ORC, compress", "ad hoc / infrequent queries on S3 data, log analysis, no infrastructure", "sub-second OLTP, heavy repeated BI (Redshift)"],
+        ["Glue", "serverless Spark ETL + crawlers + Data Catalog; Glue Studio; DataBrew visual prep; Glue Streaming", "DPU-hours", "schema discovery, ETL to Parquet, catalog for Athena/Redshift Spectrum/EMR", "cluster-level control of Hadoop ecosystem"],
+        ["EMR", "managed Hadoop/Spark/Hive/Presto/HBase/Flink clusters (or EMR Serverless)", "EC2 (Spot task nodes) or Serverless vCPU-hours", "existing big-data frameworks, custom libraries, petabyte batch", "simple SQL on S3 (Athena) or zero-admin ETL (Glue)"],
+        ["Redshift (+ Spectrum, Serverless, RA3)", "columnar MPP warehouse; Spectrum queries S3 directly", "node-hours (RA3 separates storage) or Serverless RPU", "repeated complex BI at scale, joins across TBs, materialized views", "OLTP or sporadic queries (Serverless/Athena)"],
+        ["Managed Service for Apache Flink (Kinesis Data Analytics)", "real-time SQL/Flink stream processing", "KPU-hours", "windowed aggregation, real-time anomaly detection on Kinesis/MSK", "batch"],
+        ["QuickSight", "serverless BI + SPICE in-memory + ML insights + embedded dashboards", "per user/session", "dashboards over Athena/Redshift/RDS/S3", "raw data processing"],
+        ["Lake Formation", "data lake builder: ingestion blueprints + centralized fine-grained (column/row/cell) permissions across Athena/Redshift/EMR/Glue", "free (pay underlying)", "governed multi-team data lake with per-column access", "single-team simple bucket"],
+        ["OpenSearch Service", "search/analytics engine + Dashboards; Serverless option", "instance-hours or OCU", "full-text search, log/clickstream analytics, near-real-time visualization", "SQL warehousing"],
+        ["Kinesis Firehose -> S3 -> Athena", "landing + query pattern", "per GB + $/TB scanned", "cheapest near-real-time log analytics pipeline", "millisecond dashboards"],
+        ["Data Exchange / AppFlow / Glue DataBrew", "third-party datasets / SaaS -> S3 flows / no-code cleaning", "per use", "SaaS data (Salesforce, ServiceNow) into S3 without code", "streaming"]
+      ],
+      "rule_of_thumb": "Query S3 occasionally -> Athena; transform/catalog -> Glue; need Spark control or Spot -> EMR; warehouse -> Redshift; streams -> Flink; visualize -> QuickSight; govern columns -> Lake Formation; search logs -> OpenSearch."
+    },
+    {
+      "id": "cdn-and-edge",
+      "title": "CDN and edge picker",
+      "trigger_words": ["cache static content", "static IP for global app", "UDP gaming", "restrict S3 to CDN", "premium content for paying users", "modify headers at edge", "resize images at edge", "block countries"],
+      "columns": ["Choice A", "Choice B", "A when", "B when"],
+      "rows": [
+        ["CloudFront", "Global Accelerator", "HTTP(S) content that can be CACHED; edge TLS; WAF; S3/ALB origins; dynamic content also accelerated via keep-alive", "TCP/UDP non-HTTP (gaming, VoIP, IoT), need 2 STATIC anycast IPs, fast cross-Region failover, no caching"],
+        ["Lambda@Edge", "CloudFront Functions", "need network calls, body access, origin request/response events, up to 30 s, Node/Python (A/B by cookie, origin selection, auth lookup, image transform)", "sub-ms header/URL rewrite, redirects, cache-key normalization, simple token check on viewer request/response; 1/6 the price"],
+        ["OAC (Origin Access Control)", "OAI (legacy) / public bucket", "always: restrict S3 bucket to CloudFront, supports SSE-KMS, all Regions, SigV4", "never for new designs"],
+        ["Signed URL", "Signed cookie", "one file per URL (single download, RTMP legacy), or client cannot use cookies", "many files (whole HLS video, member area) without changing URLs"],
+        ["Geo restriction (CloudFront)", "WAF geo-match / Route 53 geolocation", "block or allow whole countries at the CDN", "finer rules combined with other conditions (WAF) or route users to different origins (Route 53)"],
+        ["Field-level encryption", "HTTPS only", "encrypt specific sensitive POST fields at edge with your public key so only the app tier can decrypt", "generic transport protection"],
+        ["Origin groups (failover)", "Route 53 failover", "primary/secondary origin failover on 5xx/timeouts inside CloudFront", "DNS-level failover of whole endpoints"],
+        ["CloudFront + S3 static website", "EC2 web servers", "static sites/SPAs: HTTPS with ACM, cheapest, no servers", "server-side rendering, dynamic sessions"]
+      ],
+      "rule_of_thumb": "Cache HTTP -> CloudFront; static IP or UDP -> Global Accelerator; tiny header logic -> CloudFront Functions; heavy logic -> Lambda@Edge; lock S3 -> OAC; single file -> signed URL, many -> signed cookies."
+    },
+    {
+      "id": "asg-scaling-policies",
+      "title": "Auto Scaling policy picker",
+      "trigger_words": ["keep CPU around 50%", "traffic spikes every weekday 9am", "scale by queue depth", "recurring pattern", "add 2 when CPU 60-80% and 4 when above 80%"],
+      "columns": ["Policy", "How it decides", "Configuration", "Pick when", "Gotcha"],
+      "rows": [
+        ["Target tracking", "keeps a metric at a target like a thermostat (creates the alarms for you)", "metric (ASGAverageCPUUtilization, ALBRequestCountPerTarget, custom e.g. SQS backlog per instance) + target value", "default choice; steady proportional scaling", "scale-in is conservative; needs 1-min metrics for responsiveness"],
+        ["Step scaling", "CloudWatch alarm breach with step adjustments by breach magnitude", "alarm + steps (+1 at 60-80%, +3 at >80%)", "you need different increments for different severities", "you author the alarms; more configuration"],
+        ["Simple scaling", "single adjustment on alarm, then waits for cooldown", "alarm + one change", "legacy; rarely the best answer", "cooldown blocks further scaling during ramps"],
+        ["Scheduled", "time-based min/max/desired changes", "cron or one-time", "known business-hours peaks, batch windows, pre-warm before predictable events", "does not react to unexpected load; pair with target tracking"],
+        ["Predictive", "ML forecast from at least 24 h (best 14 days) of history; launches ahead of forecasted load", "forecast-only or forecast-and-scale; metric pairs", "cyclical daily/weekly patterns and slow-booting instances", "needs history; combine with dynamic policy for surprises"],
+        ["Manual / desired capacity", "you set it", "desired count", "one-off", "no elasticity"]
+      ],
+      "rule_of_thumb": "Unknown load -> target tracking; known schedule -> scheduled; recurring cycles with slow boot -> predictive + target tracking; graded alarm response -> step; queue-driven workers -> target tracking on backlog-per-instance."
+    }
+  ],
+  "mnemonics": [
+    {"hook": "Backup -> Pilot light -> Warm standby -> Multi-site: Cost goes UP, RTO comes DOWN", "expands_to": "The four DR strategies in ascending cost / descending RTO-RPO; hours -> tens of minutes -> minutes -> ~zero", "use_for": "any RPO/RTO question: walk the ladder until the numbers fit, then stop"},
+    {"hook": "S3 ladder min-days 0/0/30/30/90/90/180", "expands_to": "Standard 0, Intelligent-Tiering 0, Standard-IA 30, One Zone-IA 30, Glacier Instant 90, Glacier Flexible 90, Deep Archive 180", "use_for": "lifecycle questions; anything moved before its min days pays an early-delete fee"},
+    {"hook": "Glacier: Expedited minutes, Standard hours (3-5), Bulk half-day (5-12); Deep = 12/48", "expands_to": "Glacier Flexible Retrieval tiers 1-5 min / 3-5 h / 5-12 h; Deep Archive Standard 12 h / Bulk 48 h", "use_for": "'must be available within X hours' -> pick the cheapest class that meets X"},
+    {"hook": "SG = Stateful Gatekeeper, NACL = No memory (stateless) + Numbered rules", "expands_to": "Security groups remember return traffic and only allow; NACLs evaluate numbered rules in order, allow and deny, and need ephemeral-port return rules", "use_for": "any firewall question: block an IP -> NACL deny; instance-level allow -> SG"},
+    {"hook": "Gateway endpoints = S3 + DynamoDB only, and they are free", "expands_to": "Only two services use gateway endpoints (route table entries, no charge); everything else uses interface endpoints (PrivateLink, ENI, hourly + per-GB)", "use_for": "'private access to S3 without NAT charges' -> gateway endpoint; 'from on-prem via DX' -> interface endpoint"},
+    {"hook": "C-compute M-mixed R-RAM I-IOPS P/G-GPU T-tiny/burst X-eXtra memory D-Dense disk", "expands_to": "EC2 family letters: C compute-optimized, M general purpose, R memory, I storage/NVMe IOPS, P training GPU, G graphics/inference GPU, T burstable, X/u high memory (SAP HANA), D/H dense HDD", "use_for": "match workload adjective to instance family"},
+    {"hook": "Kinesis shard: 1 in, 2 out", "expands_to": "1 MB/s (or 1,000 records/s) write per shard; 2 MB/s read per shard (2 MB/s per consumer with enhanced fan-out)", "use_for": "sizing shards: throughput needed / 1 MB = shards"},
+    {"hook": "SQS 256 / 14 / 12 / 20 / 300", "expands_to": "256 KB max message, 14 days max retention, 12 h max visibility timeout, 20 s max long poll, 300 msg/s FIFO (3,000 batched)", "use_for": "every SQS number question"},
+    {"hook": "Lambda 15 / 10 / 10 / 6 / 1000", "expands_to": "15 min timeout, 10 GB memory, 10 GB /tmp, 6 MB synchronous payload, 1,000 default concurrency per Region", "use_for": "'job runs 20 minutes' -> not Lambda (Fargate/Batch/Step Functions)"},
+    {"hook": "Aurora 6-3-15", "expands_to": "6 copies of data across 3 AZs, up to 15 read replicas (which are also failover targets)", "use_for": "Aurora vs RDS HA/scaling questions"},
+    {"hook": "RDS backups 35, PITR 35, DynamoDB PITR 35", "expands_to": "35 days is the max automated backup retention for RDS/Aurora and the PITR window for DynamoDB", "use_for": "'restore to any point in the last N days' -> 35 max; longer -> manual snapshots / AWS Backup"},
+    {"hook": "Spot 2-min warning, Spot 90, RI 72, Convertible 66, Compute SP 66, EC2 SP 72", "expands_to": "Spot interruption notice 2 minutes; discounts up to 90% Spot, 72% Standard RI / EC2 Instance SP, 66% Convertible RI / Compute SP", "use_for": "cost ranking of purchasing options"},
+    {"hook": "Cluster = Close, Spread = Separate (7 per AZ), Partition = Partitioned racks (7 partitions per AZ)", "expands_to": "Placement groups: cluster packs in one AZ for low latency; spread puts each instance on distinct hardware max 7/AZ; partition groups instances into up to 7 rack partitions per AZ for Hadoop/Cassandra/Kafka", "use_for": "'HPC low latency' vs 'critical instances on separate hardware' vs 'HDFS/Kafka'"},
+    {"hook": "Multi-AZ = Availability, Read replica = Reads, Aurora = Both, Global = Region", "expands_to": "RDS Multi-AZ gives failover not reads; read replicas give reads not failover; Aurora replicas give both; Aurora Global / DynamoDB global tables give cross-Region", "use_for": "the single most tested RDS discrimination"},
+    {"hook": "WHERE (Geolocation) vs HOW FAST (Latency) vs HOW MUCH (Weighted) vs IF DOWN (Failover) vs HOW FAR-ish (Geoproximity bias)", "expands_to": "Route 53 routing policies mapped to the question they answer", "use_for": "Route 53 policy selection"},
+    {"hook": "CloudFront Caches Content; Global Accelerator Gives Global IPs", "expands_to": "CloudFront = HTTP caching CDN; Global Accelerator = 2 static anycast IPs, TCP/UDP, no caching, backbone routing + fast failover", "use_for": "'static IP' or 'UDP' -> GA; 'cache' or 'HTTP' -> CloudFront"},
+    {"hook": "Peering is a Pair; Transit is Transitive; PrivateLink is a Private one-way Link", "expands_to": "VPC peering 1:1 non-transitive; Transit Gateway hub transitive; PrivateLink exposes one service unidirectionally and tolerates overlapping CIDRs", "use_for": "VPC connectivity questions"},
+    {"hook": "DX is Dedicated but not Defended (encrypt it yourself)", "expands_to": "Direct Connect is private and consistent but not encrypted by default -> VPN over DX or MACsec", "use_for": "'private AND encrypted connection' -> DX + IPsec VPN"},
+    {"hook": "SCP and Boundaries are CEILINGS, not floors", "expands_to": "Service control policies and permission boundaries only cap permissions; a matching identity policy must still grant them", "use_for": "'user has AdministratorAccess but cannot do X' -> look for SCP/boundary/explicit deny"},
+    {"hook": "KMS: S3 = simple, KMS = kept logs, C = customer carries the key", "expands_to": "SSE-S3 no key management or per-key audit; SSE-KMS gives CloudTrail audit and key policies; SSE-C means you supply the key on every request", "use_for": "S3 encryption mode questions"},
+    {"hook": "Secrets Manager SPINS (rotates); Parameter Store STORES", "expands_to": "Secrets Manager has native automatic rotation and costs per secret; Parameter Store is free for config/SecureStrings but does not rotate natively", "use_for": "'rotate credentials automatically' -> Secrets Manager"},
+    {"hook": "Config = Compliance/Configuration, CloudTrail = Calls (who), CloudWatch = Watch metrics", "expands_to": "Three C services: Config tracks resource state and compliance; CloudTrail records API calls; CloudWatch handles metrics/logs/alarms", "use_for": "monitoring/audit service selection"},
+    {"hook": "GuardDuty Guards (threats), Inspector Inspects (CVEs), Macie finds Money/PII, Detective Digs (root cause), Security Hub = Hub", "expands_to": "GuardDuty threat detection from logs; Inspector vulnerability scanning of EC2/ECR/Lambda; Macie sensitive data in S3; Detective investigation graph; Security Hub aggregation", "use_for": "security service picker"},
+    {"hook": "Streams Store (replay), Firehose Flows (deliver)", "expands_to": "Kinesis Data Streams retains data 24 h-365 d for multiple consumers and replay; Firehose is a near-real-time delivery pipe to S3/Redshift/OpenSearch with no storage", "use_for": "'multiple consumers / replay' vs 'just load it into S3'"},
+    {"hook": "Cached = Cloud is primary (hot subset local); Stored = Site is primary (async snapshots to cloud)", "expands_to": "Volume Gateway cached mode keeps data in S3 with a local cache; stored mode keeps all data on-prem and ships EBS snapshots", "use_for": "Storage Gateway volume mode questions"},
+    {"hook": "1 Gbps ~ 10 TB/day", "expands_to": "125 MB/s x 86,400 s ~ 10.8 TB per day; 100 TB over 1 Gbps ~ 10 days -> Snowball territory", "use_for": "online vs Snowball decisions"},
+    {"hook": "ALB = Application (L7 paths), NLB = Network (L4 static IP), GWLB = Gateway to appliances", "expands_to": "Load balancer types by layer and purpose", "use_for": "LB picker"},
+    {"hook": "Explorer Explains, Budgets Bark, CUR is Raw, Optimizer Optimizes size", "expands_to": "Cost Explorer analyzes/forecasts; Budgets alerts and acts; Cost and Usage Report is the raw granular data; Compute Optimizer right-sizes", "use_for": "cost tooling questions"},
+    {"hook": "LEAST operational overhead = most managed / serverless", "expands_to": "When the stem says least operational overhead, the managed/serverless option (Aurora Serverless, Fargate, Lambda, DynamoDB, Firehose, managed rotation) beats anything you patch or scale yourself", "use_for": "tie-breaking between two working solutions"},
+    {"hook": "Read the LAST sentence first", "expands_to": "The stem's superlative (MOST cost-effective, LEAST overhead, MOST secure, highest availability) is the sorting key; read it before the scenario so you know what to filter for", "use_for": "every question"}
+  ],
+  "numbers_to_memorize": [
+    {"number": "256 KB", "meaning": "SQS and SNS max message size (use SQS Extended Client Library with S3 for larger, up to 2 GB)"},
+    {"number": "14 days", "meaning": "SQS max message retention (default 4 days, min 1 minute)"},
+    {"number": "12 hours", "meaning": "SQS max visibility timeout (default 30 s)"},
+    {"number": "20 seconds", "meaning": "SQS max long-polling wait (ReceiveMessageWaitTimeSeconds)"},
+    {"number": "300 msg/s", "meaning": "SQS FIFO throughput per API action without batching (3,000 with batching; high-throughput mode far more)"},
+    {"number": "15 minutes", "meaning": "Lambda max timeout; also SQS max delay/delivery delay; also S3 Replication Time Control SLA"},
+    {"number": "10 GB", "meaning": "Lambda max memory (6 vCPU) and max /tmp ephemeral storage; max container image size"},
+    {"number": "6 MB / 256 KB", "meaning": "Lambda max synchronous invocation payload / max asynchronous payload"},
+    {"number": "1,000", "meaning": "Lambda default concurrent executions per Region (soft limit); also DynamoDB WCU per partition (3,000 RCU)"},
+    {"number": "1 MB/s in, 2 MB/s out", "meaning": "Kinesis Data Streams per-shard write (or 1,000 records/s) and read throughput; 1 MB max record"},
+    {"number": "24 h / 365 days", "meaning": "Kinesis Data Streams default retention / max retention; DynamoDB Streams retention is 24 h"},
+    {"number": "6 copies / 3 AZs", "meaning": "Aurora storage replication; survives loss of 2 copies for writes, 3 for reads"},
+    {"number": "15", "meaning": "Max Aurora read replicas; also max RDS read replicas for MySQL/MariaDB/PostgreSQL (5 for Oracle/SQL Server)"},
+    {"number": "128 TiB / 64 TiB", "meaning": "Aurora max cluster volume / RDS max storage (SQL Server 16 TiB)"},
+    {"number": "35 days", "meaning": "Max automated backup retention RDS/Aurora (default 7); DynamoDB PITR window"},
+    {"number": "72 hours", "meaning": "Aurora MySQL Backtrack max rewind window"},
+    {"number": "< 1 second", "meaning": "Aurora Global Database typical cross-Region replication lag (RPO ~1 s, RTO < 1 min)"},
+    {"number": "400 KB", "meaning": "DynamoDB max item size"},
+    {"number": "4 KB / 1 KB", "meaning": "DynamoDB 1 RCU = one strongly consistent 4 KB read per second (two eventually consistent); 1 WCU = one 1 KB write per second"},
+    {"number": "3,500 / 5,500", "meaning": "S3 PUT/COPY/POST/DELETE and GET/HEAD requests per second per prefix"},
+    {"number": "5 TB / 5 GB / 100 MB", "meaning": "S3 max object size / max single PUT / multipart upload recommended threshold"},
+    {"number": "30 / 30 / 90 / 90 / 180 days", "meaning": "S3 min storage duration: Standard-IA / One Zone-IA / Glacier Instant / Glacier Flexible / Deep Archive"},
+    {"number": "128 KB", "meaning": "S3 IA classes min billable object size; Intelligent-Tiering does not tier objects smaller than this"},
+    {"number": "1-5 min / 3-5 h / 5-12 h", "meaning": "Glacier Flexible Retrieval Expedited / Standard / Bulk (Deep Archive: 12 h Standard, 48 h Bulk)"},
+    {"number": "7 days", "meaning": "S3 pre-signed URL max expiry with SigV4 (IAM user credentials); also RDS stopped-instance auto-restart"},
+    {"number": "99.999999999%", "meaning": "S3 durability (11 nines) for all classes; availability 99.99% Standard, 99.9% IA, 99.5% One Zone-IA"},
+    {"number": "3,000 IOPS / 125 MB/s", "meaning": "gp3 free baseline regardless of size (max 16,000 IOPS / 1,000 MB/s)"},
+    {"number": "256,000 IOPS", "meaning": "io2 Block Express max IOPS (4,000 MB/s, 64 TiB, sub-ms)"},
+    {"number": "16", "meaning": "Max instances for EBS Multi-Attach (io1/io2 only, same AZ, Nitro)"},
+    {"number": "7", "meaning": "Spread placement group max instances per AZ; partition placement group max partitions per AZ"},
+    {"number": "2 minutes", "meaning": "Spot Instance interruption warning"},
+    {"number": "90% / 72% / 66%", "meaning": "Max discount: Spot / Standard RI and EC2 Instance Savings Plan / Convertible RI and Compute Savings Plan"},
+    {"number": "5", "meaning": "Elastic IPs per Region default quota; also reserved IP addresses per VPC subnet (first 4 + last 1)"},
+    {"number": "1024-65535", "meaning": "Ephemeral port range NACLs must allow for return traffic"},
+    {"number": "/16 to /28", "meaning": "Allowed VPC (and subnet) IPv4 CIDR sizes"},
+    {"number": "1.25 Gbps", "meaning": "Site-to-Site VPN throughput per tunnel (2 tunnels per connection; ECMP on TGW to aggregate)"},
+    {"number": "1 / 10 / 100 Gbps", "meaning": "Direct Connect dedicated connection speeds (hosted: 50 Mbps-10 Gbps)"},
+    {"number": "5,000", "meaning": "Max attachments per Transit Gateway"},
+    {"number": "90 days", "meaning": "CloudTrail Event History retention without a trail; Compute Optimizer max lookback (with enhanced)"},
+    {"number": "5 min / 1 min / 1 s", "meaning": "CloudWatch EC2 standard / detailed monitoring interval / high-resolution custom metric minimum"},
+    {"number": "300 seconds", "meaning": "ASG default cooldown, default health check grace period, and ELB default deregistration delay"},
+    {"number": "15 min - 12 h", "meaning": "STS AssumeRole session duration range (role chaining capped at 1 h)"},
+    {"number": "1 year / 5 minutes", "meaning": "Step Functions Standard max execution / Express max execution"},
+    {"number": "29 seconds / 10 MB / 10,000 rps", "meaning": "API Gateway default integration timeout / max payload / default account throttle (5,000 burst)"},
+    {"number": "$3,000 / month", "meaning": "Shield Advanced price with 1-year commitment"},
+    {"number": "8", "meaning": "Route 53 multivalue answer max healthy records returned"},
+    {"number": "80 TB / 8 TB / 100 PB", "meaning": "Snowball Edge Storage Optimized usable / Snowcone HDD (14 TB SSD) / Snowmobile"},
+    {"number": "10 Gbps", "meaning": "DataSync max per agent"},
+    {"number": "$0.09 / $0.02 / $0.01 / free", "meaning": "Data transfer per GB: internet egress (first 100 GB/mo free) / inter-Region / inter-AZ each direction / same-AZ via private IP"},
+    {"number": "7-30 days", "meaning": "KMS key deletion waiting period; direct KMS Encrypt limited to 4 KB"},
+    {"number": "13 months / 12 months", "meaning": "Cost Explorer history / forecast horizon"},
+    {"number": "14 days", "meaning": "Predictive scaling ideal history (min 24 h) and Compute Optimizer default lookback"},
+    {"number": "32 TiB / 16 TiB", "meaning": "Volume Gateway cached / stored max volume size"},
+    {"number": "500 MB/s / 250 MB/s", "meaning": "st1 throughput HDD / sc1 cold HDD max throughput"},
+    {"number": "2 MB / 1 ms vs 5 s / 30 s", "meaning": "CloudFront Functions memory / runtime vs Lambda@Edge viewer / origin timeouts"},
+    {"number": "130 min / 65 Q / 720", "meaning": "Exam duration / questions (50 scored + 15 unscored) / passing scaled score out of 1000"}
+  ]
+}
