@@ -139,7 +139,7 @@
       "distractors": [
         "SSE-S3",
         "SSE-C",
-        "Client-side encryption with S3 default keys"
+        "Client-side encryption with keys held in your own application"
       ],
       "kind": "pick_service"
     },
@@ -446,7 +446,7 @@
       "id": "RR-035",
       "domain": "D1",
       "cue": "'Private connection from data center to AWS must be both consistent-bandwidth AND encrypted.' Tempting: Direct Connect alone.",
-      "answer": "Direct Connect with an IPsec Site-to-Site VPN over it (or MACsec on 10/100 Gbps dedicated ports)",
+      "answer": "Direct Connect with an IPsec Site-to-Site VPN over it (or MACsec on 10/100/400 Gbps dedicated ports)",
       "why": "Direct Connect is private but not encrypted by default. Layer a VPN on the public VIF (or MACsec) to satisfy encryption.",
       "distractors": [
         "Direct Connect alone",
@@ -590,7 +590,7 @@
       "domain": "D2",
       "cue": "Aurora storage: how many copies across how many AZs, and max read replicas?",
       "answer": "6 copies across 3 AZs; up to 15 replicas",
-      "why": "Writes need 4 of 6, reads 3 of 6; replicas are also failover targets by priority tier. RDS MySQL/PostgreSQL also allow 15 replicas but they are not automatic failover targets.",
+      "why": "Writes need 4 of 6 and reads 3 of 6; Aurora replicas are also failover targets ranked by priority tier. RDS MySQL/PostgreSQL/MariaDB also allow 15 read replicas (Oracle and SQL Server 5), but none of them is an automatic failover target.",
       "distractors": [
         "3 copies / 3 AZs; 5 replicas",
         "2 copies / 2 AZs; 15 replicas",
@@ -835,11 +835,11 @@
     {
       "id": "RR-065",
       "domain": "D2",
-      "cue": "SQS: max message size, max retention, max visibility timeout, max long-poll wait?",
+      "cue": "SQS on the SAA-C03 exam baseline: max message size, max retention, max visibility timeout, max long-poll wait?",
       "answer": "256 KB / 14 days / 12 hours / 20 seconds",
-      "why": "Defaults are 4 days retention and 30 s visibility. Larger payloads use the Extended Client Library with S3 (up to 2 GB).",
+      "why": "Defaults are 4 days retention and 30 s visibility; larger payloads use the Extended Client Library with S3 (up to 2 GB). AWS raised the live maximum to 1 MiB in August 2025, but the exam still keys 256 KB.",
       "distractors": [
-        "1 MB / 7 days / 12 h / 60 s",
+        "256 KB / 30 days / 12 h / 60 s",
         "256 KB / 4 days / 1 h / 20 s",
         "64 KB / 14 days / 24 h / 10 s"
       ],
@@ -863,9 +863,9 @@
       "domain": "D2",
       "cue": "Kinesis Data Streams vs Firehose: which retains data (24 h default, up to 365 days) so multiple consumers can replay?",
       "answer": "Kinesis Data Streams",
-      "why": "Streams is a durable, ordered log with per-shard replay. Firehose buffers 60-900 s and delivers to S3/Redshift/OpenSearch/Splunk with no storage or replay.",
+      "why": "Streams is a durable, ordered log with per-shard replay. Firehose (renamed Amazon Data Firehose) buffers 60-900 s and delivers to S3/Redshift/OpenSearch/Splunk with no storage or replay.",
       "distractors": [
-        "Kinesis Data Firehose",
+        "Amazon Data Firehose (formerly Kinesis Data Firehose)",
         "Both",
         "Neither - use SQS"
       ],
@@ -913,9 +913,9 @@
     {
       "id": "RR-071",
       "domain": "D2",
-      "cue": "'Single EC2 instance app cannot be load balanced; users must reconnect within seconds if the instance fails.'",
-      "answer": "Elastic IP remapped to a standby instance (ASG min/max 1 with a script or Route 53 failover)",
-      "why": "An Elastic IP moves between instances in seconds and keeps the public address stable. Public IPs change on stop/start; NLB adds cost for a single target.",
+      "cue": "'A licensed single-instance app cannot be load balanced; an idle standby instance already runs in a second AZ and clients must reconnect to the same public address within seconds of a failure.'",
+      "answer": "Elastic IP reassociated to the standby instance, automated from an EC2 state-change event",
+      "why": "An Elastic IP detaches and reattaches in seconds, so the public address survives the failure with no DNS propagation wait. An auto-assigned public IP changes on stop/start, and DNS-based failover is bounded by the record TTL.",
       "distractors": [
         "Rely on the auto-assigned public IP",
         "Put it behind CloudFront",
@@ -1136,7 +1136,7 @@
       "domain": "D3",
       "cue": "'Users in Asia upload multi-GB files to a bucket in us-east-1; uploads are slow.' Tempting: CloudFront.",
       "answer": "S3 Transfer Acceleration (plus multipart upload)",
-      "why": "Transfer Acceleration routes uploads through the nearest edge onto the AWS backbone and only charges when faster. CloudFront caches downloads; it is not an upload accelerator for S3 PUTs at this scale.",
+      "why": "Transfer Acceleration routes PUTs through the nearest edge onto the AWS backbone, works with multipart upload, and only charges when it is actually faster. CloudFront is a download cache - it does not accelerate multi-GB multipart uploads to an S3 origin.",
       "distractors": [
         "CloudFront distribution in front of the bucket",
         "Enable S3 Cross-Region Replication",
@@ -1149,7 +1149,7 @@
       "domain": "D3",
       "cue": "'Application downloads 1 GB CSVs from S3 just to read a few columns.' Cheapest way to cut transfer and latency?",
       "answer": "S3 Select (SQL filtering server-side); Glacier Select for archives",
-      "why": "S3 Select returns only the matching subset - up to 400% faster and 80% cheaper. Athena is for ad hoc analytics across many objects.",
+      "why": "S3 Select filters server-side and returns only the matching subset, so you pay for and transfer far less data; Athena is for ad hoc analytics across many objects. (S3 Select has been closed to new customers since July 2024 but is still keyed on SAA-C03.)",
       "distractors": [
         "Amazon Athena",
         "Byte-range fetches",
@@ -1266,9 +1266,9 @@
       "domain": "D3",
       "cue": "'Compute 1-minute windowed aggregations over a Kinesis stream with SQL or Flink and detect anomalies in real time.'",
       "answer": "Amazon Managed Service for Apache Flink (formerly Kinesis Data Analytics)",
-      "why": "Flink is the real-time stream processor. Firehose only delivers; Athena is batch; Glue Streaming is ETL-oriented.",
+      "why": "Flink is the real-time stream processor with windowing and RANDOM_CUT_FOREST anomaly detection. Firehose only buffers and delivers; Athena is batch; Glue Streaming is ETL-oriented.",
       "distractors": [
-        "Kinesis Data Firehose",
+        "Amazon Data Firehose",
         "Amazon Athena",
         "AWS Glue ETL"
       ],
@@ -1291,8 +1291,8 @@
       "id": "RR-100",
       "domain": "D3",
       "cue": "'Land clickstream data into S3 as Parquet within about a minute with zero servers and optional Lambda transformation.'",
-      "answer": "Amazon Kinesis Data Firehose",
-      "why": "Firehose buffers (60-900 s / 1-128 MB), converts to Parquet/ORC and delivers. Data Streams requires you to run consumers.",
+      "answer": "Amazon Data Firehose (formerly Kinesis Data Firehose)",
+      "why": "Firehose buffers (60-900 s / 1-128 MB), converts to Parquet/ORC and delivers with no consumer to run. Data Streams stores the data but requires you to build and scale the consumer.",
       "distractors": [
         "Kinesis Data Streams + KCL app on EC2",
         "Amazon MSK",
@@ -1316,13 +1316,13 @@
     {
       "id": "RR-102",
       "domain": "D3",
-      "cue": "'Strict ordering required for 5,000 messages per second.' Tempting: SQS FIFO.",
-      "answer": "Kinesis Data Streams (ordering per shard) - SQS FIFO caps at 300 msg/s per action (3,000 batched) unless using many message groups with high-throughput mode",
-      "why": "FIFO throughput is the constraint; Kinesis scales ordered throughput by adding shards.",
+      "cue": "'Ordered processing of 5,000 messages/second keyed by customer ID, and two independent consumer applications must each be able to replay the last 24 hours.' Tempting: SQS FIFO.",
+      "answer": "Kinesis Data Streams - ordering per shard, 24 h retention (up to 365 days), many consumers replay the same records",
+      "why": "Replay is the discriminator: SQS deletes a message once a consumer acknowledges it, so no second consumer and no re-read. FIFO also caps at 300 messages/s per API action (3,000 batched) outside high-throughput mode, while Kinesis scales ordered throughput by adding shards.",
       "distractors": [
-        "SQS FIFO single queue",
-        "SQS Standard",
-        "SNS FIFO topic"
+        "SQS FIFO queue with high-throughput mode enabled",
+        "SQS Standard queue with two consumer fleets",
+        "SNS FIFO topic fanning out to two SQS FIFO queues"
       ],
       "kind": "spot_the_trap"
     },
@@ -1420,13 +1420,13 @@
     {
       "id": "RR-110",
       "domain": "D3",
-      "cue": "'Immutable, cryptographically verifiable history of every change to vehicle registrations, owned by one authority' vs 'multiple companies share a ledger without a central owner'?",
-      "answer": "Amazon QLDB for the centralized ledger; Amazon Managed Blockchain for the decentralized one",
-      "why": "QLDB is a single-owner journal with verifiable hashes; Managed Blockchain runs Hyperledger Fabric/Ethereum across parties.",
+      "cue": "'Multiple companies transact on a shared ledger with no central owner' - and what carries the single-owner, cryptographically verifiable ledger now that Amazon QLDB is retired?",
+      "answer": "Amazon Managed Blockchain for the multi-party ledger; Aurora PostgreSQL ledger tables for the single-owner one (QLDB was retired 31 July 2025)",
+      "why": "Managed Blockchain runs Hyperledger Fabric/Ethereum across parties with no central owner. QLDB is retired and can no longer be a correct answer - AWS's stated migration path is Aurora PostgreSQL with hash-chained history tables.",
       "distractors": [
-        "Managed Blockchain for both",
-        "QLDB for both",
-        "DynamoDB with Streams for both"
+        "Amazon QLDB for both",
+        "Amazon Managed Blockchain for both",
+        "Amazon Neptune for the shared ledger; DynamoDB Streams for the single-owner one"
       ],
       "kind": "contrast"
     },
@@ -1448,7 +1448,7 @@
       "domain": "D3",
       "cue": "'Relational database for a dev/test app used a few hours a day with unpredictable spikes; minimize cost and admin.'",
       "answer": "Aurora Serverless v2",
-      "why": "Serverless v2 scales ACUs in 0.5 steps and charges per second of use. Provisioned RDS bills 24x7; stopping RDS is manual and limited to 7 days.",
+      "why": "Serverless v2 scales ACUs in 0.5 steps, down to 0 ACUs since late 2024, and charges per second of use. Provisioned RDS bills 24x7 and a stopped RDS instance auto-restarts after 7 days.",
       "distractors": [
         "RDS Multi-AZ db.t3.large",
         "Amazon Redshift Serverless",
@@ -1487,7 +1487,7 @@
       "domain": "D3",
       "cue": "API Gateway REST API defaults: integration timeout, max payload, account throttle?",
       "answer": "29 seconds; 10 MB; 10,000 requests/s with 5,000 burst",
-      "why": "Long backends must go async (SQS/Step Functions) or use WebSockets. HTTP APIs share the 29 s ceiling.",
+      "why": "Long backends must go async (SQS/Step Functions) or use WebSockets. HTTP APIs cap at 30 s; the REST 29 s default can only be raised through a service-quota increase.",
       "distractors": [
         "60 s; 6 MB; 1,000 rps",
         "29 s; 100 MB; 10,000 rps",
@@ -1565,7 +1565,7 @@
       "domain": "D3",
       "cue": "'Tightly coupled MPI weather simulation needs the lowest inter-node latency and highest bandwidth.'",
       "answer": "Cluster placement group with EFA-enabled instances in one AZ",
-      "why": "Cluster groups pack instances on the same rack segment; EFA provides OS-bypass networking. Spread/partition trade latency for fault isolation.",
+      "why": "Cluster groups pack instances on one rack segment; EFA gives OS-bypass networking and 9001-byte jumbo frames inside the VPC (8500 over Direct Connect, 1500 to the internet). Spread and partition groups trade that latency away for fault isolation.",
       "distractors": [
         "Spread placement group across 3 AZs",
         "Partition placement group",
@@ -1643,7 +1643,7 @@
       "domain": "D3",
       "cue": "Route 53: 'users in Germany must be served only from the Frankfurt stack for data-residency law' vs 'send users to whichever Region responds fastest'?",
       "answer": "Geolocation routing; Latency routing",
-      "why": "Geolocation keys on the user's location (compliance); latency keys on measured performance. Geoproximity adjusts by distance bias.",
+      "why": "Geolocation keys on the user's location, which is what a data-residency law requires; latency keys on measured performance. The 8 policies are simple, weighted, latency, failover, geolocation, geoproximity, multivalue answer and IP-based.",
       "distractors": [
         "Latency; Geolocation",
         "Geoproximity; Weighted",
@@ -1682,7 +1682,7 @@
       "domain": "D3",
       "cue": "'Two VPCs in different accounts and Regions with non-overlapping CIDRs need private connectivity; lowest cost, no transitive requirement.'",
       "answer": "VPC peering (inter-Region)",
-      "why": "Peering is free for same-AZ traffic and has no hourly fee; TGW charges per attachment and per GB.",
+      "why": "Peering has no hourly attachment fee - you pay only inter-Region data transfer. Transit Gateway adds ~$0.05 per attachment-hour plus per-GB processing and still needs TGW peering to cross Regions.",
       "distractors": [
         "Transit Gateway",
         "Site-to-Site VPN between VPCs",
@@ -1694,7 +1694,7 @@
       "id": "RR-131",
       "domain": "D3",
       "cue": "Direct Connect dedicated speeds, Site-to-Site VPN per-tunnel throughput, and TGW max attachments?",
-      "answer": "1 / 10 / 100 Gbps (hosted 50 Mbps-10 Gbps); 1.25 Gbps per tunnel (2 tunnels); 5,000 attachments",
+      "answer": "1 / 10 / 100 / 400 Gbps dedicated (hosted 50 Mbps-25 Gbps); 1.25 Gbps per tunnel (2 tunnels); 5,000 attachments",
       "why": "VPN over TGW with ECMP aggregates tunnels; DX takes weeks to months to provision so VPN is the quick or backup path.",
       "distractors": [
         "1 / 10 Gbps; 10 Gbps per tunnel; 500",
@@ -1838,7 +1838,7 @@
       "domain": "D4",
       "cue": "'Access patterns for 500 TB of media are unknown and change over time; minimize cost without retrieval fees.'",
       "answer": "S3 Intelligent-Tiering",
-      "why": "IT moves objects between tiers automatically for a small monitoring fee and no retrieval charge. Choosing IA blindly risks retrieval fees on hot objects.",
+      "why": "Intelligent-Tiering moves objects between tiers automatically for a small per-object monitoring fee, with no retrieval charge and no minimum storage duration. Choosing Standard-IA blindly risks retrieval fees and a 30-day minimum on objects that turn out to be hot.",
       "distractors": [
         "S3 Standard-IA",
         "S3 Glacier Instant Retrieval",
@@ -1877,7 +1877,7 @@
       "domain": "D4",
       "cue": "Purchasing discount ceilings: Spot / Standard RI and EC2 Instance SP / Convertible RI and Compute SP? And Spot's interruption notice?",
       "answer": "Up to 90% / 72% / 66%; 2-minute warning",
-      "why": "Discount tracks flexibility inversely: more flexibility, less discount. Spot pays for tolerating interruption.",
+      "why": "Discount tracks flexibility inversely: more flexibility, less discount. Spot pays for tolerating interruption, and Fargate Spot saves roughly 70% on the same terms.",
       "distractors": [
         "90% / 50% / 40%; 5 min",
         "75% / 72% / 66%; 2 min",
@@ -2046,7 +2046,7 @@
       "domain": "D4",
       "cue": "Data transfer per GB: internet egress / inter-Region / inter-AZ / same-AZ via private IP?",
       "answer": "~$0.09 (first 100 GB/month free) / ~$0.02 / $0.01 each direction / free",
-      "why": "Inbound is always free. Traffic over public or Elastic IPs inside a Region is billed as Regional transfer even in the same AZ.",
+      "why": "Inbound is always free, and traffic over public or Elastic IPs inside a Region is billed as Regional transfer even in the same AZ. Every public IPv4 address also costs $0.005/hour whether attached or idle.",
       "distractors": [
         "$0.09 / $0.09 / free / free",
         "$0.05 / $0.02 / $0.02 / $0.01",
@@ -2098,7 +2098,7 @@
       "domain": "D4",
       "cue": "'Migrate 100 TB over a 1 Gbps link that production already uses heavily; deadline 10 days.' Tempting: DataSync.",
       "answer": "AWS Snowball Edge Storage Optimized (80 TB usable each) - 1 Gbps moves ~10 TB/day at best, so 100 TB needs 10+ days of a saturated link",
-      "why": "Rule: 1 Gbps ~ 10 TB/day. Anything over a week or on a contended link goes offline. Snowmobile is only for >10 PB.",
+      "why": "Rule: 1 Gbps ~ 10 TB/day, so a link already carrying production cannot clear 100 TB in 10 days. Anything over a week or on a contended link goes offline, and Snowmobile has been discontinued, so Snowball Edge is the only offline device left.",
       "distractors": [
         "AWS DataSync over the existing link",
         "AWS Snowmobile",
@@ -2109,13 +2109,13 @@
     {
       "id": "RR-163",
       "domain": "D4",
-      "cue": "Snowball Edge Storage Optimized usable capacity / Snowcone / Snowmobile? And DataSync max per agent?",
-      "answer": "80 TB (210 TB variant) / 8 TB HDD or 14 TB SSD / 100 PB; 10 Gbps per agent",
-      "why": "Snow devices import into S3 Standard first (lifecycle to Glacier afterward). Snowcone can also run a DataSync agent for online transfer.",
+      "cue": "Snowball Edge Storage Optimized usable capacity / Snowcone HDD and SSD capacity? And DataSync throughput per agent?",
+      "answer": "80 TB usable (210 TB on the newer Snowball Edge) / 8 TB HDD and 14 TB SSD; up to 10 Gbps per DataSync agent",
+      "why": "Snow devices import into S3 Standard first, so lifecycle to Glacier afterward; Snowmobile has been discontinued, leaving Snowball Edge as the largest offline option. Snowcone can also run a DataSync agent for online transfer.",
       "distractors": [
-        "50 TB / 1 TB / 10 PB; 1 Gbps",
-        "80 TB / 8 TB / 100 PB; 100 Gbps",
-        "100 TB / 14 TB / 1 EB; 10 Gbps"
+        "50 TB usable / 1 TB HDD and 8 TB SSD; 1 Gbps per agent",
+        "80 TB usable / 8 TB HDD and 14 TB SSD; 100 Gbps per agent",
+        "100 TB usable / 14 TB HDD and 8 TB SSD; 10 Gbps per agent"
       ],
       "kind": "number"
     },
@@ -2228,7 +2228,7 @@
       "domain": "D4",
       "cue": "'DynamoDB table with steady predictable load' vs 'new table with unknown spiky traffic' - capacity mode for each?",
       "answer": "Provisioned with auto scaling (plus reserved capacity) for steady; On-Demand for unknown/spiky",
-      "why": "On-Demand costs several times more per request but never throttles or over-provisions. Standard-IA table class for rarely accessed data.",
+      "why": "On-Demand costs roughly 3.5x provisioned per request but never throttles or sits idle over-provisioned. Use the Standard-IA table class for rarely accessed data.",
       "distractors": [
         "On-Demand for both",
         "Provisioned for both",
