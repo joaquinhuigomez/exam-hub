@@ -384,7 +384,7 @@
           },
           "gotchas": [
             "Gateway endpoints only for S3 and DynamoDB - there is no gateway endpoint for anything else.",
-            "DynamoDB has no interface endpoint in most exam framing; S3 has both.",
+            "S3 and DynamoDB both support gateway AND interface endpoints (DynamoDB gained PrivateLink in March 2024) - the gateway one is the free, in-VPC-only option; the interface one is what reaches on-premises.",
             "Gateway endpoints do not work from on-premises - that requirement forces the interface endpoint.",
             "Enabling private DNS on an interface endpoint is what makes existing code work without changing the hostname.",
             "An interface endpoint is billed per AZ - three AZs means three times the hourly charge.",
