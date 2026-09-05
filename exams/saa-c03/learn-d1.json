@@ -73,7 +73,7 @@
             "'Allow' in an SCP does not grant anything - it only re-opens what a parent-level deny list left available."
           ],
           "numbers": [
-            "Managed policies attached per IAM role/user: 20 (default quota)",
+            "Managed policies attached per IAM user, group, or role: 10 by default, 20 maximum after a quota increase",
             "Inline policy size limit: 2,048 chars (user), 10,240 (role), 5,120 (group)"
           ],
           "mnemonic": "DSRIBS - Deny, SCP, Resource, Identity, Boundary, Session. Only the R and I letters can say yes."
@@ -378,7 +378,7 @@
               [
                 "Cross-Region",
                 "No",
-                "No (endpoint is Regional)"
+                "Same-Region by default; cross-Region PrivateLink exists (endpoint services since 2024, select AWS services since 2025)"
               ]
             ]
           },
@@ -574,7 +574,7 @@
             "Signed URL = one object. Signed cookies = multiple objects. Do not swap them.",
             "S3 pre-signed URLs are a different feature from CloudFront signed URLs and carry the permissions of the signing principal.",
             "The ACM certificate for a CloudFront alternate domain name must be in us-east-1, regardless of where the origin lives.",
-            "Field-level encryption applies to POST/PUT bodies only, and is limited to a small number of named fields.",
+            "Field-level encryption applies to POST request bodies only, and is limited to a small number of named fields.",
             "CloudFront also terminates TLS and can enforce HTTPS-only viewer and origin protocol policies - a cheap answer for 'encrypt in transit'."
           ],
           "numbers": [
@@ -991,12 +991,12 @@
         },
         {
           "name": "CloudHSM vs KMS, and ACM certificates",
-          "explain": "KMS is multi-tenant, AWS-operated, FIPS 140-3 validated, and integrated with every AWS service. CloudHSM is a single-tenant hardware security module cluster in your VPC that you administer: AWS never sees your keys or your HSM credentials, it is FIPS 140-2 Level 3 validated, and it speaks industry standards - PKCS#11, JCE, and CNG/KSP. Pick CloudHSM only when the requirement names one of those: single-tenant hardware, FIPS 140-2 Level 3, you must control the HSM, SQL Server or Oracle TDE with your own HSM, or you need to run your own certificate authority's private key. Otherwise KMS wins on operational overhead every time. KMS custom key stores bridge the two by backing a KMS key with your CloudHSM cluster.\nACM issues and auto-renews public TLS certificates for free and installs them on integrated services - CloudFront, ALB/NLB, API Gateway, App Runner - with no private key handling by you. Certificates for CloudFront must be requested in us-east-1. If you need a certificate on an EC2 instance or on-premises hardware, ACM public certificates are not the path; you import a third-party certificate or use AWS Private CA. Private CA is the answer for internal-only PKI, device certificates, and mTLS between services.",
-          "exam_tests": "Trigger words: 'FIPS 140-2 Level 3', 'single-tenant', 'AWS must not have access to the keys', 'Oracle/SQL Server TDE with our own HSM' -> CloudHSM. 'Free, auto-renewing TLS on an ALB' -> ACM. 'Certificate expired and caused an outage' -> ACM auto-renewal. 'Issue thousands of internal certificates to devices' -> AWS Private CA.",
+          "explain": "KMS is multi-tenant, AWS-operated, and integrated with every AWS service; its HSMs are FIPS 140-3 Level 3 validated. CloudHSM is a single-tenant hardware security module cluster in your VPC that you administer: AWS never sees your keys or your HSM credentials, and it speaks industry standards - PKCS#11, JCE, and CNG/KSP. Its HSMs are also Level 3 validated (the legacy hsm1.medium under FIPS 140-2, the current hsm2m.medium under FIPS 140-3), so validation level is no longer what separates the two - exclusive single-tenant control is. Pick CloudHSM when the requirement names single-tenant hardware, 'AWS must not be able to access the keys', SQL Server or Oracle TDE with your own HSM, or running your own certificate authority's private key. Otherwise KMS wins on operational overhead every time. KMS custom key stores bridge the two by backing a KMS key with your CloudHSM cluster.\nACM issues and auto-renews public TLS certificates for free and installs them on integrated services - CloudFront, ALB/NLB, API Gateway, App Runner - with no private key handling by you. Certificates for CloudFront must be requested in us-east-1. Standard ACM public certificates cannot be exported, so they cannot be installed on an EC2 instance or on-premises server; the exam's default answer is to terminate TLS at ALB/CloudFront or import a third-party certificate. Since June 2025 ACM can also issue exportable public certificates (paid, $15 per FQDN and $149 per wildcard, 395-day validity) whose private key you can export for EC2, containers, or on-premises hosts - so do not accept a blanket 'ACM certificates can never leave AWS'. Private CA is the answer for internal-only PKI, device certificates, and mTLS between services.",
+          "exam_tests": "Trigger words: 'FIPS 140-2 Level 3' (the phrasing legacy exam items still use), 'single-tenant', 'dedicated hardware we alone control', 'AWS must not have access to the keys', 'Oracle/SQL Server TDE with our own HSM' -> CloudHSM. 'Free, auto-renewing TLS on an ALB' -> ACM. 'Certificate expired and caused an outage' -> ACM auto-renewal. 'Issue thousands of internal certificates to devices' -> AWS Private CA.",
           "example": {
-            "scenario": "A bank must run its own certificate authority for internal service-to-service mTLS and store the CA private key in hardware it exclusively controls, validated to FIPS 140-2 Level 3.",
+            "scenario": "A bank must run its own certificate authority for internal service-to-service mTLS and store the CA private key in single-tenant hardware it exclusively controls, FIPS 140-3 Level 3 validated, which AWS operators must not be able to access.",
             "answer": "Run AWS CloudHSM for the CA key material, optionally fronted by AWS Private CA for issuance.",
-            "why": "Only CloudHSM offers single-tenant, customer-controlled HSMs at FIPS 140-2 Level 3, which is the exact phrase the stem uses as the discriminator. KMS is multi-tenant and AWS-operated, so it fails the exclusive-control requirement regardless of its own validation level."
+            "why": "Only CloudHSM gives you single-tenant HSMs that AWS cannot access, which is the discriminator here - 'exclusively controls' and 'AWS operators must not access'. Validation level does not decide it: KMS HSMs are FIPS 140-3 Level 3 too. KMS fails on tenancy and exclusive control, not on certification."
           },
           "compare": {
             "columns": [
@@ -1017,8 +1017,8 @@
               ],
               [
                 "Validation",
-                "FIPS 140-3 validated HSMs",
-                "FIPS 140-2 Level 3"
+                "FIPS 140-3 Level 3 validated HSMs",
+                "FIPS 140-3 Level 3 (hsm2m.medium); legacy hsm1.medium was FIPS 140-2 Level 3"
               ],
               [
                 "Interfaces",
@@ -1043,12 +1043,12 @@
             ]
           },
           "gotchas": [
-            "ACM public certificates are free; you pay only for the resource using them. Private CA carries a monthly charge per CA plus per certificate.",
+            "Standard (non-exportable) ACM public certificates are free; exportable public certificates are paid per name, and Private CA charges per CA per month plus per certificate.",
             "CloudFront requires the certificate in us-east-1 no matter where the origin is; ALB requires it in the ALB's Region.",
             "ACM auto-renews certificates it issued when DNS validation records remain in place - a deleted CNAME breaks renewal.",
             "Imported certificates in ACM do not auto-renew; you get expiry notifications and must re-import.",
             "CloudHSM requires you to manage users, quorum, and cluster backups - it is explicitly higher operational overhead.",
-            "You cannot attach an ACM public certificate to an EC2 instance directly - terminate TLS at ALB/CloudFront or import a cert."
+            "A standard ACM public certificate has no exportable private key, so it cannot be installed on EC2 - terminate TLS at ALB/CloudFront, import a third-party cert, or request an exportable ACM public certificate (paid, since 2025)."
           ]
         }
       ]
@@ -1148,7 +1148,7 @@
               [
                 "Object Lock - compliance mode",
                 "No - not even root, until expiry",
-                "Versioning, set at bucket creation",
+                "Versioning + Object Lock enabled on the bucket",
                 "SEC 17a-4, FINRA, immutable WORM"
               ],
               [
@@ -1184,7 +1184,7 @@
             ]
           },
           "gotchas": [
-            "Object Lock requires versioning and is normally enabled at bucket creation - you cannot casually retrofit it in the console.",
+            "Object Lock requires versioning; it is usually turned on at bucket creation, but since November 2023 you can also enable it on an existing versioned bucket from the console, CLI, or API.",
             "Compliance mode retention cannot be shortened or removed by anyone; you can only lengthen it.",
             "Block Public Access at the account level overrides any permissive bucket policy or ACL beneath it.",
             "Versioning alone does not stop deletion - it stops data loss. A malicious actor with permissions can still delete versions unless MFA Delete or Object Lock is in play.",
@@ -1198,7 +1198,7 @@
         },
         {
           "name": "Secrets Manager vs Parameter Store, and encrypting EBS and RDS",
-          "explain": "Secrets Manager stores secrets, encrypts them with KMS, and - the differentiator - performs native automatic rotation with built-in Lambda templates for RDS, Redshift, and DocumentDB, plus cross-account and cross-Region replication of secrets. It costs about $0.40 per secret per month plus API calls. Systems Manager Parameter Store keeps configuration data and, in SecureString form, KMS-encrypted secrets too. Standard parameters are free with a 4 KB value limit; advanced parameters add higher limits, parameter policies, and a monthly charge. Parameter Store has no built-in rotation - you write it yourself. So the exam rule is simple: rotation required -> Secrets Manager; cheapest place to keep a database password or config value with no rotation requirement -> Parameter Store SecureString.\nOn the storage side: EBS encryption is set at volume creation and can be defaulted per Region per account; you cannot encrypt an existing volume in place, you snapshot it and copy the snapshot with encryption enabled. RDS is the same pattern - encryption must be chosen at instance creation, and to encrypt an existing database you snapshot it, copy the snapshot with a KMS key, and restore. EFS encryption at rest is also creation-time. AWS Backup centralizes all of it with policy-driven backup plans, cross-account and cross-Region copies, and vault lock.",
+          "explain": "Secrets Manager stores secrets, encrypts them with KMS, and - the differentiator - performs native automatic rotation. For RDS, Aurora, Redshift, and DocumentDB it offers managed rotation, where AWS runs the rotation and you deploy no Lambda at all; for anything else you attach a rotation Lambda, and AWS publishes templates for the common cases. It also replicates a secret to other Regions natively (cross-account sharing is done with the secret's resource policy, not replication). It costs about $0.40 per secret per month plus API calls. Systems Manager Parameter Store keeps configuration data and, in SecureString form, KMS-encrypted secrets too. Standard parameters are free with a 4 KB value limit; advanced parameters add higher limits, parameter policies, and a monthly charge. Parameter Store has no built-in rotation - you write it yourself. So the exam rule is simple: rotation required -> Secrets Manager; cheapest place to keep a database password or config value with no rotation requirement -> Parameter Store SecureString.\nOn the storage side: EBS encryption is set at volume creation and can be defaulted per Region per account; you cannot encrypt an existing volume in place, you snapshot it and copy the snapshot with encryption enabled. RDS is the same pattern - encryption must be chosen at instance creation, and to encrypt an existing database you snapshot it, copy the snapshot with a KMS key, and restore. EFS encryption at rest is also creation-time. AWS Backup centralizes all of it with policy-driven backup plans, cross-account and cross-Region copies, and vault lock.",
           "exam_tests": "Trigger words: 'rotate the database credentials every 30 days automatically' -> Secrets Manager. 'Store license keys and config at the lowest cost' -> Parameter Store. 'Encrypt an existing unencrypted RDS instance' -> snapshot, copy with encryption, restore. 'Encrypt all future EBS volumes automatically' -> EBS encryption by default at the account/Region level.",
           "example": {
             "scenario": "An existing production RDS MySQL instance was created without encryption. Compliance now requires encryption at rest with a customer-managed key and minimal downtime planning.",
@@ -1214,7 +1214,7 @@
             "rows": [
               [
                 "Built-in rotation",
-                "Yes, with managed Lambda templates",
+                "Yes - managed rotation with no Lambda for RDS/Aurora/Redshift/DocumentDB; rotation Lambda for everything else",
                 "No - build it yourself"
               ],
               [
