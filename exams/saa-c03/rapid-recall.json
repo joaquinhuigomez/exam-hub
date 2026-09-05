@@ -146,13 +146,13 @@
     {
       "id": "RR-012",
       "domain": "D1",
-      "cue": "Which KMS key types support automatic yearly rotation?",
-      "answer": "AWS-managed keys (always on) and customer-managed SYMMETRIC keys with KMS-generated material (optional)",
-      "why": "Imported key material and asymmetric/HMAC keys cannot auto-rotate; rotate them manually by creating a new key and moving the alias.",
+      "cue": "Which KMS key types support automatic rotation, and what rotation period can you set on a customer-managed key?",
+      "answer": "AWS-managed keys (fixed yearly) and customer-managed SYMMETRIC keys with KMS-generated material (optional; period configurable 90-2,560 days, default 365, plus on-demand rotation)",
+      "why": "Imported key material and asymmetric/HMAC keys cannot auto-rotate; rotate them manually by creating a new key and moving the alias. AWS-managed key rotation cannot be changed.",
       "distractors": [
-        "All customer-managed keys including asymmetric",
-        "Only keys with imported key material",
-        "Only AWS-owned keys"
+        "All customer-managed keys including asymmetric, any period",
+        "Only keys with imported key material, yearly",
+        "Only AWS-owned keys, every 90 days"
       ],
       "kind": "contrast"
     },
@@ -172,9 +172,9 @@
     {
       "id": "RR-014",
       "domain": "D1",
-      "cue": "'Regulation requires FIPS 140-2 Level 3 validated hardware and that AWS operators can never access the key material; Oracle TDE must use it.'",
-      "answer": "AWS CloudHSM",
-      "why": "CloudHSM is single-tenant hardware where only you hold the keys; supports PKCS#11/JCE, Oracle TDE, SSL offload, and can back a KMS custom key store. KMS is multi-tenant and AWS-operated.",
+      "cue": "'Regulation requires single-tenant FIPS 140-3 Level 3 validated hardware where AWS operators can never access key material; Oracle TDE must use it.'",
+      "answer": "AWS CloudHSM (hsm2m.medium is FIPS 140-3 L3; hsm1.medium FIPS 140-2 L3)",
+      "why": "CloudHSM is single-tenant hardware where only you hold the keys; supports PKCS#11/JCE, Oracle TDE, SSL offload, and can back a KMS custom key store. KMS HSMs are also FIPS 140-3 L3 validated but multi-tenant and AWS-operated - the discriminator is exclusive key custody, not the FIPS level.",
       "distractors": [
         "AWS KMS customer-managed key",
         "AWS KMS with imported key material",
@@ -2287,6 +2287,45 @@
         "GWLB; NLB; ALB"
       ],
       "kind": "contrast"
+    },
+    {
+      "id": "RR-177",
+      "domain": "D1",
+      "cue": "'Employees authenticate against the on-prem SAML 2.0 identity provider and must get temporary credentials for an IAM role in ONE account without IAM users.' Which STS call and integration?",
+      "answer": "IAM SAML 2.0 federation: IdP trust + role trust policy, STS AssumeRoleWithSAML (OIDC web identities use AssumeRoleWithWebIdentity; multi-account workforce use IAM Identity Center)",
+      "why": "AssumeRoleWithSAML exchanges the IdP assertion for role credentials (15 min-12 h). Cognito is for app end users; IAM users would duplicate identities.",
+      "distractors": [
+        "STS AssumeRoleWithWebIdentity",
+        "Cognito user pool with SAML federation",
+        "IAM users synced from AD via SCIM"
+      ],
+      "kind": "pick_service"
+    },
+    {
+      "id": "RR-178",
+      "domain": "D4",
+      "cue": "Athena pricing unit, and the three levers that cut the bill?",
+      "answer": "$5 per TB scanned; partition the data, convert to columnar Parquet/ORC, and compress",
+      "why": "Athena bills on bytes scanned (10 MB minimum per query). Columnar formats let it read only needed columns; partitions prune files; compression shrinks bytes.",
+      "distractors": [
+        "$5 per query; add more workgroups",
+        "Per DPU-hour; use Spot",
+        "$0.09 per GB returned; cache in CloudFront"
+      ],
+      "kind": "number"
+    },
+    {
+      "id": "RR-179",
+      "domain": "D2",
+      "cue": "Aurora Global Database replication lag and Spot interruption notice - two 'time' numbers the exam loves?",
+      "answer": "Typically < 1 second lag (RPO ~1 s, RTO < 1 min); Spot gives a 2-minute interruption warning",
+      "why": "Aurora Global replicates at the storage layer across Regions; Spot's 2-minute notice arrives via EventBridge/instance metadata so workloads can checkpoint.",
+      "distractors": [
+        "< 1 minute lag; 5-minute Spot warning",
+        "< 1 second lag; 30-second Spot warning",
+        "~5 seconds lag; 2-minute Spot warning"
+      ],
+      "kind": "number"
     }
   ]
 }

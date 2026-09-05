@@ -178,7 +178,7 @@
         {
           "name": "Kinesis Data Streams vs Firehose, and the queue/topic/bus/stream decision",
           "explain": "A stream is an ordered, durable, replayable log. Kinesis Data Streams stores records in shards; each shard takes 1 MB/s or 1,000 records/s in and serves 2 MB/s out shared across standard consumers. Records with the same partition key land on the same shard, which is how you get ordering. Retention is 24 hours by default, extendable to 365 days, and multiple independent consumers can read the same records at different positions — that is replay, and it is the property no queue or topic gives you. Enhanced fan-out gives each registered consumer its own 2 MB/s per shard with roughly 70 ms latency instead of sharing the pipe.\nFirehose is a delivery pipeline, not a stream. It buffers and writes to S3, Redshift, OpenSearch, Splunk, Iceberg tables, or an HTTP endpoint, optionally transforming with Lambda and converting JSON to Parquet or ORC. It is fully serverless with no shards to manage, but it stores nothing you can re-read. No replay, no consumers, no ordering guarantee you can rely on.\nThe four-way model that answers most D2 integration questions: queue when one logical worker pool consumes each message once; topic when many subscribers each need a copy right now; bus when routing depends on event content or you need scheduling/replay/SaaS integration; stream when you need ordering, replay, or several independent consumers over the same high-volume record set.",
-          "exam_tests": "'Multiple applications must process the same data independently' and 'reprocess the last N days' → Kinesis Data Streams. 'Load streaming data into S3/Redshift/OpenSearch with the least operational overhead' → Firehose. 'Real-time' plus 'shards' plus 'ordering per device' → Data Streams with device ID as the partition key. Discriminating fact: Firehose has no retention and no replay; Data Streams does. A second discriminator: Firehose is near-real-time (buffered), Data Streams is real-time.",
+          "exam_tests": "'Multiple applications must process the same data independently' and 'reprocess the last N days' → Kinesis Data Streams. 'Load streaming data into S3/Redshift/OpenSearch with the least operational overhead' → Firehose. 'Real-time' plus 'shards' plus 'ordering per device' → Data Streams with device ID as the partition key. Discriminating fact: Firehose has no retention and no replay; Data Streams does. A second discriminator: Firehose has no shards and no consumers — it lands data in a destination and forgets it; Data Streams is a log that applications read at their own positions.",
           "example": {
             "scenario": "An IoT platform ingests 4 MB/s of telemetry. A real-time anomaly detector and a separate billing aggregator must both see every record, and the data science team needs to rerun models over the previous seven days of raw records.",
             "answer": "Kinesis Data Streams with 7-day retention and enhanced fan-out for the two real-time consumers.",
@@ -450,7 +450,7 @@
             "RDS Proxy shortens failover time (up to ~66% faster) and pools connections; it is the answer for 'many Lambda functions exhausting database connections'.",
             "Multi-AZ DB cluster is only available for MySQL and PostgreSQL engines."
           ],
-          "numbers": ["Multi-AZ instance failover: 60–120 s", "Multi-AZ DB cluster failover: typically < 35 s", "Automated backup retention 0–35 days", "PITR granularity ~5 minutes"]
+          "numbers": ["Multi-AZ instance failover: 60–120 s", "Multi-AZ DB cluster failover: typically < 35 s", "Read replicas: up to 15 for RDS MySQL, MariaDB, and PostgreSQL (5 for Oracle and SQL Server), of which up to 5 can be cross-Region", "Automated backup retention 0–35 days", "PITR granularity ~5 minutes"]
         },
         {
           "name": "Aurora: storage architecture, replicas, Global Database, Backtrack, Serverless v2",
@@ -608,7 +608,7 @@
             "Cross-account backup copy requires AWS Organizations and a KMS key the destination account can use.",
             "Storage Gateway is a hybrid appliance (VM, hardware, or EC2) — if there is no on-premises component in the stem, it is a distractor.",
             "Volume Gateway cached mode stores the primary copy in AWS with a local cache; stored mode keeps the primary copy on premises and backs it up to AWS. The stem's phrase 'low-latency access to the entire dataset' points to stored mode.",
-            "S3 Object Lock must be enabled when the bucket is created (or via support afterwards) and requires versioning."
+            "S3 Object Lock requires versioning; it is usually enabled at bucket creation, but since November 2023 it can also be turned on for an existing versioned bucket."
           ]
         }
       ]
