@@ -7,6 +7,7 @@ Exits non-zero on any structural error. Warnings are printed but do not fail.
 from __future__ import annotations
 
 import json
+import re
 import sys
 from collections import Counter
 from pathlib import Path
@@ -66,7 +67,19 @@ def check_questions(path: Path, domain_id: str) -> tuple[int, list[str]]:
                 errors.append(f"{qid}{o.get('letter')}: empty text")
         diff[q.get("difficulty")] += 1
         types[q.get("type")] += 1
-    print(f"  {path.name}: {len(qs)} Q · {dict(diff)} · {dict(types)}")
+    singles = [q for q in qs if q.get("type") == "single_choice"]
+    key_dist = Counter(next((o["letter"] for o in q.get("options", []) if o.get("correct")), "?") for q in singles)
+    if singles and max(key_dist.values()) > 0.45 * len(singles):
+        errors.append(f"{path.name}: answer-key position bias {dict(key_dist)} — run scripts/rebalance_keys.py")
+    multis = [q for q in qs if q.get("type") == "multiple_response"]
+    pair_dist = Counter("".join(o["letter"] for o in q.get("options", []) if o.get("correct")) for q in multis)
+    if len(multis) >= 4 and max(pair_dist.values()) > 0.5 * len(multis):
+        errors.append(f"{path.name}: multi-response pair bias {dict(pair_dist)} — run scripts/rebalance_keys.py")
+    for q in qs:
+        blob = " ".join(o.get("why", "") for o in q.get("options", [])) + q.get("knowledge_point", "") + q.get("trap_alert", "")
+        if re.search(r"\b[Oo]ption [A-E]\b", blob):
+            print(f"  WARN {q.get('id')}: text references an option letter — rebalancing would break it")
+    print(f"  {path.name}: {len(qs)} Q · {dict(diff)} · {dict(types)} · keys {dict(sorted(key_dist.items()))}")
     return len(qs), errors
 
 

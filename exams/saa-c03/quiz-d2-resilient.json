@@ -6,547 +6,1405 @@
       "id": "D2-Q001",
       "type": "single_choice",
       "difficulty": "easy",
-      "tags": ["sqs", "fifo", "ordering", "decoupling"],
+      "tags": [
+        "sqs",
+        "fifo",
+        "ordering",
+        "decoupling"
+      ],
       "scenario": "An e-commerce company processes order status updates (created, paid, shipped) through a queue consumed by a fleet of EC2 workers. Customers occasionally see 'shipped' before 'paid' because updates for the same order are processed out of sequence, and some updates are applied twice. Updates for different orders can be processed in parallel. Throughput is about 50 messages per second.",
       "stem": "Which solution meets these requirements with the LEAST development effort?",
       "options": [
-        {"letter": "A", "text": "Migrate to an Amazon SQS FIFO queue and set the message group ID to the order ID.", "correct": true, "why": "FIFO queues preserve strict order within a message group and provide exactly-once processing through content-based or explicit deduplication (5-minute deduplication window). Different group IDs are processed in parallel. 50 msg/s is far below the FIFO limit of 300 messages per second per API action (3,000 with 10-message batching)."},
-        {"letter": "B", "text": "Keep the SQS standard queue and add sequence numbers so consumers can reorder and deduplicate messages.", "correct": false, "why": "Standard queues offer best-effort ordering and at-least-once delivery, so every consumer would need a reorder buffer plus an idempotency store. That is significant custom code for a problem the queue type solves natively."},
-        {"letter": "C", "text": "Keep the SQS standard queue and reduce the consumer fleet to a single instance to force serial processing.", "correct": false, "why": "A single consumer destroys throughput and still receives duplicates, because at-least-once delivery is a property of the standard queue, not of consumer count."},
-        {"letter": "D", "text": "Replace the queue with an Amazon Kinesis Data Stream using the order ID as the partition key.", "correct": false, "why": "Kinesis orders records within a shard and would work, but consumers must be rewritten to use shard iterators or the KCL with checkpointing, and Kinesis is also at-least-once, so duplicate handling remains the application's job."}
+        {
+          "letter": "A",
+          "text": "Replace the queue with an Amazon Kinesis Data Stream using the order ID as the partition key.",
+          "correct": false,
+          "why": "Kinesis orders records within a shard and would work, but consumers must be rewritten to use shard iterators or the KCL with checkpointing, and Kinesis is also at-least-once, so duplicate handling remains the application's job."
+        },
+        {
+          "letter": "B",
+          "text": "Keep the SQS standard queue and add sequence numbers so consumers can reorder and deduplicate messages.",
+          "correct": false,
+          "why": "Standard queues offer best-effort ordering and at-least-once delivery, so every consumer would need a reorder buffer plus an idempotency store. That is significant custom code for a problem the queue type solves natively."
+        },
+        {
+          "letter": "C",
+          "text": "Keep the SQS standard queue and reduce the consumer fleet to a single instance to force serial processing.",
+          "correct": false,
+          "why": "A single consumer destroys throughput and still receives duplicates, because at-least-once delivery is a property of the standard queue, not of consumer count."
+        },
+        {
+          "letter": "D",
+          "text": "Migrate to an Amazon SQS FIFO queue and set the message group ID to the order ID.",
+          "correct": true,
+          "why": "FIFO queues preserve strict order within a message group and provide exactly-once processing through content-based or explicit deduplication (5-minute deduplication window). Different group IDs are processed in parallel. 50 msg/s is far below the FIFO limit of 300 messages per second per API action (3,000 with 10-message batching)."
+        }
       ],
       "knowledge_point": "SQS FIFO = strict ordering per message group ID + exactly-once processing, at 300 messages per second per API action (3,000 batched); high-throughput FIFO raises that to tens of thousands per second while keeping per-group ordering. Use it before reaching for Kinesis when the need is ordering, not streaming.",
       "trap_alert": "Reading 'ordering' and jumping to Kinesis. If the consumer is a queue worker and throughput fits FIFO, FIFO is the minimal-change answer.",
       "mnemonic": "Message group ID = a lane on the highway: cars in one lane stay in order, lanes run in parallel.",
-      "doc_refs": ["https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/FIFO-queues.html"]
+      "doc_refs": [
+        "https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/FIFO-queues.html"
+      ]
     },
     {
       "id": "D2-Q002",
       "type": "single_choice",
       "difficulty": "medium",
-      "tags": ["sqs", "visibility-timeout", "duplicates"],
+      "tags": [
+        "sqs",
+        "visibility-timeout",
+        "duplicates"
+      ],
       "scenario": "A video company uses an Amazon SQS standard queue with default settings and a fleet of EC2 consumers. Each transcoding job takes 3 to 8 minutes. Operators notice that the same video is frequently transcoded two or three times, doubling compute cost, even though each consumer deletes the message after a successful run.",
       "stem": "What should a solutions architect do to stop the duplicate processing with the LEAST operational overhead?",
       "options": [
-        {"letter": "A", "text": "Increase the queue's message retention period to 14 days.", "correct": false, "why": "Retention (1 minute to 14 days, default 4 days) controls how long an unconsumed message survives in the queue. It has no influence on when an in-flight message becomes visible to other consumers again."},
-        {"letter": "B", "text": "Convert the queue to a FIFO queue to obtain exactly-once processing.", "correct": false, "why": "FIFO deduplication only suppresses duplicate SendMessage calls within a 5-minute window. A message that is received, not deleted, and becomes visible again after the visibility timeout is redelivered on FIFO queues too, and FIFO lowers the throughput ceiling."},
-        {"letter": "C", "text": "Set the queue's visibility timeout to a value longer than the longest job (for example 10 minutes), and have consumers call ChangeMessageVisibility as a heartbeat for unusually long jobs.", "correct": true, "why": "The default visibility timeout is 30 seconds. When processing outlives it, the message reappears and another consumer picks it up. Setting the timeout above the maximum processing time (limit 12 hours) or extending it in-flight eliminates the redelivery. It is a queue attribute, so no redeployment is required."},
-        {"letter": "D", "text": "Enable long polling on the queue.", "correct": false, "why": "Long polling (WaitTimeSeconds up to 20 s) reduces empty receives and cost. It has no effect on how long an in-flight message stays hidden from other consumers."}
+        {
+          "letter": "A",
+          "text": "Increase the queue's message retention period to 14 days.",
+          "correct": false,
+          "why": "Retention (1 minute to 14 days, default 4 days) controls how long an unconsumed message survives in the queue. It has no influence on when an in-flight message becomes visible to other consumers again."
+        },
+        {
+          "letter": "B",
+          "text": "Set the queue's visibility timeout to a value longer than the longest job (for example 10 minutes), and have consumers call ChangeMessageVisibility as a heartbeat for unusually long jobs.",
+          "correct": true,
+          "why": "The default visibility timeout is 30 seconds. When processing outlives it, the message reappears and another consumer picks it up. Setting the timeout above the maximum processing time (limit 12 hours) or extending it in-flight eliminates the redelivery. It is a queue attribute, so no redeployment is required."
+        },
+        {
+          "letter": "C",
+          "text": "Convert the queue to a FIFO queue to obtain exactly-once processing.",
+          "correct": false,
+          "why": "FIFO deduplication only suppresses duplicate SendMessage calls within a 5-minute window. A message that is received, not deleted, and becomes visible again after the visibility timeout is redelivered on FIFO queues too, and FIFO lowers the throughput ceiling."
+        },
+        {
+          "letter": "D",
+          "text": "Enable long polling on the queue.",
+          "correct": false,
+          "why": "Long polling (WaitTimeSeconds up to 20 s) reduces empty receives and cost. It has no effect on how long an in-flight message stays hidden from other consumers."
+        }
       ],
       "knowledge_point": "Visibility timeout (default 30 s, max 12 h) must exceed the consumer's processing time, or the message is redelivered and processed again.",
       "trap_alert": "'Duplicate processing' triggers a FIFO reflex. Duplicates caused by slow consumers are a visibility-timeout problem, not a queue-type problem.",
       "mnemonic": "Visibility timeout = how long the message stays invisible while you work on it. Finish before it reappears.",
-      "doc_refs": ["https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-visibility-timeout.html"]
+      "doc_refs": [
+        "https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-visibility-timeout.html"
+      ]
     },
     {
       "id": "D2-Q003",
       "type": "single_choice",
       "difficulty": "easy",
-      "tags": ["sqs", "dlq", "redrive", "lambda"],
+      "tags": [
+        "sqs",
+        "dlq",
+        "redrive",
+        "lambda"
+      ],
       "scenario": "A fintech company processes payment webhooks with an Amazon SQS standard queue that triggers an AWS Lambda function. About 0.1% of messages carry malformed payloads that make the function throw every time. These poison messages are retried indefinitely, consuming invocations and delaying valid messages. The team wants to inspect failed messages later and reprocess them after a code fix.",
       "stem": "Which solution meets these requirements?",
       "options": [
-        {"letter": "A", "text": "Configure a redrive policy on the source queue with a dead-letter queue and a maxReceiveCount of 5. After fixing the code, use the DLQ redrive feature to move messages back to the source queue.", "correct": true, "why": "After a message has been received maxReceiveCount times without being deleted, SQS moves it to the DLQ, so poison messages stop blocking the queue. DLQ redrive to source is a built-in console/API feature. The DLQ must be the same type as the source, and its retention should exceed the source queue's because the original enqueue timestamp is preserved."},
-        {"letter": "B", "text": "Reduce the message retention period on the queue to 1 hour so bad messages expire quickly.", "correct": false, "why": "Retention (1 minute to 14 days, default 4 days) expires messages by age regardless of validity. Valid messages waiting behind a burst would also be deleted, and nothing would be preserved for inspection."},
-        {"letter": "C", "text": "Configure a Lambda destination for failed invocations that publishes the event to an SNS topic.", "correct": false, "why": "Lambda destinations apply to asynchronous invocations (for example from S3 or EventBridge). An SQS event source mapping polls the queue and invokes the function synchronously, so failure handling belongs on the queue's redrive policy."},
-        {"letter": "D", "text": "Increase the visibility timeout to 12 hours to slow down the retries.", "correct": false, "why": "This delays every message, including valid ones, and the poison messages are still retried forever. Visibility timeout controls redelivery timing, not retry count."}
+        {
+          "letter": "A",
+          "text": "Configure a Lambda destination for failed invocations that publishes the event to an SNS topic.",
+          "correct": false,
+          "why": "Lambda destinations apply to asynchronous invocations (for example from S3 or EventBridge). An SQS event source mapping polls the queue and invokes the function synchronously, so failure handling belongs on the queue's redrive policy."
+        },
+        {
+          "letter": "B",
+          "text": "Reduce the message retention period on the queue to 1 hour so bad messages expire quickly.",
+          "correct": false,
+          "why": "Retention (1 minute to 14 days, default 4 days) expires messages by age regardless of validity. Valid messages waiting behind a burst would also be deleted, and nothing would be preserved for inspection."
+        },
+        {
+          "letter": "C",
+          "text": "Configure a redrive policy on the source queue with a dead-letter queue and a maxReceiveCount of 5. After fixing the code, use the DLQ redrive feature to move messages back to the source queue.",
+          "correct": true,
+          "why": "After a message has been received maxReceiveCount times without being deleted, SQS moves it to the DLQ, so poison messages stop blocking the queue. DLQ redrive to source is a built-in console/API feature. The DLQ must be the same type as the source, and its retention should exceed the source queue's because the original enqueue timestamp is preserved."
+        },
+        {
+          "letter": "D",
+          "text": "Increase the visibility timeout to 12 hours to slow down the retries.",
+          "correct": false,
+          "why": "This delays every message, including valid ones, and the poison messages are still retried forever. Visibility timeout controls redelivery timing, not retry count."
+        }
       ],
       "knowledge_point": "A redrive policy with maxReceiveCount routes messages to a DLQ after N failed receives; DLQ redrive moves them back after a fix. Retention is age-based, maxReceiveCount is attempt-based.",
       "trap_alert": "Confusing message retention (how old) with maxReceiveCount (how many attempts).",
       "mnemonic": "Three strikes and you're out: maxReceiveCount decides when a message is sent to the DLQ bench.",
-      "doc_refs": ["https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-dead-letter-queues.html"]
+      "doc_refs": [
+        "https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-dead-letter-queues.html"
+      ]
     },
     {
       "id": "D2-Q004",
       "type": "single_choice",
       "difficulty": "easy",
-      "tags": ["sqs", "long-polling", "cost"],
+      "tags": [
+        "sqs",
+        "long-polling",
+        "cost"
+      ],
       "scenario": "A SaaS company runs 40 EC2 consumers that each poll an Amazon SQS standard queue every 100 ms. Traffic is bursty and the queue is empty roughly 90% of the time. The monthly SQS bill is dominated by ReceiveMessage calls that return nothing, and the CloudWatch metric NumberOfEmptyReceives is in the millions.",
       "stem": "Which change is MOST cost-effective while requiring minimal code changes?",
       "options": [
-        {"letter": "A", "text": "Set the queue attribute ReceiveMessageWaitTimeSeconds to 20 to enable long polling.", "correct": true, "why": "Long polling makes ReceiveMessage wait up to 20 seconds for a message and queries all SQS servers, eliminating most empty responses and the false empties of short polling (which samples a subset of servers). It is a queue attribute, so consumers need no code change."},
-        {"letter": "B", "text": "Reduce the consumer fleet from 40 to 4 instances.", "correct": false, "why": "Fewer pollers cut empty receives proportionally but slow down burst processing, and the remaining consumers still short-poll, so the waste per request is unchanged."},
-        {"letter": "C", "text": "Convert the queue to a FIFO queue.", "correct": false, "why": "Queue type changes ordering and deduplication semantics, not polling behaviour. Empty receives are billed the same on FIFO, and FIFO adds ordering constraints this workload never asked for."},
-        {"letter": "D", "text": "Replace the queue with an SNS topic that pushes to HTTP endpoints on the consumers.", "correct": false, "why": "Push delivery removes polling but requires each consumer to expose a public endpoint and handle retries, and it discards the queue's buffering. It is an architecture rewrite, not a minimal change."}
+        {
+          "letter": "A",
+          "text": "Convert the queue to a FIFO queue.",
+          "correct": false,
+          "why": "Queue type changes ordering and deduplication semantics, not polling behaviour. Empty receives are billed the same on FIFO, and FIFO adds ordering constraints this workload never asked for."
+        },
+        {
+          "letter": "B",
+          "text": "Replace the queue with an SNS topic that pushes to HTTP endpoints on the consumers.",
+          "correct": false,
+          "why": "Push delivery removes polling but requires each consumer to expose a public endpoint and handle retries, and it discards the queue's buffering. It is an architecture rewrite, not a minimal change."
+        },
+        {
+          "letter": "C",
+          "text": "Reduce the consumer fleet from 40 to 4 instances.",
+          "correct": false,
+          "why": "Fewer pollers cut empty receives proportionally but slow down burst processing, and the remaining consumers still short-poll, so the waste per request is unchanged."
+        },
+        {
+          "letter": "D",
+          "text": "Set the queue attribute ReceiveMessageWaitTimeSeconds to 20 to enable long polling.",
+          "correct": true,
+          "why": "Long polling makes ReceiveMessage wait up to 20 seconds for a message and queries all SQS servers, eliminating most empty responses and the false empties of short polling (which samples a subset of servers). It is a queue attribute, so consumers need no code change."
+        }
       ],
       "knowledge_point": "Long polling (WaitTimeSeconds 1-20 s) reduces empty receives and false empties; short polling samples a subset of servers and returns immediately.",
       "trap_alert": "Assuming the only lever on polling cost is fewer consumers. The queue-level wait time is the intended fix.",
       "mnemonic": "Short polling knocks and leaves; long polling waits at the door for up to 20 seconds.",
-      "doc_refs": ["https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-short-and-long-polling.html"]
+      "doc_refs": [
+        "https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-short-and-long-polling.html"
+      ]
     },
     {
       "id": "D2-Q005",
       "type": "single_choice",
       "difficulty": "medium",
-      "tags": ["sqs", "message-size", "extended-client", "s3"],
+      "tags": [
+        "sqs",
+        "message-size",
+        "extended-client",
+        "s3"
+      ],
       "scenario": "A media company sends processing jobs through Amazon SQS. Each job message contains a JSON manifest plus embedded base64 thumbnails and totals 2 to 4 MB. SendMessage calls now fail because the message is too long. Producers and consumers are Java applications, and the team wants to keep SQS with minimal code changes.",
       "stem": "Which solution meets these requirements?",
       "options": [
-        {"letter": "A", "text": "Use the Amazon SQS Extended Client Library for Java so payloads are stored in Amazon S3 and the queue carries a reference.", "correct": true, "why": "SQS caps a message at 256 KB (AWS raised the ceiling to 1 MiB in 2025, and the exam still keys on 256 KB; 2-4 MB exceeds both). The Extended Client Library transparently writes payloads up to 2 GB to S3 and rehydrates them on receive, as a drop-in wrapper around the SDK client."},
-        {"letter": "B", "text": "Split each message into 256 KB chunks and reassemble them in the consumer.", "correct": false, "why": "A standard queue does not guarantee that chunks arrive in order or to the same consumer, so reassembly needs a shared store and custom logic. This is the library's job done by hand."},
-        {"letter": "C", "text": "Replace SQS with an Amazon Kinesis Data Stream.", "correct": false, "why": "A Kinesis record is limited to 1 MB, so 2-4 MB payloads still fail, and the consumers would need a rewrite to the Kinesis API."},
-        {"letter": "D", "text": "Compress the message body with gzip before sending.", "correct": false, "why": "Base64 image data compresses poorly, so a 2-4 MB message will not reliably fit under 256 KB. Compression is a fragile, best-effort mitigation."}
+        {
+          "letter": "A",
+          "text": "Replace SQS with an Amazon Kinesis Data Stream.",
+          "correct": false,
+          "why": "A Kinesis record is limited to 1 MB, so 2-4 MB payloads still fail, and the consumers would need a rewrite to the Kinesis API."
+        },
+        {
+          "letter": "B",
+          "text": "Use the Amazon SQS Extended Client Library for Java so payloads are stored in Amazon S3 and the queue carries a reference.",
+          "correct": true,
+          "why": "SQS caps a message at 256 KB (AWS raised the ceiling to 1 MiB in 2025, and the exam still keys on 256 KB; 2-4 MB exceeds both). The Extended Client Library transparently writes payloads up to 2 GB to S3 and rehydrates them on receive, as a drop-in wrapper around the SDK client."
+        },
+        {
+          "letter": "C",
+          "text": "Compress the message body with gzip before sending.",
+          "correct": false,
+          "why": "Base64 image data compresses poorly, so a 2-4 MB message will not reliably fit under 256 KB. Compression is a fragile, best-effort mitigation."
+        },
+        {
+          "letter": "D",
+          "text": "Split each message into 256 KB chunks and reassemble them in the consumer.",
+          "correct": false,
+          "why": "A standard queue does not guarantee that chunks arrive in order or to the same consumer, so reassembly needs a shared store and custom logic. This is the library's job done by hand."
+        }
       ],
       "knowledge_point": "SQS message limit is 256 KB; the Extended Client Library offloads payloads up to 2 GB to S3 and leaves a pointer in the message.",
       "trap_alert": "Choosing Kinesis for 'large data' - its record limit is 1 MB, smaller than the payload here.",
       "mnemonic": "256 KB fits in the envelope; anything bigger goes in the S3 parcel with a claim ticket in the envelope.",
-      "doc_refs": ["https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-s3-messages.html"]
+      "doc_refs": [
+        "https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-s3-messages.html"
+      ]
     },
     {
       "id": "D2-Q006",
       "type": "single_choice",
       "difficulty": "medium",
-      "tags": ["sns", "sqs", "fan-out", "message-filtering"],
+      "tags": [
+        "sns",
+        "sqs",
+        "fan-out",
+        "message-filtering"
+      ],
       "scenario": "A retail company's order service calls three downstream systems synchronously: fulfilment (needs all orders), fraud review (needs only orders above 1,000 USD), and analytics (needs only orders from the EU marketplace). When any downstream system is down, checkout fails. The company wants each system to receive only relevant orders and process them independently at its own pace, with the order service changed to make a single publish call.",
       "stem": "Which architecture meets these requirements with the LEAST operational overhead?",
       "options": [
-        {"letter": "A", "text": "Publish each order to one Amazon SNS topic with message attributes for amount and marketplace. Subscribe three SQS queues, each with a subscription filter policy, and have each system consume its own queue.", "correct": true, "why": "This is the SNS fan-out pattern. Filter policies evaluated by SNS on message attributes (or payload) mean each queue receives only matching messages with zero consumer-side filtering code, and SQS buffering means a downstream outage no longer fails checkout."},
-        {"letter": "B", "text": "Create three SNS topics, one per downstream system, and have the order service decide which topics to publish to.", "correct": false, "why": "Routing logic moves into the producer, so every new consumer or rule change requires a producer deployment. That is the coupling the company is trying to remove."},
-        {"letter": "C", "text": "Publish orders to a single SQS standard queue and have all three systems poll it.", "correct": false, "why": "SQS is point-to-point: once one consumer deletes a message, the other two never see it. Fan-out to multiple independent consumers requires SNS or EventBridge in front."},
-        {"letter": "D", "text": "Write orders to an Amazon Kinesis Data Stream and have each system filter the records it needs.", "correct": false, "why": "Kinesis supports multiple consumers, but each one must implement filtering, shard iteration and checkpointing, and the stream must be sized in shards. More moving parts than a filter policy."}
+        {
+          "letter": "A",
+          "text": "Publish orders to a single SQS standard queue and have all three systems poll it.",
+          "correct": false,
+          "why": "SQS is point-to-point: once one consumer deletes a message, the other two never see it. Fan-out to multiple independent consumers requires SNS or EventBridge in front."
+        },
+        {
+          "letter": "B",
+          "text": "Write orders to an Amazon Kinesis Data Stream and have each system filter the records it needs.",
+          "correct": false,
+          "why": "Kinesis supports multiple consumers, but each one must implement filtering, shard iteration and checkpointing, and the stream must be sized in shards. More moving parts than a filter policy."
+        },
+        {
+          "letter": "C",
+          "text": "Publish each order to one Amazon SNS topic with message attributes for amount and marketplace. Subscribe three SQS queues, each with a subscription filter policy, and have each system consume its own queue.",
+          "correct": true,
+          "why": "This is the SNS fan-out pattern. Filter policies evaluated by SNS on message attributes (or payload) mean each queue receives only matching messages with zero consumer-side filtering code, and SQS buffering means a downstream outage no longer fails checkout."
+        },
+        {
+          "letter": "D",
+          "text": "Create three SNS topics, one per downstream system, and have the order service decide which topics to publish to.",
+          "correct": false,
+          "why": "Routing logic moves into the producer, so every new consumer or rule change requires a producer deployment. That is the coupling the company is trying to remove."
+        }
       ],
       "knowledge_point": "SNS fan-out to SQS with subscription filter policies delivers only matching messages to each subscriber; an SQS queue alone cannot deliver one message to multiple consumers.",
       "trap_alert": "Believing that several consumers of one SQS queue each get a copy of every message.",
       "mnemonic": "SNS is a megaphone (1 to many), SQS is a mailbox (1 to 1). Filter policies are the megaphone's earplugs.",
-      "doc_refs": ["https://docs.aws.amazon.com/sns/latest/dg/sns-message-filtering.html", "https://docs.aws.amazon.com/sns/latest/dg/sns-sqs-as-subscriber.html"]
+      "doc_refs": [
+        "https://docs.aws.amazon.com/sns/latest/dg/sns-message-filtering.html",
+        "https://docs.aws.amazon.com/sns/latest/dg/sns-sqs-as-subscriber.html"
+      ]
     },
     {
       "id": "D2-Q007",
       "type": "single_choice",
       "difficulty": "hard",
-      "tags": ["eventbridge", "sns", "archive-replay", "saas", "cross-account"],
+      "tags": [
+        "eventbridge",
+        "sns",
+        "archive-replay",
+        "saas",
+        "cross-account"
+      ],
       "scenario": "A company integrates support tickets from a SaaS provider (Zendesk) with microservices spread across 12 AWS accounts. Requirements: ingest events directly from the SaaS provider without polling; route events to targets based on their content; retain a record of all events so a bug fix can reprocess the last 30 days into a new consumer; and let consumers in other accounts subscribe with minimal cross-account plumbing.",
       "stem": "Which service meets ALL of these requirements?",
       "options": [
-        {"letter": "A", "text": "Amazon EventBridge with a partner event source, content-based rules, an event archive with replay, and a resource policy on the event bus for cross-account senders.", "correct": true, "why": "EventBridge has native SaaS partner event sources (Zendesk, Datadog, Auth0 and others), rule patterns that match on any field of the event, archives with replay to re-emit historical events to targets, and event bus resource policies for cross-account delivery. It also offers a schema registry and a scheduler."},
-        {"letter": "B", "text": "Amazon SNS with subscription filter policies and cross-account subscriptions.", "correct": false, "why": "SNS retains nothing after delivery (or after the retry policy is exhausted), so there is no way to replay 30 days of events, and SaaS providers cannot publish natively to a customer's topic."},
-        {"letter": "C", "text": "Amazon Kinesis Data Streams with 30-day retention and Lambda consumers in each account.", "correct": false, "why": "Kinesis can retain data up to 365 days and supports replay, but it has no SaaS partner ingestion and no content-based routing without custom consumer code. Each consumer also reads every record in its shards."},
-        {"letter": "D", "text": "Amazon SQS standard queues per consumer with 14-day retention.", "correct": false, "why": "SQS maximum retention is 14 days, short of the 30-day requirement, and consumed messages are deleted, so there is nothing to replay. SQS also has no SaaS partner ingestion."}
+        {
+          "letter": "A",
+          "text": "Amazon Kinesis Data Streams with 30-day retention and Lambda consumers in each account.",
+          "correct": false,
+          "why": "Kinesis can retain data up to 365 days and supports replay, but it has no SaaS partner ingestion and no content-based routing without custom consumer code. Each consumer also reads every record in its shards."
+        },
+        {
+          "letter": "B",
+          "text": "Amazon EventBridge with a partner event source, content-based rules, an event archive with replay, and a resource policy on the event bus for cross-account senders.",
+          "correct": true,
+          "why": "EventBridge has native SaaS partner event sources (Zendesk, Datadog, Auth0 and others), rule patterns that match on any field of the event, archives with replay to re-emit historical events to targets, and event bus resource policies for cross-account delivery. It also offers a schema registry and a scheduler."
+        },
+        {
+          "letter": "C",
+          "text": "Amazon SQS standard queues per consumer with 14-day retention.",
+          "correct": false,
+          "why": "SQS maximum retention is 14 days, short of the 30-day requirement, and consumed messages are deleted, so there is nothing to replay. SQS also has no SaaS partner ingestion."
+        },
+        {
+          "letter": "D",
+          "text": "Amazon SNS with subscription filter policies and cross-account subscriptions.",
+          "correct": false,
+          "why": "SNS retains nothing after delivery (or after the retry policy is exhausted), so there is no way to replay 30 days of events, and SaaS providers cannot publish natively to a customer's topic."
+        }
       ],
       "knowledge_point": "EventBridge uniquely combines SaaS partner sources, content-based routing, archive and replay, and a cross-account event bus. SNS has no replay; SQS keeps messages at most 14 days; Kinesis keeps them up to 365 days but routes nothing.",
       "trap_alert": "Treating SNS and EventBridge as interchangeable pub/sub. Archive/replay and partner sources are EventBridge-only.",
       "mnemonic": "EventBridge = SNS with a memory (archive/replay), a dictionary (schema registry) and a passport (partner sources).",
-      "doc_refs": ["https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-archive.html", "https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-saas.html"]
+      "doc_refs": [
+        "https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-archive.html",
+        "https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-saas.html"
+      ]
     },
     {
       "id": "D2-Q008",
       "type": "multiple_response",
       "difficulty": "medium",
-      "tags": ["kinesis-data-streams", "firehose", "streaming", "replay"],
+      "tags": [
+        "kinesis-data-streams",
+        "firehose",
+        "streaming",
+        "replay"
+      ],
       "scenario": "A gaming company collects 200,000 clickstream events per second from mobile clients. Requirements: a real-time anomaly-detection application must read events within seconds and be able to re-read the previous 24 hours after a deployment; all raw events must land in Amazon S3 as Parquet files partitioned by hour without custom delivery code; and other teams must be able to attach additional real-time consumers later.",
       "stem": "Which combination of steps meets these requirements? (Choose two.)",
       "options": [
-        {"letter": "A", "text": "Ingest the events into an Amazon Kinesis Data Stream and have the anomaly-detection application consume the stream.", "correct": true, "why": "Kinesis Data Streams stores records for 24 hours by default (extendable to 7 days, or up to 365 days), supports many independent consumers (enhanced fan-out gives each consumer 2 MB/s per shard), and lets a consumer restart from a sequence number or timestamp to re-read history."},
-        {"letter": "B", "text": "Create an Amazon Data Firehose stream with the Kinesis data stream as its source, enable record format conversion to Parquet, and deliver to S3 with hourly prefixes.", "correct": true, "why": "Firehose can read directly from a Kinesis data stream, convert JSON to Parquet or ORC using an AWS Glue schema, and use dynamic partitioning to lay out hourly prefixes. Buffering and retries to S3 are fully managed, so no delivery code is written."},
-        {"letter": "C", "text": "Ingest the events into an Amazon SQS standard queue and have both the anomaly-detection application and a Lambda function poll the queue.", "correct": false, "why": "SQS delivers a message to one consumer, which then deletes it, so a second consumer never sees it and there is no way to replay the last 24 hours. It does not support fan-out to multiple teams."},
-        {"letter": "D", "text": "Ingest the events directly into Amazon Data Firehose and have the anomaly-detection application read from the Firehose stream.", "correct": false, "why": "Firehose is a delivery service, not a store: nothing reads from it, and it has no replay. It buffers (from 0 seconds to 15 minutes) and writes to destinations such as S3, Redshift, OpenSearch, Splunk or HTTP endpoints."},
-        {"letter": "E", "text": "Publish each event to an Amazon SNS topic with a Lambda subscriber that writes each event to S3 as a Parquet file.", "correct": false, "why": "SNS has no retention or replay, and 200,000 events per second would produce 200,000 tiny objects per second with hand-written Parquet conversion in Lambda. High cost and high operational overhead."}
+        {
+          "letter": "A",
+          "text": "Ingest the events into an Amazon Kinesis Data Stream and have the anomaly-detection application consume the stream.",
+          "correct": true,
+          "why": "Kinesis Data Streams stores records for 24 hours by default (extendable to 7 days, or up to 365 days), supports many independent consumers (enhanced fan-out gives each consumer 2 MB/s per shard), and lets a consumer restart from a sequence number or timestamp to re-read history."
+        },
+        {
+          "letter": "B",
+          "text": "Publish each event to an Amazon SNS topic with a Lambda subscriber that writes each event to S3 as a Parquet file.",
+          "correct": false,
+          "why": "SNS has no retention or replay, and 200,000 events per second would produce 200,000 tiny objects per second with hand-written Parquet conversion in Lambda. High cost and high operational overhead."
+        },
+        {
+          "letter": "C",
+          "text": "Ingest the events directly into Amazon Data Firehose and have the anomaly-detection application read from the Firehose stream.",
+          "correct": false,
+          "why": "Firehose is a delivery service, not a store: nothing reads from it, and it has no replay. It buffers (from 0 seconds to 15 minutes) and writes to destinations such as S3, Redshift, OpenSearch, Splunk or HTTP endpoints."
+        },
+        {
+          "letter": "D",
+          "text": "Ingest the events into an Amazon SQS standard queue and have both the anomaly-detection application and a Lambda function poll the queue.",
+          "correct": false,
+          "why": "SQS delivers a message to one consumer, which then deletes it, so a second consumer never sees it and there is no way to replay the last 24 hours. It does not support fan-out to multiple teams."
+        },
+        {
+          "letter": "E",
+          "text": "Create an Amazon Data Firehose stream with the Kinesis data stream as its source, enable record format conversion to Parquet, and deliver to S3 with hourly prefixes.",
+          "correct": true,
+          "why": "Firehose can read directly from a Kinesis data stream, convert JSON to Parquet or ORC using an AWS Glue schema, and use dynamic partitioning to lay out hourly prefixes. Buffering and retries to S3 are fully managed, so no delivery code is written."
+        }
       ],
       "knowledge_point": "Kinesis Data Streams = durable ordered stream with replay and multiple consumers; Firehose = managed near-real-time delivery (can source from a data stream) with format conversion, no replay, and no consumers.",
       "trap_alert": "Treating Firehose as a readable stream. Nothing reads from Firehose; it only writes to destinations.",
       "mnemonic": "Streams you read, Firehose you receive.",
-      "doc_refs": ["https://docs.aws.amazon.com/streams/latest/dev/key-concepts.html", "https://docs.aws.amazon.com/firehose/latest/dev/what-is-this-service.html"]
+      "doc_refs": [
+        "https://docs.aws.amazon.com/streams/latest/dev/key-concepts.html",
+        "https://docs.aws.amazon.com/firehose/latest/dev/what-is-this-service.html"
+      ]
     },
     {
       "id": "D2-Q009",
       "type": "single_choice",
       "difficulty": "medium",
-      "tags": ["step-functions", "standard-vs-express", "orchestration"],
+      "tags": [
+        "step-functions",
+        "standard-vs-express",
+        "orchestration"
+      ],
       "scenario": "An insurance company automates claims processing: document OCR with Amazon Textract, rules evaluation in Lambda, a human adjuster approval that can take up to 5 business days, and finally a payment call. Each step must run exactly once because payments must never be duplicated. Volume is about 2,000 claims per day, and auditors need the full execution history of every claim.",
       "stem": "Which orchestration approach meets these requirements?",
       "options": [
-        {"letter": "A", "text": "AWS Step Functions Standard workflow using a Task state with waitForTaskToken for the human approval step.", "correct": true, "why": "Standard workflows run for up to 1 year with exactly-once execution semantics and keep 90 days of execution history visible in the console and API. The task-token callback pauses the workflow at no compute cost until the adjuster responds. Pricing per state transition is trivial at 2,000 executions per day."},
-        {"letter": "B", "text": "AWS Step Functions Express workflow.", "correct": false, "why": "Express workflows are limited to 5 minutes, use at-least-once semantics for asynchronous executions (payments could run twice), and expose history only through CloudWatch Logs. They are built for high-volume event processing, over 100,000 executions per second."},
-        {"letter": "C", "text": "An SQS delay queue that holds each claim for 5 days before a Lambda function processes it.", "correct": false, "why": "SQS delay is capped at 15 minutes and retention at 14 days, and a queue provides no branching, state tracking or exactly-once execution."},
-        {"letter": "D", "text": "A single Lambda function that polls for the adjuster's decision in a loop.", "correct": false, "why": "Lambda executions are limited to 15 minutes, so a multi-day wait is impossible, and every restart loses in-memory state while burning invocation cost."}
+        {
+          "letter": "A",
+          "text": "An SQS delay queue that holds each claim for 5 days before a Lambda function processes it.",
+          "correct": false,
+          "why": "SQS delay is capped at 15 minutes and retention at 14 days, and a queue provides no branching, state tracking or exactly-once execution."
+        },
+        {
+          "letter": "B",
+          "text": "AWS Step Functions Express workflow.",
+          "correct": false,
+          "why": "Express workflows are limited to 5 minutes, use at-least-once semantics for asynchronous executions (payments could run twice), and expose history only through CloudWatch Logs. They are built for high-volume event processing, over 100,000 executions per second."
+        },
+        {
+          "letter": "C",
+          "text": "A single Lambda function that polls for the adjuster's decision in a loop.",
+          "correct": false,
+          "why": "Lambda executions are limited to 15 minutes, so a multi-day wait is impossible, and every restart loses in-memory state while burning invocation cost."
+        },
+        {
+          "letter": "D",
+          "text": "AWS Step Functions Standard workflow using a Task state with waitForTaskToken for the human approval step.",
+          "correct": true,
+          "why": "Standard workflows run for up to 1 year with exactly-once execution semantics and keep 90 days of execution history visible in the console and API. The task-token callback pauses the workflow at no compute cost until the adjuster responds. Pricing per state transition is trivial at 2,000 executions per day."
+        }
       ],
       "knowledge_point": "Standard workflows: up to 1 year, exactly-once, full audit history. Express workflows: up to 5 minutes, at-least-once, very high volume, cheaper per execution.",
       "trap_alert": "A 'cost' reflex toward Express. It is cheaper only for short, high-volume, idempotent work; it cannot wait days or guarantee exactly-once.",
       "mnemonic": "Standard for the Slow and Serious; Express for the Explosive and Ephemeral (5 min).",
-      "doc_refs": ["https://docs.aws.amazon.com/step-functions/latest/dg/choosing-workflow-type.html"]
+      "doc_refs": [
+        "https://docs.aws.amazon.com/step-functions/latest/dg/choosing-workflow-type.html"
+      ]
     },
     {
       "id": "D2-Q010",
       "type": "single_choice",
       "difficulty": "hard",
-      "tags": ["lambda", "provisioned-concurrency", "reserved-concurrency", "cold-start"],
+      "tags": [
+        "lambda",
+        "provisioned-concurrency",
+        "reserved-concurrency",
+        "cold-start"
+      ],
       "scenario": "A trading-analytics API (API Gateway with a Java Lambda function at 3 GB memory) shows p99 latency of 4 seconds at market open (09:30) because hundreds of execution environments initialise at once; the rest of the day p99 is 120 ms. A separate batch-report function in the same account sometimes consumes most of the account's 1,000 concurrent executions, causing the API to be throttled. Requirements: eliminate cold-start latency at market open, guarantee the API always has 400 concurrent executions available, and minimise cost.",
       "stem": "Which configuration meets these requirements?",
       "options": [
-        {"letter": "A", "text": "Set reserved concurrency of 400 on the API function, configure provisioned concurrency, and use an Application Auto Scaling scheduled action to raise provisioned concurrency to 400 shortly before 09:30 and lower it afterwards.", "correct": true, "why": "Reserved concurrency both caps the function at 400 and carves 400 executions out of the account pool that no other function can consume (free). Provisioned concurrency pre-initialises environments so requests skip cold starts, but it is billed per GB-second while allocated, so scheduling it around market open minimises cost. Provisioned concurrency cannot exceed the function's reserved concurrency."},
-        {"letter": "B", "text": "Set reserved concurrency of 400 on the API function.", "correct": false, "why": "Reserved concurrency guarantees capacity, but environments are still initialised on demand, so the 09:30 cold starts remain."},
-        {"letter": "C", "text": "Configure provisioned concurrency of 400 on the API function for the whole day.", "correct": false, "why": "Pre-warmed environments remove cold starts and are guaranteed, but running 400 of them 24/7 costs roughly 24 times more than a one-hour scheduled window when the rest of the day is quiet."},
-        {"letter": "D", "text": "Request an account concurrency quota increase to 5,000 and enable Lambda SnapStart.", "correct": false, "why": "A higher quota reduces contention but gives the API no guaranteed share, so the batch function can still starve it. SnapStart (Java) shortens initialisation but does not eliminate it and does nothing for capacity guarantees."}
+        {
+          "letter": "A",
+          "text": "Configure provisioned concurrency of 400 on the API function for the whole day.",
+          "correct": false,
+          "why": "Pre-warmed environments remove cold starts and are guaranteed, but running 400 of them 24/7 costs roughly 24 times more than a one-hour scheduled window when the rest of the day is quiet."
+        },
+        {
+          "letter": "B",
+          "text": "Request an account concurrency quota increase to 5,000 and enable Lambda SnapStart.",
+          "correct": false,
+          "why": "A higher quota reduces contention but gives the API no guaranteed share, so the batch function can still starve it. SnapStart (Java) shortens initialisation but does not eliminate it and does nothing for capacity guarantees."
+        },
+        {
+          "letter": "C",
+          "text": "Set reserved concurrency of 400 on the API function, configure provisioned concurrency, and use an Application Auto Scaling scheduled action to raise provisioned concurrency to 400 shortly before 09:30 and lower it afterwards.",
+          "correct": true,
+          "why": "Reserved concurrency both caps the function at 400 and carves 400 executions out of the account pool that no other function can consume (free). Provisioned concurrency pre-initialises environments so requests skip cold starts, but it is billed per GB-second while allocated, so scheduling it around market open minimises cost. Provisioned concurrency cannot exceed the function's reserved concurrency."
+        },
+        {
+          "letter": "D",
+          "text": "Set reserved concurrency of 400 on the API function.",
+          "correct": false,
+          "why": "Reserved concurrency guarantees capacity, but environments are still initialised on demand, so the 09:30 cold starts remain."
+        }
       ],
       "knowledge_point": "Reserved concurrency = guaranteed and capped share of the account pool (free, no cold-start benefit). Provisioned concurrency = pre-initialised environments (paid, schedulable via Application Auto Scaling).",
       "trap_alert": "Conflating reserved with provisioned. Reserved is about capacity; provisioned is about latency.",
       "mnemonic": "Reserved = reserved parking spaces. Provisioned = cars already idling in them.",
-      "doc_refs": ["https://docs.aws.amazon.com/lambda/latest/dg/provisioned-concurrency.html", "https://docs.aws.amazon.com/lambda/latest/dg/configuration-concurrency.html"]
+      "doc_refs": [
+        "https://docs.aws.amazon.com/lambda/latest/dg/provisioned-concurrency.html",
+        "https://docs.aws.amazon.com/lambda/latest/dg/configuration-concurrency.html"
+      ]
     },
     {
       "id": "D2-Q011",
       "type": "single_choice",
       "difficulty": "easy",
-      "tags": ["nlb", "alb", "gwlb", "static-ip", "tls-passthrough"],
+      "tags": [
+        "nlb",
+        "alb",
+        "gwlb",
+        "static-ip",
+        "tls-passthrough"
+      ],
       "scenario": "A logistics company exposes a TCP-based telematics ingestion service on EC2 instances in three Availability Zones. Partner trucks connect through firewalls that only allow outbound connections to a fixed list of IP addresses, so the endpoint IPs must never change. Peak load is millions of requests per second, and the application must terminate TLS itself to perform mutual authentication with its own certificate logic.",
       "stem": "Which load balancer should the solutions architect use?",
       "options": [
-        {"letter": "A", "text": "A Network Load Balancer with an Elastic IP address in each AZ and a TCP listener.", "correct": true, "why": "NLB operates at Layer 4, supports one static or Elastic IP per AZ, handles millions of requests per second with ultra-low latency, and a TCP listener passes the encrypted stream through untouched so the targets perform TLS and mTLS themselves. Client source IP is preserved."},
-        {"letter": "B", "text": "An Application Load Balancer with an HTTPS listener configured for mutual TLS.", "correct": false, "why": "ALB is Layer 7 and terminates TLS at the load balancer, so the application cannot run its own certificate logic. ALB also has no static IP addresses; its DNS name resolves to changing IPs unless Global Accelerator is placed in front."},
-        {"letter": "C", "text": "A Gateway Load Balancer.", "correct": false, "why": "GWLB inserts third-party virtual appliances (firewalls, IDS) inline using the GENEVE protocol on port 6081. It is a transparent Layer 3 gateway, not an application front door."},
-        {"letter": "D", "text": "A Classic Load Balancer with a TCP listener.", "correct": false, "why": "Classic Load Balancer is the legacy option: no static IPs, no per-AZ Elastic IPs, and far lower performance ceilings. AWS recommends NLB or ALB for new designs."}
+        {
+          "letter": "A",
+          "text": "A Network Load Balancer with an Elastic IP address in each AZ and a TCP listener.",
+          "correct": true,
+          "why": "NLB operates at Layer 4, supports one static or Elastic IP per AZ, handles millions of requests per second with ultra-low latency, and a TCP listener passes the encrypted stream through untouched so the targets perform TLS and mTLS themselves. Client source IP is preserved."
+        },
+        {
+          "letter": "B",
+          "text": "A Classic Load Balancer with a TCP listener.",
+          "correct": false,
+          "why": "Classic Load Balancer is the legacy option: no static IPs, no per-AZ Elastic IPs, and far lower performance ceilings. AWS recommends NLB or ALB for new designs."
+        },
+        {
+          "letter": "C",
+          "text": "A Gateway Load Balancer.",
+          "correct": false,
+          "why": "GWLB inserts third-party virtual appliances (firewalls, IDS) inline using the GENEVE protocol on port 6081. It is a transparent Layer 3 gateway, not an application front door."
+        },
+        {
+          "letter": "D",
+          "text": "An Application Load Balancer with an HTTPS listener configured for mutual TLS.",
+          "correct": false,
+          "why": "ALB is Layer 7 and terminates TLS at the load balancer, so the application cannot run its own certificate logic. ALB also has no static IP addresses; its DNS name resolves to changing IPs unless Global Accelerator is placed in front."
+        }
       ],
       "knowledge_point": "Static IP + Layer 4 + TLS passthrough + extreme throughput = Network Load Balancer. ALB terminates TLS and has no fixed IPs.",
       "trap_alert": "Seeing 'TLS' and 'mutual authentication' and picking ALB. The requirement that the application handles TLS itself demands passthrough, which is NLB territory.",
       "mnemonic": "ALB = Application (Layer 7, paths and hosts). NLB = Numbers (Layer 4, static IPs, millions of RPS). GWLB = Gateway for appliances.",
-      "doc_refs": ["https://docs.aws.amazon.com/elasticloadbalancing/latest/network/introduction.html", "https://docs.aws.amazon.com/elasticloadbalancing/latest/userguide/how-elastic-load-balancing-works.html"]
+      "doc_refs": [
+        "https://docs.aws.amazon.com/elasticloadbalancing/latest/network/introduction.html",
+        "https://docs.aws.amazon.com/elasticloadbalancing/latest/userguide/how-elastic-load-balancing-works.html"
+      ]
     },
     {
       "id": "D2-Q012",
       "type": "single_choice",
       "difficulty": "medium",
-      "tags": ["auto-scaling", "health-checks", "elb", "grace-period"],
+      "tags": [
+        "auto-scaling",
+        "health-checks",
+        "elb",
+        "grace-period"
+      ],
       "scenario": "An Auto Scaling group behind an Application Load Balancer runs a Java application. The JVM occasionally deadlocks: the instance still passes EC2 status checks and stays in the group, but the ALB marks the target unhealthy and stops routing to it, so capacity silently degrades. Separately, new instances need about 4 minutes to start the application, and the team has seen freshly launched instances terminated as unhealthy before startup finished.",
       "stem": "Which change to the Auto Scaling group resolves BOTH problems?",
       "options": [
-        {"letter": "A", "text": "Enable the ELB health check type on the Auto Scaling group and set the health check grace period to 300 seconds.", "correct": true, "why": "By default an ASG uses only EC2 status checks, so an instance with a dead application looks healthy. With the ELB health check type, an instance the ALB reports unhealthy is replaced. The health check grace period suppresses health evaluation for the configured 300 seconds after launch, so the 4-minute startup is not mistaken for failure."},
-        {"letter": "B", "text": "Add a lifecycle hook on instance launch that pauses the instance for 300 seconds.", "correct": false, "why": "A Pending:Wait lifecycle hook holds the launch for custom setup actions, but it does not change which health source the ASG consults, so the deadlocked instance is still never replaced."},
-        {"letter": "C", "text": "Enable detailed monitoring and create a CloudWatch alarm that terminates instances with low CPU utilisation.", "correct": false, "why": "A deadlocked JVM may show normal or high CPU, and alarm-driven termination is a brittle custom mechanism that does nothing for the startup race."},
-        {"letter": "D", "text": "Replace the Application Load Balancer with a Network Load Balancer.", "correct": false, "why": "The load balancer type is irrelevant. The ASG ignores any load balancer's health status until the ELB health check type is enabled."}
+        {
+          "letter": "A",
+          "text": "Enable detailed monitoring and create a CloudWatch alarm that terminates instances with low CPU utilisation.",
+          "correct": false,
+          "why": "A deadlocked JVM may show normal or high CPU, and alarm-driven termination is a brittle custom mechanism that does nothing for the startup race."
+        },
+        {
+          "letter": "B",
+          "text": "Enable the ELB health check type on the Auto Scaling group and set the health check grace period to 300 seconds.",
+          "correct": true,
+          "why": "By default an ASG uses only EC2 status checks, so an instance with a dead application looks healthy. With the ELB health check type, an instance the ALB reports unhealthy is replaced. The health check grace period suppresses health evaluation for the configured 300 seconds after launch, so the 4-minute startup is not mistaken for failure."
+        },
+        {
+          "letter": "C",
+          "text": "Replace the Application Load Balancer with a Network Load Balancer.",
+          "correct": false,
+          "why": "The load balancer type is irrelevant. The ASG ignores any load balancer's health status until the ELB health check type is enabled."
+        },
+        {
+          "letter": "D",
+          "text": "Add a lifecycle hook on instance launch that pauses the instance for 300 seconds.",
+          "correct": false,
+          "why": "A Pending:Wait lifecycle hook holds the launch for custom setup actions, but it does not change which health source the ASG consults, so the deadlocked instance is still never replaced."
+        }
       ],
       "knowledge_point": "ASG default health checks are EC2 status only. Enable the ELB health check type so application-level failures trigger replacement, and use the grace period to protect slow startups.",
       "trap_alert": "Assuming an ASG automatically acts on its load balancer's health status. It does not until you turn it on.",
       "mnemonic": "EC2 check asks 'is the box alive?'. ELB check asks 'is the app answering?'.",
-      "doc_refs": ["https://docs.aws.amazon.com/autoscaling/ec2/userguide/ec2-auto-scaling-health-checks.html"]
+      "doc_refs": [
+        "https://docs.aws.amazon.com/autoscaling/ec2/userguide/ec2-auto-scaling-health-checks.html"
+      ]
     },
     {
       "id": "D2-Q013",
       "type": "single_choice",
       "difficulty": "easy",
-      "tags": ["amazon-mq", "sqs", "legacy-protocols", "migration"],
+      "tags": [
+        "amazon-mq",
+        "sqs",
+        "legacy-protocols",
+        "migration"
+      ],
       "scenario": "A manufacturing company is migrating an on-premises order system to AWS. It relies on Apache ActiveMQ with JMS producers and AMQP and MQTT consumers running on factory-floor devices. The team has 6 weeks, cannot modify the device firmware or the producers, and needs the broker to survive an Availability Zone failure.",
       "stem": "Which messaging solution requires the FEWEST application changes?",
       "options": [
-        {"letter": "A", "text": "Amazon MQ for ActiveMQ in an active/standby deployment across two Availability Zones.", "correct": true, "why": "Amazon MQ is a managed ActiveMQ or RabbitMQ broker that speaks JMS, AMQP, MQTT, OpenWire and STOMP. An active/standby broker pair shares storage and fails over across AZs, so clients only repoint their broker URL."},
-        {"letter": "B", "text": "Amazon SQS queues with Amazon SNS topics for the publish/subscribe traffic.", "correct": false, "why": "SQS and SNS use proprietary HTTPS APIs. There is a JMS wrapper for SQS, but MQTT and AMQP devices would have to be rewritten, which the firmware constraint forbids."},
-        {"letter": "C", "text": "AWS IoT Core as an MQTT broker for the devices.", "correct": false, "why": "IoT Core handles MQTT, but the JMS producers and AMQP consumers would still need a new messaging path, splitting the system across two brokers and requiring code changes."},
-        {"letter": "D", "text": "Amazon Kinesis Data Streams with a Lambda consumer per device type.", "correct": false, "why": "Kinesis has a proprietary API with no support for JMS, AMQP or MQTT, so every client would be rewritten."}
+        {
+          "letter": "A",
+          "text": "Amazon MQ for ActiveMQ in an active/standby deployment across two Availability Zones.",
+          "correct": true,
+          "why": "Amazon MQ is a managed ActiveMQ or RabbitMQ broker that speaks JMS, AMQP, MQTT, OpenWire and STOMP. An active/standby broker pair shares storage and fails over across AZs, so clients only repoint their broker URL."
+        },
+        {
+          "letter": "B",
+          "text": "AWS IoT Core as an MQTT broker for the devices.",
+          "correct": false,
+          "why": "IoT Core handles MQTT, but the JMS producers and AMQP consumers would still need a new messaging path, splitting the system across two brokers and requiring code changes."
+        },
+        {
+          "letter": "C",
+          "text": "Amazon SQS queues with Amazon SNS topics for the publish/subscribe traffic.",
+          "correct": false,
+          "why": "SQS and SNS use proprietary HTTPS APIs. There is a JMS wrapper for SQS, but MQTT and AMQP devices would have to be rewritten, which the firmware constraint forbids."
+        },
+        {
+          "letter": "D",
+          "text": "Amazon Kinesis Data Streams with a Lambda consumer per device type.",
+          "correct": false,
+          "why": "Kinesis has a proprietary API with no support for JMS, AMQP or MQTT, so every client would be rewritten."
+        }
       ],
       "knowledge_point": "Amazon MQ is the lift-and-shift choice for applications on open messaging protocols (JMS, AMQP, MQTT, STOMP, OpenWire); SQS/SNS are for new cloud-native designs that can use AWS APIs.",
       "trap_alert": "Defaulting to SQS because it is 'the AWS queue'. Protocol compatibility is the discriminator.",
       "mnemonic": "Legacy protocols go to MQ; greenfield goes to SQS/SNS.",
-      "doc_refs": ["https://docs.aws.amazon.com/amazon-mq/latest/developer-guide/welcome.html"]
+      "doc_refs": [
+        "https://docs.aws.amazon.com/amazon-mq/latest/developer-guide/welcome.html"
+      ]
     },
     {
       "id": "D2-Q014",
       "type": "multiple_response",
       "difficulty": "medium",
-      "tags": ["stateless", "elasticache", "session-state", "multi-az"],
+      "tags": [
+        "stateless",
+        "elasticache",
+        "session-state",
+        "multi-az"
+      ],
       "scenario": "A retail web application runs on EC2 instances behind an Application Load Balancer in a single Availability Zone. Shopping-cart sessions are stored in each instance's memory. When an instance is terminated by scale-in or fails, affected customers lose their carts. The company wants to scale horizontally across Availability Zones with no session loss and sub-millisecond session reads.",
       "stem": "Which combination of steps meets these requirements? (Choose two.)",
       "options": [
-        {"letter": "A", "text": "Move session state to an Amazon ElastiCache for Redis replication group with Multi-AZ and automatic failover enabled.", "correct": true, "why": "Externalising state lets any instance serve any request. Redis returns reads in sub-millisecond time, replicates to replicas in other AZs, and promotes a replica automatically when the primary fails."},
-        {"letter": "B", "text": "Run the EC2 instances in an Auto Scaling group that spans at least two Availability Zones behind the ALB.", "correct": true, "why": "Once instances are stateless, spreading them across AZs is the availability baseline: an AZ or instance loss is absorbed by the remaining capacity with no customer-visible data loss."},
-        {"letter": "C", "text": "Enable target group stickiness (duration-based cookies) on the ALB.", "correct": false, "why": "Stickiness keeps a user on the same instance, but the cart still lives in that instance's memory and dies with it. It masks the problem and also skews load distribution."},
-        {"letter": "D", "text": "Store session data on an EBS volume attached to each instance and snapshot the volumes hourly.", "correct": false, "why": "An EBS volume is bound to one AZ and one instance, so other instances cannot read it, and hourly snapshots lose up to an hour of carts."},
-        {"letter": "E", "text": "Store session data in Amazon EFS mounted on every instance.", "correct": false, "why": "EFS is shared and multi-AZ, but per-operation latency is in single-digit milliseconds, not sub-millisecond, and a network file system is a poor fit for high-frequency key lookups."}
+        {
+          "letter": "A",
+          "text": "Run the EC2 instances in an Auto Scaling group that spans at least two Availability Zones behind the ALB.",
+          "correct": true,
+          "why": "Once instances are stateless, spreading them across AZs is the availability baseline: an AZ or instance loss is absorbed by the remaining capacity with no customer-visible data loss."
+        },
+        {
+          "letter": "B",
+          "text": "Store session data in Amazon EFS mounted on every instance.",
+          "correct": false,
+          "why": "EFS is shared and multi-AZ, but per-operation latency is in single-digit milliseconds, not sub-millisecond, and a network file system is a poor fit for high-frequency key lookups."
+        },
+        {
+          "letter": "C",
+          "text": "Move session state to an Amazon ElastiCache for Redis replication group with Multi-AZ and automatic failover enabled.",
+          "correct": true,
+          "why": "Externalising state lets any instance serve any request. Redis returns reads in sub-millisecond time, replicates to replicas in other AZs, and promotes a replica automatically when the primary fails."
+        },
+        {
+          "letter": "D",
+          "text": "Enable target group stickiness (duration-based cookies) on the ALB.",
+          "correct": false,
+          "why": "Stickiness keeps a user on the same instance, but the cart still lives in that instance's memory and dies with it. It masks the problem and also skews load distribution."
+        },
+        {
+          "letter": "E",
+          "text": "Store session data on an EBS volume attached to each instance and snapshot the volumes hourly.",
+          "correct": false,
+          "why": "An EBS volume is bound to one AZ and one instance, so other instances cannot read it, and hourly snapshots lose up to an hour of carts."
+        }
       ],
       "knowledge_point": "A resilient web tier is stateless: externalise session state to ElastiCache (or DynamoDB) and spread instances across at least two AZs.",
       "trap_alert": "Sticky sessions look like a fix. They preserve routing, not data.",
       "mnemonic": "Stateless servers, stateful stores.",
-      "doc_refs": ["https://docs.aws.amazon.com/AmazonElastiCache/latest/red-ug/AutoFailover.html"]
+      "doc_refs": [
+        "https://docs.aws.amazon.com/AmazonElastiCache/latest/red-ug/AutoFailover.html"
+      ]
     },
     {
       "id": "D2-Q015",
       "type": "multiple_response",
       "difficulty": "hard",
-      "tags": ["auto-scaling", "sqs", "target-tracking", "lifecycle-hooks"],
+      "tags": [
+        "auto-scaling",
+        "sqs",
+        "target-tracking",
+        "lifecycle-hooks"
+      ],
       "scenario": "A photo company's worker tier is an EC2 Auto Scaling group that consumes an SQS queue; each job takes about 2 minutes. Scaling on average CPU causes two problems: during bursts the backlog grows for an hour before CPU crosses the threshold, and during scale-in the group terminates instances mid-job, so those messages reappear after the visibility timeout and are redone. Requirements: any message must be processed within 10 minutes of arrival, and in-flight jobs must never be abandoned on scale-in.",
       "stem": "Which combination of changes meets these requirements? (Choose two.)",
       "options": [
-        {"letter": "A", "text": "Publish a custom CloudWatch metric for backlog per instance (ApproximateNumberOfMessagesVisible divided by InService instances) and create a target tracking scaling policy on it with a target derived from the latency goal.", "correct": true, "why": "This is the AWS-recommended pattern. Target = acceptable latency / time per message = 600 s / 120 s = 5 messages per instance. The group scales out as soon as the queue grows rather than waiting for CPU to catch up."},
-        {"letter": "B", "text": "Add a Terminating:Wait lifecycle hook so an instance stops polling and finishes its current job before termination completes.", "correct": true, "why": "The hook holds the instance in Terminating:Wait (default heartbeat timeout 1 hour, up to 48 hours) until a script calls complete-lifecycle-action, so in-flight work finishes and the message is deleted rather than redelivered."},
-        {"letter": "C", "text": "Create a step scaling policy on ApproximateNumberOfMessagesVisible with a threshold of 1,000 messages.", "correct": false, "why": "Raw queue depth ignores fleet size: 1,000 messages is trivial for 200 instances and catastrophic for 2. Step scaling also cannot compute a per-instance ratio."},
-        {"letter": "D", "text": "Enable instance scale-in protection on every instance in the group.", "correct": false, "why": "Blanket protection prevents scale-in entirely, so the fleet never shrinks. Protection is meant to be toggled per instance while busy, which is more custom code than a lifecycle hook."},
-        {"letter": "E", "text": "Configure a warm pool of pre-initialised instances for the group.", "correct": false, "why": "Warm pools shorten launch time, which helps scale-out speed, but they do not decide when to scale and do nothing about instances being killed mid-job."}
+        {
+          "letter": "A",
+          "text": "Add a Terminating:Wait lifecycle hook so an instance stops polling and finishes its current job before termination completes.",
+          "correct": true,
+          "why": "The hook holds the instance in Terminating:Wait (default heartbeat timeout 1 hour, up to 48 hours) until a script calls complete-lifecycle-action, so in-flight work finishes and the message is deleted rather than redelivered."
+        },
+        {
+          "letter": "B",
+          "text": "Configure a warm pool of pre-initialised instances for the group.",
+          "correct": false,
+          "why": "Warm pools shorten launch time, which helps scale-out speed, but they do not decide when to scale and do nothing about instances being killed mid-job."
+        },
+        {
+          "letter": "C",
+          "text": "Create a step scaling policy on ApproximateNumberOfMessagesVisible with a threshold of 1,000 messages.",
+          "correct": false,
+          "why": "Raw queue depth ignores fleet size: 1,000 messages is trivial for 200 instances and catastrophic for 2. Step scaling also cannot compute a per-instance ratio."
+        },
+        {
+          "letter": "D",
+          "text": "Publish a custom CloudWatch metric for backlog per instance (ApproximateNumberOfMessagesVisible divided by InService instances) and create a target tracking scaling policy on it with a target derived from the latency goal.",
+          "correct": true,
+          "why": "This is the AWS-recommended pattern. Target = acceptable latency / time per message = 600 s / 120 s = 5 messages per instance. The group scales out as soon as the queue grows rather than waiting for CPU to catch up."
+        },
+        {
+          "letter": "E",
+          "text": "Enable instance scale-in protection on every instance in the group.",
+          "correct": false,
+          "why": "Blanket protection prevents scale-in entirely, so the fleet never shrinks. Protection is meant to be toggled per instance while busy, which is more custom code than a lifecycle hook."
+        }
       ],
       "knowledge_point": "Scale worker tiers on backlog-per-instance target tracking (queue length / instance count); protect in-flight work with a Terminating:Wait lifecycle hook.",
       "trap_alert": "Choosing raw queue length as the scaling metric. Without dividing by fleet size the threshold is wrong at every scale but one.",
       "mnemonic": "Backlog per instance = queue / fleet. Lifecycle hook = finish your plate before you leave the table.",
-      "doc_refs": ["https://docs.aws.amazon.com/autoscaling/ec2/userguide/as-using-sqs-queue.html", "https://docs.aws.amazon.com/autoscaling/ec2/userguide/lifecycle-hooks.html"]
+      "doc_refs": [
+        "https://docs.aws.amazon.com/autoscaling/ec2/userguide/as-using-sqs-queue.html",
+        "https://docs.aws.amazon.com/autoscaling/ec2/userguide/lifecycle-hooks.html"
+      ]
     },
     {
       "id": "D2-Q016",
       "type": "single_choice",
       "difficulty": "hard",
-      "tags": ["lambda", "sqs", "event-source-mapping", "partial-batch"],
+      "tags": [
+        "lambda",
+        "sqs",
+        "event-source-mapping",
+        "partial-batch"
+      ],
       "scenario": "A Lambda function processes Amazon SQS messages in batches of 10. When one message in a batch fails, the function throws, the whole batch returns to the queue, and the 9 good messages are processed again. The downstream writes are not idempotent, so duplicate records appear. The bad message eventually reaches the DLQ but drags 9 innocent messages through every retry. The team wants only failed messages retried, with minimal code changes.",
       "stem": "Which solution meets these requirements?",
       "options": [
-        {"letter": "A", "text": "Enable ReportBatchItemFailures on the event source mapping and have the function return a batchItemFailures list containing the IDs of the failed messages.", "correct": true, "why": "This partial batch response makes Lambda delete the successful messages and return only the reported ones to the queue for retry. It requires a few lines of code and no infrastructure change."},
-        {"letter": "B", "text": "Set the event source mapping batch size to 1.", "correct": false, "why": "It removes collateral retries but multiplies invocations tenfold, raising cost and lowering throughput. It works around the problem instead of solving it."},
-        {"letter": "C", "text": "Configure a Lambda on-failure destination for the function.", "correct": false, "why": "Destinations record results of asynchronous invocations. An SQS event source mapping invokes the function synchronously from the poller, so a destination does not control which messages are retried."},
-        {"letter": "D", "text": "Wrap each message in try/catch so the function always returns success.", "correct": false, "why": "Swallowed failures are deleted from the queue as if processed: never retried, never sent to the DLQ. That is silent data loss."}
+        {
+          "letter": "A",
+          "text": "Wrap each message in try/catch so the function always returns success.",
+          "correct": false,
+          "why": "Swallowed failures are deleted from the queue as if processed: never retried, never sent to the DLQ. That is silent data loss."
+        },
+        {
+          "letter": "B",
+          "text": "Enable ReportBatchItemFailures on the event source mapping and have the function return a batchItemFailures list containing the IDs of the failed messages.",
+          "correct": true,
+          "why": "This partial batch response makes Lambda delete the successful messages and return only the reported ones to the queue for retry. It requires a few lines of code and no infrastructure change."
+        },
+        {
+          "letter": "C",
+          "text": "Configure a Lambda on-failure destination for the function.",
+          "correct": false,
+          "why": "Destinations record results of asynchronous invocations. An SQS event source mapping invokes the function synchronously from the poller, so a destination does not control which messages are retried."
+        },
+        {
+          "letter": "D",
+          "text": "Set the event source mapping batch size to 1.",
+          "correct": false,
+          "why": "It removes collateral retries but multiplies invocations tenfold, raising cost and lowering throughput. It works around the problem instead of solving it."
+        }
       ],
       "knowledge_point": "ReportBatchItemFailures enables partial batch responses for SQS (and stream) event sources so only the reported failures are retried.",
       "trap_alert": "Batch size 1 looks like the safe fix but is a cost and throughput regression; the event source mapping already supports partial failures.",
       "mnemonic": "Report the bad apples; keep the barrel.",
-      "doc_refs": ["https://docs.aws.amazon.com/lambda/latest/dg/with-sqs.html"]
+      "doc_refs": [
+        "https://docs.aws.amazon.com/lambda/latest/dg/with-sqs.html"
+      ]
     },
     {
       "id": "D2-Q017",
       "type": "single_choice",
       "difficulty": "medium",
-      "tags": ["api-gateway", "throttling", "usage-plans", "caching"],
+      "tags": [
+        "api-gateway",
+        "throttling",
+        "usage-plans",
+        "caching"
+      ],
       "scenario": "A public product-catalog REST API (API Gateway, Lambda, DynamoDB) is used by 50 partner applications. Product data changes a few times per day. Last week one partner's buggy client sent 8,000 requests per second, exhausted the account's Lambda concurrency and degraded every other partner. The company wants to limit each partner to 100 requests per second and 1 million requests per day, and to reduce backend load from repeated identical reads.",
       "stem": "Which solution meets these requirements with the LEAST operational overhead?",
       "options": [
-        {"letter": "A", "text": "Create an API Gateway usage plan with per-key rate and burst limits and a daily quota, issue an API key to each partner, and enable stage-level API caching with a 300-second TTL.", "correct": true, "why": "Usage plans enforce per-client rate, burst and quota (per day, week or month) at the edge before Lambda is invoked. API caching (REST APIs only; TTL 0-3,600 s, default 300; cache sizes 0.5-237 GB) answers repeated GETs without touching Lambda or DynamoDB. Note the cache is billed hourly regardless of hit rate."},
-        {"letter": "B", "text": "Set the account-level throttling limit on API Gateway to 100 requests per second.", "correct": false, "why": "Account-level throttling (default 10,000 RPS with 5,000 burst) is shared by all clients of all APIs in the Region. A 100 RPS ceiling would throttle everyone, and one noisy partner could still consume the whole allowance."},
-        {"letter": "C", "text": "Add a DynamoDB Accelerator (DAX) cluster and set reserved concurrency on the Lambda function.", "correct": false, "why": "DAX cuts DynamoDB read latency to microseconds, but Lambda is still invoked for every request, and reserved concurrency caps the function without attributing limits to individual partners."},
-        {"letter": "D", "text": "Put CloudFront in front of the API with an AWS WAF rate-based rule of 100 requests per 5 minutes per IP address.", "correct": false, "why": "WAF rate-based rules count requests per source IP over a 5-minute window. They cannot express a per-partner daily quota or a per-second rate, and partners behind NAT share IP addresses."}
+        {
+          "letter": "A",
+          "text": "Put CloudFront in front of the API with an AWS WAF rate-based rule of 100 requests per 5 minutes per IP address.",
+          "correct": false,
+          "why": "WAF rate-based rules count requests per source IP over a 5-minute window. They cannot express a per-partner daily quota or a per-second rate, and partners behind NAT share IP addresses."
+        },
+        {
+          "letter": "B",
+          "text": "Add a DynamoDB Accelerator (DAX) cluster and set reserved concurrency on the Lambda function.",
+          "correct": false,
+          "why": "DAX cuts DynamoDB read latency to microseconds, but Lambda is still invoked for every request, and reserved concurrency caps the function without attributing limits to individual partners."
+        },
+        {
+          "letter": "C",
+          "text": "Create an API Gateway usage plan with per-key rate and burst limits and a daily quota, issue an API key to each partner, and enable stage-level API caching with a 300-second TTL.",
+          "correct": true,
+          "why": "Usage plans enforce per-client rate, burst and quota (per day, week or month) at the edge before Lambda is invoked. API caching (REST APIs only; TTL 0-3,600 s, default 300; cache sizes 0.5-237 GB) answers repeated GETs without touching Lambda or DynamoDB. Note the cache is billed hourly regardless of hit rate."
+        },
+        {
+          "letter": "D",
+          "text": "Set the account-level throttling limit on API Gateway to 100 requests per second.",
+          "correct": false,
+          "why": "Account-level throttling (default 10,000 RPS with 5,000 burst) is shared by all clients of all APIs in the Region. A 100 RPS ceiling would throttle everyone, and one noisy partner could still consume the whole allowance."
+        }
       ],
       "knowledge_point": "API Gateway usage plans with API keys provide per-client throttling and quotas; stage caching (REST APIs only) serves repeated reads without invoking the backend.",
       "trap_alert": "Account-level throttling is global, not per client.",
       "mnemonic": "Usage plan = a per-customer speed limit plus a monthly mileage cap.",
-      "doc_refs": ["https://docs.aws.amazon.com/apigateway/latest/developerguide/api-gateway-request-throttling.html", "https://docs.aws.amazon.com/apigateway/latest/developerguide/api-gateway-caching.html"]
+      "doc_refs": [
+        "https://docs.aws.amazon.com/apigateway/latest/developerguide/api-gateway-request-throttling.html",
+        "https://docs.aws.amazon.com/apigateway/latest/developerguide/api-gateway-caching.html"
+      ]
     },
     {
       "id": "D2-Q018",
       "type": "single_choice",
       "difficulty": "easy",
-      "tags": ["rds", "multi-az", "read-replica", "failover"],
+      "tags": [
+        "rds",
+        "multi-az",
+        "read-replica",
+        "failover"
+      ],
       "scenario": "A company runs a single-AZ Amazon RDS for MySQL instance for its HR application. An Availability Zone disruption last quarter caused 3 hours of downtime. Requirements: survive an AZ failure with automatic failover, no application code changes, and no need for read scaling.",
       "stem": "Which solution meets these requirements MOST cost-effectively?",
       "options": [
-        {"letter": "A", "text": "Modify the instance to a Multi-AZ DB instance deployment.", "correct": true, "why": "Multi-AZ maintains a synchronous standby in another AZ and fails over automatically in about 60-120 seconds by repointing the same DNS endpoint, so no code changes. Cost is roughly double the single instance. The standby cannot serve reads, which is acceptable here."},
-        {"letter": "B", "text": "Create a read replica in another AZ and promote it when the primary fails.", "correct": false, "why": "Read replicas replicate asynchronously (possible data loss), promotion is a manual or scripted action, and the promoted replica has a different endpoint, so this is neither automatic nor code-free."},
-        {"letter": "C", "text": "Modify the instance to a Multi-AZ DB cluster deployment.", "correct": false, "why": "A Multi-AZ DB cluster runs a writer plus two readable standbys with failover in about 35 seconds, but it means three instances, so it costs more than a Multi-AZ instance. Readable standbys are not required here."},
-        {"letter": "D", "text": "Take hourly snapshots and restore to a new instance in another AZ when a failure occurs.", "correct": false, "why": "Restoring a snapshot takes tens of minutes to hours, loses up to an hour of data, and is manual. It fails the automatic failover requirement."}
+        {
+          "letter": "A",
+          "text": "Create a read replica in another AZ and promote it when the primary fails.",
+          "correct": false,
+          "why": "Read replicas replicate asynchronously (possible data loss), promotion is a manual or scripted action, and the promoted replica has a different endpoint, so this is neither automatic nor code-free."
+        },
+        {
+          "letter": "B",
+          "text": "Modify the instance to a Multi-AZ DB instance deployment.",
+          "correct": true,
+          "why": "Multi-AZ maintains a synchronous standby in another AZ and fails over automatically in about 60-120 seconds by repointing the same DNS endpoint, so no code changes. Cost is roughly double the single instance. The standby cannot serve reads, which is acceptable here."
+        },
+        {
+          "letter": "C",
+          "text": "Take hourly snapshots and restore to a new instance in another AZ when a failure occurs.",
+          "correct": false,
+          "why": "Restoring a snapshot takes tens of minutes to hours, loses up to an hour of data, and is manual. It fails the automatic failover requirement."
+        },
+        {
+          "letter": "D",
+          "text": "Modify the instance to a Multi-AZ DB cluster deployment.",
+          "correct": false,
+          "why": "A Multi-AZ DB cluster runs a writer plus two readable standbys with failover in about 35 seconds, but it means three instances, so it costs more than a Multi-AZ instance. Readable standbys are not required here."
+        }
       ],
       "knowledge_point": "RDS Multi-AZ instance = synchronous standby, automatic DNS failover in 60-120 s, standby not readable. Read replica = asynchronous, readable, manual promotion. Multi-AZ DB cluster = two readable standbys at higher cost.",
       "trap_alert": "A read replica in another AZ looks like high availability. It is neither synchronous nor automatic.",
       "mnemonic": "Multi-AZ is for Availability (sync, idle standby). Read Replica is for Reads (async, promotable).",
-      "doc_refs": ["https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.MultiAZ.html", "https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_ReadRepl.html"]
+      "doc_refs": [
+        "https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.MultiAZ.html",
+        "https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_ReadRepl.html"
+      ]
     },
     {
       "id": "D2-Q019",
       "type": "single_choice",
       "difficulty": "medium",
-      "tags": ["aurora", "global-database", "multi-region", "rpo-rto"],
+      "tags": [
+        "aurora",
+        "global-database",
+        "multi-region",
+        "rpo-rto"
+      ],
       "scenario": "A payments company runs Amazon Aurora PostgreSQL in eu-west-1. Regulators require recovery in another Region with an RPO of 5 seconds or less and an RTO of 2 minutes or less for a full Regional outage. US customers should also have their read traffic served locally. The company wants minimal operational overhead.",
       "stem": "Which solution meets these requirements?",
       "options": [
-        {"letter": "A", "text": "Convert the cluster to an Aurora Global Database with a secondary cluster in us-east-1.", "correct": true, "why": "Aurora Global Database replicates at the storage layer with typical lag under 1 second (RPO about 1 s) and supports managed failover or detach-and-promote with an RTO typically under 1 minute. The secondary cluster carries read-only instances that serve US traffic locally, and multiple secondary Regions can be attached."},
-        {"letter": "B", "text": "Create a cross-Region read replica of the Aurora PostgreSQL cluster using logical replication.", "correct": false, "why": "Logical replication runs through the database engine, lags by seconds to minutes under write load, and promotion is a manual multi-step process. It cannot reliably meet a 5-second RPO."},
-        {"letter": "C", "text": "Add Aurora replicas in all three Availability Zones of eu-west-1, up to the 15-replica limit.", "correct": false, "why": "Aurora already stores 6 copies of data across 3 AZs and fails over within the Region in under 30 seconds, but a Regional outage takes down every AZ. Multi-AZ is not multi-Region."},
-        {"letter": "D", "text": "Copy automated snapshots to us-east-1 every 5 minutes and restore on failure.", "correct": false, "why": "Snapshot copy cadence cannot be sustained at 5 minutes, restoring a cluster takes tens of minutes (RTO fails), and RPO equals the snapshot interval at best."}
+        {
+          "letter": "A",
+          "text": "Add Aurora replicas in all three Availability Zones of eu-west-1, up to the 15-replica limit.",
+          "correct": false,
+          "why": "Aurora already stores 6 copies of data across 3 AZs and fails over within the Region in under 30 seconds, but a Regional outage takes down every AZ. Multi-AZ is not multi-Region."
+        },
+        {
+          "letter": "B",
+          "text": "Copy automated snapshots to us-east-1 every 5 minutes and restore on failure.",
+          "correct": false,
+          "why": "Snapshot copy cadence cannot be sustained at 5 minutes, restoring a cluster takes tens of minutes (RTO fails), and RPO equals the snapshot interval at best."
+        },
+        {
+          "letter": "C",
+          "text": "Convert the cluster to an Aurora Global Database with a secondary cluster in us-east-1.",
+          "correct": true,
+          "why": "Aurora Global Database replicates at the storage layer with typical lag under 1 second (RPO about 1 s) and supports managed failover or detach-and-promote with an RTO typically under 1 minute. The secondary cluster carries read-only instances that serve US traffic locally, and multiple secondary Regions can be attached."
+        },
+        {
+          "letter": "D",
+          "text": "Create a cross-Region read replica of the Aurora PostgreSQL cluster using logical replication.",
+          "correct": false,
+          "why": "Logical replication runs through the database engine, lags by seconds to minutes under write load, and promotion is a manual multi-step process. It cannot reliably meet a 5-second RPO."
+        }
       ],
       "knowledge_point": "Aurora Global Database: RPO about 1 s, RTO under 1 min, local reads in secondary Regions. Multi-AZ protects against AZ loss, not Regional loss.",
       "trap_alert": "Confusing Multi-AZ resilience with multi-Region resilience.",
       "mnemonic": "AZ failure calls for Multi-AZ. Region failure calls for Global.",
-      "doc_refs": ["https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-global-database.html"]
+      "doc_refs": [
+        "https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-global-database.html"
+      ]
     },
     {
       "id": "D2-Q020",
       "type": "single_choice",
       "difficulty": "medium",
-      "tags": ["dynamodb", "global-tables", "active-active", "pitr"],
+      "tags": [
+        "dynamodb",
+        "global-tables",
+        "active-active",
+        "pitr"
+      ],
       "scenario": "A social application stores user profiles in an Amazon DynamoDB table in us-east-1 and is launching in Asia and Europe. Requirements: users on every continent must read and write with single-digit-millisecond latency; the application must keep operating in a Region if another Region fails; code changes must be minimal. Concurrent writes to the same item from two Regions are rare and may be resolved automatically.",
       "stem": "Which solution meets these requirements?",
       "options": [
-        {"letter": "A", "text": "Convert the table to a DynamoDB global table with replicas in ap-southeast-1 and eu-west-1.", "correct": true, "why": "Global tables are multi-active: every replica accepts reads and writes locally, changes propagate through DynamoDB Streams typically within a second, and conflicts are resolved with last-writer-wins. The application simply uses the Regional endpoint nearest to it."},
-        {"letter": "B", "text": "Deploy a DynamoDB Accelerator (DAX) cluster in each Region in front of the us-east-1 table.", "correct": false, "why": "DAX caches reads in microseconds but must be in the same Region as its table, and writes would still cross the ocean to us-east-1 at 100+ ms. It also offers no protection if us-east-1 fails."},
-        {"letter": "C", "text": "Enable point-in-time recovery and restore the table in another Region when a failure occurs.", "correct": false, "why": "PITR provides per-second restore for the last 35 days and is a data-recovery feature. A restore takes minutes to hours and produces a new single-Region table; it does not serve live traffic."},
-        {"letter": "D", "text": "Migrate the data to an Aurora Global Database with clusters in each Region.", "correct": false, "why": "Aurora Global Database has a single writer Region (secondary Regions are read-only, or forward writes to the primary with added latency), and moving from a key-value model to relational is a major rewrite."}
+        {
+          "letter": "A",
+          "text": "Enable point-in-time recovery and restore the table in another Region when a failure occurs.",
+          "correct": false,
+          "why": "PITR provides per-second restore for the last 35 days and is a data-recovery feature. A restore takes minutes to hours and produces a new single-Region table; it does not serve live traffic."
+        },
+        {
+          "letter": "B",
+          "text": "Migrate the data to an Aurora Global Database with clusters in each Region.",
+          "correct": false,
+          "why": "Aurora Global Database has a single writer Region (secondary Regions are read-only, or forward writes to the primary with added latency), and moving from a key-value model to relational is a major rewrite."
+        },
+        {
+          "letter": "C",
+          "text": "Convert the table to a DynamoDB global table with replicas in ap-southeast-1 and eu-west-1.",
+          "correct": true,
+          "why": "Global tables are multi-active: every replica accepts reads and writes locally, changes propagate through DynamoDB Streams typically within a second, and conflicts are resolved with last-writer-wins. The application simply uses the Regional endpoint nearest to it."
+        },
+        {
+          "letter": "D",
+          "text": "Deploy a DynamoDB Accelerator (DAX) cluster in each Region in front of the us-east-1 table.",
+          "correct": false,
+          "why": "DAX caches reads in microseconds but must be in the same Region as its table, and writes would still cross the ocean to us-east-1 at 100+ ms. It also offers no protection if us-east-1 fails."
+        }
       ],
       "knowledge_point": "DynamoDB global tables are active-active across Regions with last-writer-wins conflict resolution; Aurora Global is active-passive for writes.",
       "trap_alert": "Assuming Aurora Global Database accepts local writes in every Region. Only DynamoDB global tables do.",
       "mnemonic": "Global tables: every Region writes, last writer wins.",
-      "doc_refs": ["https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/GlobalTables.html", "https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/PointInTimeRecovery.html"]
+      "doc_refs": [
+        "https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/GlobalTables.html",
+        "https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/PointInTimeRecovery.html"
+      ]
     },
     {
       "id": "D2-Q021",
       "type": "single_choice",
       "difficulty": "medium",
-      "tags": ["s3", "cross-region-replication", "versioning", "rtc"],
+      "tags": [
+        "s3",
+        "cross-region-replication",
+        "versioning",
+        "rtc"
+      ],
       "scenario": "A media company stores master video files in an Amazon S3 bucket in us-west-2. For disaster recovery every new object must be copied to a bucket in eu-central-1, and the compliance team requires that 99.99% of objects be replicated within 15 minutes with metrics and alerts when that target is missed. The existing 500 TB of objects must also be replicated once.",
       "stem": "Which solution meets these requirements?",
       "options": [
-        {"letter": "A", "text": "Enable versioning on both buckets, configure Cross-Region Replication with S3 Replication Time Control, and run an S3 Batch Replication job for the existing objects.", "correct": true, "why": "S3 replication requires versioning on both source and destination. Replication Time Control adds an SLA that 99.99% of objects replicate within 15 minutes, with replication metrics and event notifications. Replication rules apply only to new objects, so Batch Replication backfills the existing 500 TB."},
-        {"letter": "B", "text": "Enable Cross-Region Replication without versioning and use a lifecycle rule to copy existing objects.", "correct": false, "why": "Replication cannot be configured on unversioned buckets, and lifecycle rules transition or expire objects within a bucket; they never copy objects to another bucket."},
-        {"letter": "C", "text": "Schedule an AWS DataSync task every hour to synchronise the two buckets.", "correct": false, "why": "An hourly schedule cannot meet a 15-minute target, DataSync offers no replication SLA or per-object metrics, and it adds a task to operate."},
-        {"letter": "D", "text": "Configure Same-Region Replication with Replication Time Control, then copy the destination bucket to eu-central-1 with a one-time sync.", "correct": false, "why": "Same-Region Replication keeps the copy in us-west-2, which provides no protection from a Regional outage, and a one-time sync does not cover future objects."}
+        {
+          "letter": "A",
+          "text": "Enable versioning on both buckets, configure Cross-Region Replication with S3 Replication Time Control, and run an S3 Batch Replication job for the existing objects.",
+          "correct": true,
+          "why": "S3 replication requires versioning on both source and destination. Replication Time Control adds an SLA that 99.99% of objects replicate within 15 minutes, with replication metrics and event notifications. Replication rules apply only to new objects, so Batch Replication backfills the existing 500 TB."
+        },
+        {
+          "letter": "B",
+          "text": "Enable Cross-Region Replication without versioning and use a lifecycle rule to copy existing objects.",
+          "correct": false,
+          "why": "Replication cannot be configured on unversioned buckets, and lifecycle rules transition or expire objects within a bucket; they never copy objects to another bucket."
+        },
+        {
+          "letter": "C",
+          "text": "Configure Same-Region Replication with Replication Time Control, then copy the destination bucket to eu-central-1 with a one-time sync.",
+          "correct": false,
+          "why": "Same-Region Replication keeps the copy in us-west-2, which provides no protection from a Regional outage, and a one-time sync does not cover future objects."
+        },
+        {
+          "letter": "D",
+          "text": "Schedule an AWS DataSync task every hour to synchronise the two buckets.",
+          "correct": false,
+          "why": "An hourly schedule cannot meet a 15-minute target, DataSync offers no replication SLA or per-object metrics, and it adds a task to operate."
+        }
       ],
       "knowledge_point": "S3 replication requires versioning; RTC guarantees 99.99% of objects within 15 minutes with metrics; existing objects need Batch Replication.",
       "trap_alert": "Assuming a replication rule copies objects that already exist in the bucket. It only applies to new objects.",
       "mnemonic": "Versioning before Replication (V before R in the alphabet). RTC = 15 minutes, four nines.",
-      "doc_refs": ["https://docs.aws.amazon.com/AmazonS3/latest/userguide/replication.html", "https://docs.aws.amazon.com/AmazonS3/latest/userguide/replication-time-control.html"]
+      "doc_refs": [
+        "https://docs.aws.amazon.com/AmazonS3/latest/userguide/replication.html",
+        "https://docs.aws.amazon.com/AmazonS3/latest/userguide/replication-time-control.html"
+      ]
     },
     {
       "id": "D2-Q022",
       "type": "multiple_response",
       "difficulty": "medium",
-      "tags": ["route53", "failover", "health-checks", "s3-static-website"],
+      "tags": [
+        "route53",
+        "failover",
+        "health-checks",
+        "s3-static-website"
+      ],
       "scenario": "A company hosts www.example.com on an Application Load Balancer and Auto Scaling group in one Region. During a Regional outage last year users saw browser errors for 4 hours. The company wants users to automatically see a static maintenance page hosted in Amazon S3 within about a minute of the primary failing, at minimal cost, using Route 53, which already hosts the zone.",
       "stem": "Which combination of steps meets these requirements? (Choose two.)",
       "options": [
-        {"letter": "A", "text": "Create Route 53 failover records: a primary alias record to the ALB with an associated health check, and a secondary alias record to the S3 static website endpoint.", "correct": true, "why": "Failover routing is active-passive. Fast health checks (10-second interval, failure threshold 3) mark the primary unhealthy in about 30 seconds, and with a low record TTL resolvers move to the secondary in roughly a minute. Alias queries to AWS resources are free."},
-        {"letter": "B", "text": "Create an S3 bucket named www.example.com, enable static website hosting, and upload the maintenance page.", "correct": true, "why": "An alias record to an S3 website endpoint only works when the bucket name exactly matches the record name. Static website hosting must be enabled and the bucket policy must allow public reads."},
-        {"letter": "C", "text": "Create weighted records with a 90/10 split between the ALB and the S3 bucket.", "correct": false, "why": "Weighted routing distributes traffic continuously, so 10% of users would see the maintenance page while the site is healthy. It is for traffic shifting, not failover."},
-        {"letter": "D", "text": "Configure AWS Global Accelerator with the ALB and the S3 bucket as endpoints.", "correct": false, "why": "Global Accelerator endpoints are ALBs, NLBs, EC2 instances and Elastic IPs; S3 is not supported. It also adds a fixed hourly charge."},
-        {"letter": "E", "text": "Create latency records for the ALB and the S3 bucket.", "correct": false, "why": "Latency routing sends each user to whichever record has the lowest latency, so some users would receive the maintenance page while the primary is healthy. It has no primary/secondary semantics."}
+        {
+          "letter": "A",
+          "text": "Create latency records for the ALB and the S3 bucket.",
+          "correct": false,
+          "why": "Latency routing sends each user to whichever record has the lowest latency, so some users would receive the maintenance page while the primary is healthy. It has no primary/secondary semantics."
+        },
+        {
+          "letter": "B",
+          "text": "Create an S3 bucket named www.example.com, enable static website hosting, and upload the maintenance page.",
+          "correct": true,
+          "why": "An alias record to an S3 website endpoint only works when the bucket name exactly matches the record name. Static website hosting must be enabled and the bucket policy must allow public reads."
+        },
+        {
+          "letter": "C",
+          "text": "Create Route 53 failover records: a primary alias record to the ALB with an associated health check, and a secondary alias record to the S3 static website endpoint.",
+          "correct": true,
+          "why": "Failover routing is active-passive. Fast health checks (10-second interval, failure threshold 3) mark the primary unhealthy in about 30 seconds, and with a low record TTL resolvers move to the secondary in roughly a minute. Alias queries to AWS resources are free."
+        },
+        {
+          "letter": "D",
+          "text": "Create weighted records with a 90/10 split between the ALB and the S3 bucket.",
+          "correct": false,
+          "why": "Weighted routing distributes traffic continuously, so 10% of users would see the maintenance page while the site is healthy. It is for traffic shifting, not failover."
+        },
+        {
+          "letter": "E",
+          "text": "Configure AWS Global Accelerator with the ALB and the S3 bucket as endpoints.",
+          "correct": false,
+          "why": "Global Accelerator endpoints are ALBs, NLBs, EC2 instances and Elastic IPs; S3 is not supported. It also adds a fixed hourly charge."
+        }
       ],
       "knowledge_point": "Route 53 failover routing + a health check on the primary flips DNS to a secondary such as an S3 static website; the S3 bucket name must match the record name.",
       "trap_alert": "Forgetting the bucket-name-equals-hostname rule for S3 website aliases.",
       "mnemonic": "Route 53 policies SWLF-GGM-I: Simple, Weighted, Latency, Failover, Geolocation, Geoproximity, Multivalue, IP-based.",
-      "doc_refs": ["https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/dns-failover.html", "https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/routing-policy.html"]
+      "doc_refs": [
+        "https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/dns-failover.html",
+        "https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/routing-policy.html"
+      ]
     },
     {
       "id": "D2-Q023",
       "type": "single_choice",
       "difficulty": "hard",
-      "tags": ["route53", "geolocation", "latency", "weighted", "geoproximity"],
+      "tags": [
+        "route53",
+        "geolocation",
+        "latency",
+        "weighted",
+        "geoproximity"
+      ],
       "scenario": "A streaming company runs stacks in eu-west-1, us-east-1 and ap-southeast-1. Legal requires that users in Germany are always served from eu-west-1 regardless of latency. All other users should reach the stack with the lowest latency, and an unhealthy stack must stop receiving traffic. Marketing also wants 20% of users in Brazil sent to a new sa-east-1 stack during a soft launch.",
       "stem": "Which Route 53 configuration meets these requirements?",
       "options": [
-        {"letter": "A", "text": "Use geolocation records: Germany points to eu-west-1, Brazil points to a set of weighted records (80% us-east-1, 20% sa-east-1), and the default location points to a set of latency records for all three stacks. Associate health checks with every endpoint record.", "correct": true, "why": "Geolocation pins a jurisdiction to one Region, satisfying the legal rule. The default geolocation record catches everyone else and chains (via Traffic Flow or alias to a record set) to latency-based records. Weighted records provide the 80/20 split. Health checks on each record remove unhealthy stacks from answers."},
-        {"letter": "B", "text": "Use latency records for all users and add a geoproximity record with a large bias toward eu-west-1 for Germany.", "correct": false, "why": "Geoproximity routes by geographic distance to resources adjusted by a bias value; it leans traffic, it does not guarantee that every German user lands in eu-west-1, so it is not a compliance control. Latency records cannot pin a country at all."},
-        {"letter": "C", "text": "Create geolocation records for every country in the world mapped to the nearest Region.", "correct": false, "why": "Static country mapping ignores real latency, is unmanageable at 200+ countries, and offers no percentage split for the Brazil soft launch."},
-        {"letter": "D", "text": "Use weighted records across all four Regions with health checks.", "correct": false, "why": "Weighted routing ignores where users are, so German users could be sent to Singapore, violating the legal requirement."}
+        {
+          "letter": "A",
+          "text": "Create geolocation records for every country in the world mapped to the nearest Region.",
+          "correct": false,
+          "why": "Static country mapping ignores real latency, is unmanageable at 200+ countries, and offers no percentage split for the Brazil soft launch."
+        },
+        {
+          "letter": "B",
+          "text": "Use latency records for all users and add a geoproximity record with a large bias toward eu-west-1 for Germany.",
+          "correct": false,
+          "why": "Geoproximity routes by geographic distance to resources adjusted by a bias value; it leans traffic, it does not guarantee that every German user lands in eu-west-1, so it is not a compliance control. Latency records cannot pin a country at all."
+        },
+        {
+          "letter": "C",
+          "text": "Use weighted records across all four Regions with health checks.",
+          "correct": false,
+          "why": "Weighted routing ignores where users are, so German users could be sent to Singapore, violating the legal requirement."
+        },
+        {
+          "letter": "D",
+          "text": "Use geolocation records: Germany points to eu-west-1, Brazil points to a set of weighted records (80% us-east-1, 20% sa-east-1), and the default location points to a set of latency records for all three stacks. Associate health checks with every endpoint record.",
+          "correct": true,
+          "why": "Geolocation pins a jurisdiction to one Region, satisfying the legal rule. The default geolocation record catches everyone else and chains (via Traffic Flow or alias to a record set) to latency-based records. Weighted records provide the 80/20 split. Health checks on each record remove unhealthy stacks from answers."
+        }
       ],
       "knowledge_point": "Geolocation pins by user location (compliance); latency optimises performance; weighted splits by percentage; geoproximity shifts by distance and bias. Combine them by chaining records with Traffic Flow.",
       "trap_alert": "Geoproximity is not geolocation. Geolocation = where the user is (hard pin). Geoproximity = distance to the resource with an adjustable bias (soft lean).",
       "mnemonic": "Geolocation locks; geoproximity leans.",
-      "doc_refs": ["https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/routing-policy.html"]
+      "doc_refs": [
+        "https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/routing-policy.html"
+      ]
     },
     {
       "id": "D2-Q024",
       "type": "single_choice",
       "difficulty": "hard",
-      "tags": ["global-accelerator", "route53", "cloudfront", "static-ip", "udp"],
+      "tags": [
+        "global-accelerator",
+        "route53",
+        "cloudfront",
+        "static-ip",
+        "udp"
+      ],
       "scenario": "A multiplayer game uses UDP on custom ports served by Network Load Balancers in us-east-1 and eu-west-1. During a Regional failure, Route 53 failover took 3 to 5 minutes to take effect for many players because ISP resolvers ignored the 60-second TTL, and some mobile clients had hard-coded IP addresses. Requirements: failover within seconds, fixed IP addresses that never change, and routing to the lowest-latency Region.",
       "stem": "Which solution meets these requirements?",
       "options": [
-        {"letter": "A", "text": "Create an AWS Global Accelerator with the two NLBs as endpoints in separate endpoint groups.", "correct": true, "why": "Global Accelerator provides two static anycast IP addresses, routes clients over the AWS backbone to the nearest healthy endpoint group, supports TCP and UDP on any port, and its continuous health checks fail over in about 30 seconds with no dependence on DNS caching. Traffic dials allow gradual Regional shifts."},
-        {"letter": "B", "text": "Put Amazon CloudFront in front of the NLBs as custom origins.", "correct": false, "why": "CloudFront serves HTTP, HTTPS and WebSocket traffic only. It cannot proxy UDP or arbitrary TCP ports, and its edge IP addresses change."},
-        {"letter": "C", "text": "Use Route 53 latency records with a TTL of 0 and health checks.", "correct": false, "why": "Many resolvers enforce a minimum TTL and clients cache answers, and hard-coded IPs bypass DNS entirely. Failover still hinges on DNS propagation."},
-        {"letter": "D", "text": "Use Route 53 multivalue answer records with health checks.", "correct": false, "why": "Multivalue returns up to 8 healthy records for the client to choose from, but it is still DNS-based and the NLB IP addresses are not the stable anycast addresses the clients need."}
+        {
+          "letter": "A",
+          "text": "Use Route 53 latency records with a TTL of 0 and health checks.",
+          "correct": false,
+          "why": "Many resolvers enforce a minimum TTL and clients cache answers, and hard-coded IPs bypass DNS entirely. Failover still hinges on DNS propagation."
+        },
+        {
+          "letter": "B",
+          "text": "Put Amazon CloudFront in front of the NLBs as custom origins.",
+          "correct": false,
+          "why": "CloudFront serves HTTP, HTTPS and WebSocket traffic only. It cannot proxy UDP or arbitrary TCP ports, and its edge IP addresses change."
+        },
+        {
+          "letter": "C",
+          "text": "Use Route 53 multivalue answer records with health checks.",
+          "correct": false,
+          "why": "Multivalue returns up to 8 healthy records for the client to choose from, but it is still DNS-based and the NLB IP addresses are not the stable anycast addresses the clients need."
+        },
+        {
+          "letter": "D",
+          "text": "Create an AWS Global Accelerator with the two NLBs as endpoints in separate endpoint groups.",
+          "correct": true,
+          "why": "Global Accelerator provides two static anycast IP addresses, routes clients over the AWS backbone to the nearest healthy endpoint group, supports TCP and UDP on any port, and its continuous health checks fail over in about 30 seconds with no dependence on DNS caching. Traffic dials allow gradual Regional shifts."
+        }
       ],
       "knowledge_point": "Global Accelerator = static anycast IPs, TCP and UDP, health-based failover in seconds independent of DNS. CloudFront = HTTP content delivery only.",
       "trap_alert": "CloudFront and Global Accelerator both use the edge network; only Global Accelerator handles non-HTTP traffic and gives fixed IPs.",
       "mnemonic": "CloudFront caches content (HTTP). Global Accelerator accelerates connections (TCP/UDP, static IPs).",
-      "doc_refs": ["https://docs.aws.amazon.com/global-accelerator/latest/dg/what-is-global-accelerator.html"]
+      "doc_refs": [
+        "https://docs.aws.amazon.com/global-accelerator/latest/dg/what-is-global-accelerator.html"
+      ]
     },
     {
       "id": "D2-Q025",
       "type": "single_choice",
       "difficulty": "medium",
-      "tags": ["disaster-recovery", "pilot-light", "warm-standby", "rpo-rto"],
+      "tags": [
+        "disaster-recovery",
+        "pilot-light",
+        "warm-standby",
+        "rpo-rto"
+      ],
       "scenario": "A B2B logistics company runs a three-tier application (ALB, EC2 Auto Scaling group, 2 TB RDS for PostgreSQL) in us-east-1. The business requires an RTO of 30 minutes or less and an RPO of 5 minutes or less for a Regional outage. Finance has rejected running a fully duplicated stack in another Region. The DR Region receives no production traffic.",
       "stem": "Which disaster recovery strategy meets these requirements MOST cost-effectively?",
       "options": [
-        {"letter": "A", "text": "Pilot light: continuously replicate the database to a cross-Region read replica; pre-create AMIs, launch templates, the ALB and an Auto Scaling group with desired capacity 0 in the DR Region; on failover promote the replica, scale the group up and update Route 53.", "correct": true, "why": "The data tier is live (asynchronous replication gives an RPO of minutes) while compute costs nearly nothing until it is scaled from zero. Recovery in tens of minutes fits a 30-minute RTO at a fraction of a running standby's cost."},
-        {"letter": "B", "text": "Warm standby: run a scaled-down but fully functional copy of the stack in the DR Region and scale it up on failover.", "correct": false, "why": "Warm standby meets the RTO and RPO but pays continuously for running EC2 instances in the DR Region. With a 30-minute RTO budget there is time to launch compute, so this spends more than needed."},
-        {"letter": "C", "text": "Backup and restore: copy nightly RDS snapshots and AMIs to the DR Region and rebuild on failure.", "correct": false, "why": "RPO is up to 24 hours and restoring a 2 TB database plus rebuilding the stack takes hours. It fails both targets."},
-        {"letter": "D", "text": "Multi-site active-active: run full capacity in both Regions with Route 53 latency routing.", "correct": false, "why": "Near-zero RTO and RPO, but at full duplicate cost, which is exactly what finance rejected, and the DR Region is not supposed to serve traffic."}
+        {
+          "letter": "A",
+          "text": "Pilot light: continuously replicate the database to a cross-Region read replica; pre-create AMIs, launch templates, the ALB and an Auto Scaling group with desired capacity 0 in the DR Region; on failover promote the replica, scale the group up and update Route 53.",
+          "correct": true,
+          "why": "The data tier is live (asynchronous replication gives an RPO of minutes) while compute costs nearly nothing until it is scaled from zero. Recovery in tens of minutes fits a 30-minute RTO at a fraction of a running standby's cost."
+        },
+        {
+          "letter": "B",
+          "text": "Backup and restore: copy nightly RDS snapshots and AMIs to the DR Region and rebuild on failure.",
+          "correct": false,
+          "why": "RPO is up to 24 hours and restoring a 2 TB database plus rebuilding the stack takes hours. It fails both targets."
+        },
+        {
+          "letter": "C",
+          "text": "Warm standby: run a scaled-down but fully functional copy of the stack in the DR Region and scale it up on failover.",
+          "correct": false,
+          "why": "Warm standby meets the RTO and RPO but pays continuously for running EC2 instances in the DR Region. With a 30-minute RTO budget there is time to launch compute, so this spends more than needed."
+        },
+        {
+          "letter": "D",
+          "text": "Multi-site active-active: run full capacity in both Regions with Route 53 latency routing.",
+          "correct": false,
+          "why": "Near-zero RTO and RPO, but at full duplicate cost, which is exactly what finance rejected, and the DR Region is not supposed to serve traffic."
+        }
       ],
       "knowledge_point": "Pilot light = data replicated live, compute pre-provisioned but off (RTO tens of minutes, RPO minutes). Warm standby = scaled-down copy running (RTO minutes). Cost rises: backup-restore < pilot light < warm standby < multi-site.",
       "trap_alert": "Pilot light versus warm standby hinges on whether the application tier is running. Off or zero = pilot light. Running at reduced size = warm standby.",
       "mnemonic": "Bring Pilots Warm Multi-site: Backup-restore (hours), Pilot light (tens of minutes), Warm standby (minutes), Multi-site (seconds). Cost climbs left to right.",
-      "doc_refs": ["https://docs.aws.amazon.com/whitepapers/latest/disaster-recovery-workloads-on-aws/disaster-recovery-options-in-the-cloud.html"]
+      "doc_refs": [
+        "https://docs.aws.amazon.com/whitepapers/latest/disaster-recovery-workloads-on-aws/disaster-recovery-options-in-the-cloud.html"
+      ]
     },
     {
       "id": "D2-Q026",
       "type": "multiple_response",
       "difficulty": "medium",
-      "tags": ["aws-backup", "vault-lock", "cross-region", "cross-account", "organizations"],
+      "tags": [
+        "aws-backup",
+        "vault-lock",
+        "cross-region",
+        "cross-account",
+        "organizations"
+      ],
       "scenario": "A healthcare company has 200 AWS accounts in AWS Organizations using EBS, RDS, DynamoDB and EFS. An audit requires that backups be managed centrally from one account, that copies survive a Regional outage, and that nobody, including account administrators and the root user, can delete backups before 7 years have elapsed. Operational overhead must be minimal.",
       "stem": "Which combination of steps meets these requirements? (Choose two.)",
       "options": [
-        {"letter": "A", "text": "Enable AWS Backup cross-account management in Organizations and create backup plans that copy recovery points to a vault in a second Region and to a vault in a central backup account.", "correct": true, "why": "AWS Backup supports organisation-wide backup policies and copies recovery points across Regions and across accounts into designated vaults, covering EBS, RDS, DynamoDB, EFS and many more services from one console."},
-        {"letter": "B", "text": "Apply AWS Backup Vault Lock in compliance mode to the destination vaults with a 7-year minimum retention.", "correct": true, "why": "Compliance mode becomes immutable once the cooling-off window closes (it must be set to at least 3 days when the lock is created); after that the lock and the recovery points cannot be deleted by any user, including root, or by AWS. Governance mode, by contrast, can be removed by users with the right IAM permissions."},
-        {"letter": "C", "text": "Rely on RDS automated backups with a 7-year retention period.", "correct": false, "why": "RDS automated backup retention is limited to 35 days, it covers only RDS, and it is not centrally managed across 200 accounts."},
-        {"letter": "D", "text": "Attach a service control policy that denies backup:DeleteRecoveryPoint in every account.", "correct": false, "why": "SCPs do not apply to the management account and can be edited by organisation administrators, so they are a guardrail rather than the immutable WORM control the audit demands."},
-        {"letter": "E", "text": "Export EBS snapshots to an S3 bucket protected with S3 Object Lock in compliance mode.", "correct": false, "why": "EBS snapshots are not exposed as S3 objects you can lock, and this covers none of the RDS, DynamoDB or EFS data. Object Lock is the right idea applied to the wrong service."}
+        {
+          "letter": "A",
+          "text": "Apply AWS Backup Vault Lock in compliance mode to the destination vaults with a 7-year minimum retention.",
+          "correct": true,
+          "why": "Compliance mode becomes immutable once the cooling-off window closes (it must be set to at least 3 days when the lock is created); after that the lock and the recovery points cannot be deleted by any user, including root, or by AWS. Governance mode, by contrast, can be removed by users with the right IAM permissions."
+        },
+        {
+          "letter": "B",
+          "text": "Enable AWS Backup cross-account management in Organizations and create backup plans that copy recovery points to a vault in a second Region and to a vault in a central backup account.",
+          "correct": true,
+          "why": "AWS Backup supports organisation-wide backup policies and copies recovery points across Regions and across accounts into designated vaults, covering EBS, RDS, DynamoDB, EFS and many more services from one console."
+        },
+        {
+          "letter": "C",
+          "text": "Rely on RDS automated backups with a 7-year retention period.",
+          "correct": false,
+          "why": "RDS automated backup retention is limited to 35 days, it covers only RDS, and it is not centrally managed across 200 accounts."
+        },
+        {
+          "letter": "D",
+          "text": "Export EBS snapshots to an S3 bucket protected with S3 Object Lock in compliance mode.",
+          "correct": false,
+          "why": "EBS snapshots are not exposed as S3 objects you can lock, and this covers none of the RDS, DynamoDB or EFS data. Object Lock is the right idea applied to the wrong service."
+        },
+        {
+          "letter": "E",
+          "text": "Attach a service control policy that denies backup:DeleteRecoveryPoint in every account.",
+          "correct": false,
+          "why": "SCPs do not apply to the management account and can be edited by organisation administrators, so they are a guardrail rather than the immutable WORM control the audit demands."
+        }
       ],
       "knowledge_point": "AWS Backup centralises cross-account and cross-Region copies; Vault Lock compliance mode is WORM that even the root user cannot undo after the grace period.",
       "trap_alert": "Assuming RDS automated backups can be retained for years. The cap is 35 days.",
       "mnemonic": "Vault Lock: Governance can be undone by governors; Compliance cannot be undone by anyone.",
-      "doc_refs": ["https://docs.aws.amazon.com/aws-backup/latest/devguide/vault-lock.html", "https://docs.aws.amazon.com/aws-backup/latest/devguide/cross-region-backup.html"]
+      "doc_refs": [
+        "https://docs.aws.amazon.com/aws-backup/latest/devguide/vault-lock.html",
+        "https://docs.aws.amazon.com/aws-backup/latest/devguide/cross-region-backup.html"
+      ]
     },
     {
       "id": "D2-Q027",
       "type": "single_choice",
       "difficulty": "hard",
-      "tags": ["elastic-disaster-recovery", "drs", "mgn", "storage-gateway", "hybrid"],
+      "tags": [
+        "elastic-disaster-recovery",
+        "drs",
+        "mgn",
+        "storage-gateway",
+        "hybrid"
+      ],
       "scenario": "A manufacturing company has 300 on-premises VMware servers running Windows and Linux with custom applications and databases on local disks. It needs disaster recovery into AWS with an RPO of seconds and an RTO of 15 minutes, wants to pay as little as possible while the DR environment is idle, and must be able to run non-disruptive DR drills and fail back once the primary site recovers.",
       "stem": "Which solution meets these requirements with the LEAST operational overhead?",
       "options": [
-        {"letter": "A", "text": "Install the AWS Elastic Disaster Recovery (AWS DRS) replication agent on each server and replicate into a staging area in AWS.", "correct": true, "why": "DRS performs continuous block-level replication into a low-cost staging area of small instances and EBS volumes, giving an RPO of seconds. Recovery instances are launched only when needed (RTO of minutes), and the service supports point-in-time recovery, non-disruptive drills and failback to the source."},
-        {"letter": "B", "text": "Use AWS Backup with the VMware gateway to back up the virtual machines hourly.", "correct": false, "why": "Hourly backups give an RPO of up to an hour, and restoring 300 VMs from backups takes hours, not 15 minutes. It is a backup tool, not continuous replication."},
-        {"letter": "C", "text": "Deploy AWS Storage Gateway Volume Gateway in stored mode and rely on its EBS snapshots.", "correct": false, "why": "Volume Gateway asynchronously ships snapshots on a schedule (RPO of minutes to hours), and recovery means building EC2 instances from snapshots by hand for every server. There is no orchestration, drill or failback capability."},
-        {"letter": "D", "text": "Use AWS Application Migration Service (MGN) and keep the servers in continuous replication.", "correct": false, "why": "MGN shares the replication technology but is built for one-time migration cutovers (free for 90 days per server). It lacks the DR-specific features this company needs, such as point-in-time recovery, non-disruptive drills and failback, so it is the wrong service for an ongoing DR posture."}
+        {
+          "letter": "A",
+          "text": "Install the AWS Elastic Disaster Recovery (AWS DRS) replication agent on each server and replicate into a staging area in AWS.",
+          "correct": true,
+          "why": "DRS performs continuous block-level replication into a low-cost staging area of small instances and EBS volumes, giving an RPO of seconds. Recovery instances are launched only when needed (RTO of minutes), and the service supports point-in-time recovery, non-disruptive drills and failback to the source."
+        },
+        {
+          "letter": "B",
+          "text": "Use AWS Backup with the VMware gateway to back up the virtual machines hourly.",
+          "correct": false,
+          "why": "Hourly backups give an RPO of up to an hour, and restoring 300 VMs from backups takes hours, not 15 minutes. It is a backup tool, not continuous replication."
+        },
+        {
+          "letter": "C",
+          "text": "Deploy AWS Storage Gateway Volume Gateway in stored mode and rely on its EBS snapshots.",
+          "correct": false,
+          "why": "Volume Gateway asynchronously ships snapshots on a schedule (RPO of minutes to hours), and recovery means building EC2 instances from snapshots by hand for every server. There is no orchestration, drill or failback capability."
+        },
+        {
+          "letter": "D",
+          "text": "Use AWS Application Migration Service (MGN) and keep the servers in continuous replication.",
+          "correct": false,
+          "why": "MGN shares the replication technology but is built for one-time migration cutovers (free for 90 days per server). It lacks the DR-specific features this company needs, such as point-in-time recovery, non-disruptive drills and failback, so it is the wrong service for an ongoing DR posture."
+        }
       ],
       "knowledge_point": "AWS DRS = continuous replication with RPO of seconds, RTO of minutes, cheap staging, drills and failback. MGN = migration cutover. Storage Gateway = hybrid backup, not orchestrated DR.",
       "trap_alert": "MGN versus DRS: same engine, different job. MGN moves servers once; DRS keeps them recoverable.",
       "mnemonic": "MGN migrates; DRS recovers.",
-      "doc_refs": ["https://docs.aws.amazon.com/drs/latest/userguide/what-is-drs.html"]
+      "doc_refs": [
+        "https://docs.aws.amazon.com/drs/latest/userguide/what-is-drs.html"
+      ]
     },
     {
       "id": "D2-Q028",
       "type": "single_choice",
       "difficulty": "easy",
-      "tags": ["efs", "ebs", "shared-storage", "multi-az"],
+      "tags": [
+        "efs",
+        "ebs",
+        "shared-storage",
+        "multi-az"
+      ],
       "scenario": "A content management system runs on EC2 instances in an Auto Scaling group across three Availability Zones. Editors upload images that must be immediately visible to every instance. Today each instance writes uploads to its own EBS volume, so images appear or disappear depending on which instance serves the request. The company needs a shared POSIX file system that stays available if an AZ fails, with minimal application changes.",
       "stem": "Which storage solution meets these requirements?",
       "options": [
-        {"letter": "A", "text": "Create an Amazon EFS file system with Regional storage and mount it on every instance.", "correct": true, "why": "EFS is an NFS v4 file system that can be mounted by thousands of instances across every AZ in the Region. Regional storage stores data redundantly across multiple AZs with 99.99% availability, and the application keeps using ordinary file operations."},
-        {"letter": "B", "text": "Create an Amazon EFS file system with One Zone storage and mount it on every instance.", "correct": false, "why": "One Zone storage is materially cheaper per GB but keeps data in a single AZ. If that AZ fails the file system is unavailable, violating the availability requirement."},
-        {"letter": "C", "text": "Create an io2 EBS volume with Multi-Attach and attach it to all instances.", "correct": false, "why": "Multi-Attach works only for io1/io2 volumes, up to 16 instances in the same AZ, and requires a cluster-aware file system. It cannot span three AZs."},
-        {"letter": "D", "text": "Store uploads in Amazon S3 and modify the application to use the S3 API.", "correct": false, "why": "S3 is durable and shared, but it is object storage, so the application would be rewritten from file system calls to API calls, conflicting with the minimal-change requirement."}
+        {
+          "letter": "A",
+          "text": "Create an io2 EBS volume with Multi-Attach and attach it to all instances.",
+          "correct": false,
+          "why": "Multi-Attach works only for io1/io2 volumes, up to 16 instances in the same AZ, and requires a cluster-aware file system. It cannot span three AZs."
+        },
+        {
+          "letter": "B",
+          "text": "Create an Amazon EFS file system with One Zone storage and mount it on every instance.",
+          "correct": false,
+          "why": "One Zone storage is materially cheaper per GB but keeps data in a single AZ. If that AZ fails the file system is unavailable, violating the availability requirement."
+        },
+        {
+          "letter": "C",
+          "text": "Store uploads in Amazon S3 and modify the application to use the S3 API.",
+          "correct": false,
+          "why": "S3 is durable and shared, but it is object storage, so the application would be rewritten from file system calls to API calls, conflicting with the minimal-change requirement."
+        },
+        {
+          "letter": "D",
+          "text": "Create an Amazon EFS file system with Regional storage and mount it on every instance.",
+          "correct": true,
+          "why": "EFS is an NFS v4 file system that can be mounted by thousands of instances across every AZ in the Region. Regional storage stores data redundantly across multiple AZs with 99.99% availability, and the application keeps using ordinary file operations."
+        }
       ],
       "knowledge_point": "EFS Regional = multi-AZ shared POSIX file system. EBS, including Multi-Attach, lives in a single AZ.",
       "trap_alert": "EBS Multi-Attach sounds like shared storage but is same-AZ only and needs a cluster file system.",
       "mnemonic": "EBS: one AZ, one instance. EFS: every AZ, every instance.",
-      "doc_refs": ["https://docs.aws.amazon.com/efs/latest/ug/storage-classes.html"]
+      "doc_refs": [
+        "https://docs.aws.amazon.com/efs/latest/ug/storage-classes.html"
+      ]
     },
     {
       "id": "D2-Q029",
       "type": "multiple_response",
       "difficulty": "easy",
-      "tags": ["high-availability", "alb", "auto-scaling", "rds-multi-az", "baseline"],
+      "tags": [
+        "high-availability",
+        "alb",
+        "auto-scaling",
+        "rds-multi-az",
+        "baseline"
+      ],
       "scenario": "A startup runs its web application and MySQL database on a single EC2 instance in one Availability Zone. The instance has failed twice in two months, each time losing recent transactions. Requirements: survive the loss of any single Availability Zone with automatic recovery, lose no committed transactions, and keep the architecture simple.",
       "stem": "Which combination of steps meets these requirements? (Choose two.)",
       "options": [
-        {"letter": "A", "text": "Move the web tier into an Auto Scaling group with a minimum of two instances across two Availability Zones behind an Application Load Balancer.", "correct": true, "why": "The ALB spreads traffic across healthy instances in both AZs and the ASG replaces failed instances automatically. This is the compute half of the AWS high-availability baseline."},
-        {"letter": "B", "text": "Migrate the database to Amazon RDS for MySQL with a Multi-AZ deployment.", "correct": true, "why": "Multi-AZ writes synchronously to a standby in another AZ, so committed transactions are never lost, and failover to the standby is automatic within about 60-120 seconds."},
-        {"letter": "C", "text": "Enable EC2 automatic recovery and take EBS snapshots every 15 minutes.", "correct": false, "why": "Automatic recovery restarts the instance on new hardware in the same AZ for hardware faults only, and 15-minute snapshots lose up to 15 minutes of transactions."},
-        {"letter": "D", "text": "Migrate the database to a single-AZ Amazon RDS for MySQL instance and rely on point-in-time recovery from automated backups after a failure.", "correct": false, "why": "PITR can restore to within about 5 minutes of any point in the retention window (0-35 days), but the restore is a manual action that creates a new instance with a new endpoint and takes tens of minutes. Nothing about it is automatic recovery."},
-        {"letter": "E", "text": "Run two independent instances in different AZs, each with its own MySQL, behind Route 53 weighted records.", "correct": false, "why": "Two databases with no replication diverge immediately, and weighted routing without health checks keeps sending users to a dead instance."}
+        {
+          "letter": "A",
+          "text": "Enable EC2 automatic recovery and take EBS snapshots every 15 minutes.",
+          "correct": false,
+          "why": "Automatic recovery restarts the instance on new hardware in the same AZ for hardware faults only, and 15-minute snapshots lose up to 15 minutes of transactions."
+        },
+        {
+          "letter": "B",
+          "text": "Migrate the database to Amazon RDS for MySQL with a Multi-AZ deployment.",
+          "correct": true,
+          "why": "Multi-AZ writes synchronously to a standby in another AZ, so committed transactions are never lost, and failover to the standby is automatic within about 60-120 seconds."
+        },
+        {
+          "letter": "C",
+          "text": "Run two independent instances in different AZs, each with its own MySQL, behind Route 53 weighted records.",
+          "correct": false,
+          "why": "Two databases with no replication diverge immediately, and weighted routing without health checks keeps sending users to a dead instance."
+        },
+        {
+          "letter": "D",
+          "text": "Move the web tier into an Auto Scaling group with a minimum of two instances across two Availability Zones behind an Application Load Balancer.",
+          "correct": true,
+          "why": "The ALB spreads traffic across healthy instances in both AZs and the ASG replaces failed instances automatically. This is the compute half of the AWS high-availability baseline."
+        },
+        {
+          "letter": "E",
+          "text": "Migrate the database to a single-AZ Amazon RDS for MySQL instance and rely on point-in-time recovery from automated backups after a failure.",
+          "correct": false,
+          "why": "PITR can restore to within about 5 minutes of any point in the retention window (0-35 days), but the restore is a manual action that creates a new instance with a new endpoint and takes tens of minutes. Nothing about it is automatic recovery."
+        }
       ],
       "knowledge_point": "The HA baseline is ALB + Auto Scaling group across at least two AZs plus RDS Multi-AZ. 'No committed data loss' requires synchronous replication.",
       "trap_alert": "Any restore-based or asynchronous option (PITR, snapshots, unreplicated pairs) fails a zero-data-loss, automatic-recovery requirement.",
       "mnemonic": "Two AZs, two tiers: ALB and ASG on top, Multi-AZ RDS underneath.",
-      "doc_refs": ["https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.MultiAZ.html", "https://docs.aws.amazon.com/autoscaling/ec2/userguide/auto-scaling-benefits.html"]
+      "doc_refs": [
+        "https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.MultiAZ.html",
+        "https://docs.aws.amazon.com/autoscaling/ec2/userguide/auto-scaling-benefits.html"
+      ]
     },
     {
       "id": "D2-Q030",
       "type": "single_choice",
       "difficulty": "medium",
-      "tags": ["direct-connect", "site-to-site-vpn", "hybrid", "failover", "transit-gateway"],
+      "tags": [
+        "direct-connect",
+        "site-to-site-vpn",
+        "hybrid",
+        "failover",
+        "transit-gateway"
+      ],
       "scenario": "A company connects its data centre to a VPC over a single 1 Gbps AWS Direct Connect connection carrying about 400 Mbps of ERP traffic. Last month a fibre cut at the Direct Connect location caused a 6-hour outage. Requirements: automatic failover if the Direct Connect link fails, tolerate reduced bandwidth during the failover, and add the lowest possible cost.",
       "stem": "Which solution meets these requirements?",
       "options": [
-        {"letter": "A", "text": "Add an AWS Site-to-Site VPN over the internet to the same VPC and use BGP so routes prefer Direct Connect and fail over to the VPN automatically.", "correct": true, "why": "A Site-to-Site VPN costs about 0.05 USD per hour and each tunnel supports up to 1.25 Gbps, enough for 400 Mbps. AWS prefers Direct Connect over VPN for the same prefixes, so BGP fails traffic over to the VPN within seconds to a minute when the DX BGP session drops."},
-        {"letter": "B", "text": "Order a second Direct Connect connection at a different Direct Connect location.", "correct": false, "why": "This is the AWS high-resiliency recommendation and preserves full bandwidth, but it doubles port and carrier circuit costs. Since degraded bandwidth is acceptable, it is not the lowest-cost option."},
-        {"letter": "C", "text": "Attach the VPC to an AWS Transit Gateway and connect the Direct Connect gateway to it.", "correct": false, "why": "Transit Gateway is a hub for connecting many VPCs and on-premises links, but it adds no redundancy to a single physical Direct Connect connection."},
-        {"letter": "D", "text": "Create a Direct Connect link aggregation group (LAG) with a second connection at the same location.", "correct": false, "why": "A LAG bundles connections at the same location for bandwidth and link-level redundancy, but a fibre cut or facility outage at that location takes down every member. Same location, same failure domain."}
+        {
+          "letter": "A",
+          "text": "Add an AWS Site-to-Site VPN over the internet to the same VPC and use BGP so routes prefer Direct Connect and fail over to the VPN automatically.",
+          "correct": true,
+          "why": "A Site-to-Site VPN costs about 0.05 USD per hour and each tunnel supports up to 1.25 Gbps, enough for 400 Mbps. AWS prefers Direct Connect over VPN for the same prefixes, so BGP fails traffic over to the VPN within seconds to a minute when the DX BGP session drops."
+        },
+        {
+          "letter": "B",
+          "text": "Create a Direct Connect link aggregation group (LAG) with a second connection at the same location.",
+          "correct": false,
+          "why": "A LAG bundles connections at the same location for bandwidth and link-level redundancy, but a fibre cut or facility outage at that location takes down every member. Same location, same failure domain."
+        },
+        {
+          "letter": "C",
+          "text": "Attach the VPC to an AWS Transit Gateway and connect the Direct Connect gateway to it.",
+          "correct": false,
+          "why": "Transit Gateway is a hub for connecting many VPCs and on-premises links, but it adds no redundancy to a single physical Direct Connect connection."
+        },
+        {
+          "letter": "D",
+          "text": "Order a second Direct Connect connection at a different Direct Connect location.",
+          "correct": false,
+          "why": "This is the AWS high-resiliency recommendation and preserves full bandwidth, but it doubles port and carrier circuit costs. Since degraded bandwidth is acceptable, it is not the lowest-cost option."
+        }
       ],
       "knowledge_point": "A Site-to-Site VPN is the lowest-cost automatic backup for Direct Connect (degraded bandwidth); a second DX at another location is the high-resiliency, high-cost option. LAG does not protect against a location failure.",
       "trap_alert": "Treating a LAG as redundancy. It aggregates links at one location; it does not survive that location failing.",
       "mnemonic": "Direct Connect for speed, VPN for the spare tyre.",
-      "doc_refs": ["https://docs.aws.amazon.com/directconnect/latest/UserGuide/resiliency_toolkit.html"]
+      "doc_refs": [
+        "https://docs.aws.amazon.com/directconnect/latest/UserGuide/resiliency_toolkit.html"
+      ]
     }
   ]
 }

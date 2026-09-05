@@ -139,7 +139,7 @@
 </head>
 <body>
 <header>
-  <div class="title"><a class="home" href="./">⌂ Hub</a><span id="exam-title">Loading…</span><small id="exam-sub"></small></div>
+  <div class="title"><a class="home" href="./">⌂ Hub</a><a class="home" id="learn-link" href="learn.html" style="color:var(--primary);border-color:var(--primary)">📖 Learn</a><span id="exam-title">Loading…</span><small id="exam-sub"></small></div>
   <div class="stats">
     <span class="stat">Attempted <strong id="stat-attempted">0</strong></span>
     <span class="stat">Accuracy <strong id="stat-accuracy">—</strong></span>
@@ -165,6 +165,7 @@ const LS = (k) => `hub.${EXAM_ID}.${k}`;
 const lsGet = (k, d) => { try { const v = localStorage.getItem(LS(k)); return v == null ? d : JSON.parse(v); } catch { return d; } };
 const lsSet = (k, v) => { try { localStorage.setItem(LS(k), JSON.stringify(v)); } catch {} };
 
+document.getElementById('learn-link').href = `learn.html?exam=${EXAM_ID}`;
 const STATE = {
   manifest: null, domains: {}, cheatsheets: null, traps: null, recall: null,
   activeTab: 'cram', domainMode: 'quiz',

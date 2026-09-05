@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f172a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Learn — Exam Hub</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📖</text></svg>">
+<style>
+  :root { --bg:#0f172a; --bg-soft:#1e293b; --bg-elevated:#334155; --text:#f1f5f9; --text-dim:#94a3b8; --primary:#ff9900; --green:#10b981; --red:#ef4444; --yellow:#f59e0b; --blue:#3b82f6; --purple:#a78bfa; --border:#334155; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html { scroll-behavior:smooth; } html,body { background:var(--bg); color:var(--text); }
+  body { font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',system-ui,sans-serif; line-height:1.55; font-size:15.5px; }
+  a { color:var(--blue); }
+  header { position:sticky; top:0; z-index:100; background:var(--bg-soft); padding:10px 14px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; }
+  .title { font-weight:700; display:flex; align-items:center; gap:8px; }
+  .title a.home, .title a.drill { color:var(--text-dim); text-decoration:none; font-size:.82rem; padding:4px 8px; border:1px solid var(--border); border-radius:6px; }
+  .title a.drill { color:var(--primary); border-color:var(--primary); }
+  .title small { color:var(--text-dim); font-weight:400; font-size:.75rem; }
+  nav.doms { position:sticky; top:45px; z-index:99; background:var(--bg); padding:6px 8px; border-bottom:1px solid var(--border); display:flex; gap:3px; overflow-x:auto; scrollbar-width:none; }
+  nav.doms::-webkit-scrollbar { display:none; }
+  nav.doms button { background:transparent; color:var(--text-dim); border:none; padding:8px 12px; font-size:.85rem; cursor:pointer; white-space:nowrap; border-radius:6px; font-weight:600; }
+  nav.doms button.active { color:var(--bg); background:var(--primary); }
+  nav.doms button .pct { opacity:.7; font-weight:500; font-size:.72rem; margin-left:4px; }
+  .layout { max-width:1180px; margin:0 auto; display:grid; grid-template-columns:250px 1fr; gap:22px; padding:16px 14px 90px; }
+  @media (max-width:860px) { .layout { grid-template-columns:1fr; } aside { position:static !important; } }
+  aside { position:sticky; top:96px; align-self:start; max-height:calc(100vh - 110px); overflow-y:auto; font-size:.83rem; }
+  aside details { margin-bottom:6px; } aside summary { cursor:pointer; font-weight:700; padding:6px 0; color:var(--text); list-style:none; }
+  aside a { display:block; color:var(--text-dim); text-decoration:none; padding:4px 0 4px 12px; border-left:2px solid var(--border); }
+  aside a.done { color:var(--green); } aside a:hover { color:var(--text); border-color:var(--primary); }
+  .intro { background:linear-gradient(135deg,#1f2a3d,#1e293b); border:1px solid var(--border); border-left:4px solid var(--primary); border-radius:12px; padding:16px 18px; margin-bottom:18px; font-size:.98rem; }
+  .intro h1 { font-size:1.25rem; margin-bottom:6px; } .intro p { color:var(--text); }
+  section.sec { margin-bottom:26px; }
+  section.sec > h2 { font-size:1.15rem; color:var(--primary); padding:6px 0; border-bottom:1px solid var(--border); margin-bottom:6px; scroll-margin-top:100px; }
+  .sec-summary { color:var(--text-dim); font-size:.9rem; margin-bottom:12px; font-style:italic; }
+  .concept { background:var(--bg-soft); border:1px solid var(--border); border-radius:12px; padding:16px 18px; margin-bottom:14px; scroll-margin-top:100px; }
+  .concept.done { border-color:rgba(16,185,129,.5); }
+  .concept h3 { font-size:1.02rem; margin-bottom:8px; display:flex; justify-content:space-between; gap:10px; align-items:flex-start; }
+  .concept h3 label { font-size:.75rem; color:var(--text-dim); font-weight:500; white-space:nowrap; cursor:pointer; display:flex; align-items:center; gap:5px; }
+  .explain { white-space:pre-line; margin-bottom:12px; }
+  .callout { border-radius:8px; padding:10px 12px; margin:10px 0; font-size:.92rem; }
+  .callout .lbl { font-size:.72rem; text-transform:uppercase; letter-spacing:.06em; font-weight:700; margin-bottom:3px; }
+  .callout.exam { background:rgba(59,130,246,.1); border-left:3px solid var(--blue); } .callout.exam .lbl { color:var(--blue); }
+  .callout.ex { background:rgba(0,0,0,.25); border-left:3px solid var(--purple); } .callout.ex .lbl { color:var(--purple); }
+  .callout.ex .ans { margin-top:8px; padding-top:8px; border-top:1px dashed var(--border); }
+  .callout.ex .ans strong { color:var(--green); }
+  .callout.ex button { background:var(--bg-elevated); color:var(--text); border:none; padding:6px 12px; border-radius:6px; font-weight:600; cursor:pointer; margin-top:8px; font-size:.85rem; }
+  .table-wrap { overflow-x:auto; -webkit-overflow-scrolling:touch; border:1px solid var(--border); border-radius:8px; margin:10px 0; }
+  table.dt { border-collapse:collapse; width:100%; font-size:.85rem; min-width:520px; }
+  table.dt th { background:var(--bg-elevated); text-align:left; padding:8px 10px; } table.dt td { padding:7px 10px; border-top:1px solid var(--border); vertical-align:top; }
+  table.dt td:first-child { font-weight:700; color:var(--primary); white-space:nowrap; }
+  ul.gotchas { margin:8px 0 0 0; padding-left:0; list-style:none; } ul.gotchas li { padding:5px 0 5px 24px; position:relative; font-size:.92rem; border-top:1px solid rgba(51,65,85,.5); }
+  ul.gotchas li::before { content:'⚠️'; position:absolute; left:0; font-size:.8rem; top:7px; }
+  .numbers { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; } .numbers span { background:rgba(255,153,0,.1); border:1px solid rgba(255,153,0,.3); color:var(--text); padding:3px 9px; border-radius:12px; font-size:.8rem; }
+  .mnemo { margin-top:10px; padding:8px 12px; border-radius:8px; background:rgba(255,153,0,.07); border:1px dashed rgba(255,153,0,.4); font-size:.9rem; } .mnemo strong { color:var(--primary); }
+  .checklist { background:var(--bg-soft); border:1px solid var(--border); border-radius:12px; padding:16px 18px; }
+  .checklist h2 { color:var(--green); font-size:1.05rem; margin-bottom:8px; }
+  .checklist label { display:flex; gap:10px; padding:6px 0; border-top:1px solid rgba(51,65,85,.5); cursor:pointer; font-size:.92rem; align-items:flex-start; }
+  .checklist input { margin-top:4px; }
+  .tier-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(270px,1fr)); gap:10px; }
+  .tier-card { background:linear-gradient(135deg,#1a2434,#0f172a); border:1px solid var(--border); border-left:3px solid var(--primary); border-radius:8px; padding:12px 14px; }
+  .tier-card h3 { font-size:.92rem; color:var(--primary); margin:0 0 6px; } .tier-card p { font-size:.86rem; white-space:pre-wrap; }
+  .card { background:var(--bg-soft); border:1px solid var(--border); border-radius:12px; padding:16px 18px; margin-bottom:14px; }
+  .card h2 { color:var(--primary); font-size:1.05rem; margin-bottom:10px; }
+  .trigger { display:inline-block; background:rgba(167,139,250,.15); color:var(--purple); font-size:.75rem; padding:2px 8px; border-radius:10px; margin:2px 3px 2px 0; }
+  .rule { margin-top:8px; padding:8px 10px; background:rgba(16,185,129,.08); border-left:3px solid var(--green); border-radius:6px; font-size:.88rem; }
+  .cheat-row { display:grid; grid-template-columns:170px 1fr; gap:10px; padding:8px 0; border-bottom:1px solid var(--border); font-size:.88rem; } .cheat-row .topic { color:var(--primary); font-weight:600; } .cheat-row .fact { white-space:pre-wrap; }
+  @media (max-width:560px) { .cheat-row { grid-template-columns:1fr; gap:3px; } }
+  .empty { text-align:center; padding:60px 20px; color:var(--text-dim); }
+  .empty h2 { color:var(--text); margin-bottom:6px; }
+  .toolbar { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
+  .toolbar button { background:var(--bg-elevated); color:var(--text); border:none; padding:7px 12px; border-radius:8px; font-weight:600; cursor:pointer; font-size:.82rem; }
+  @media print { header, nav.doms, aside, .toolbar, .callout.ex button { display:none !important; } .layout { grid-template-columns:1fr; } body { background:#fff; color:#000; } .concept, .card, .intro, .checklist { border-color:#ccc; background:#fff; } .callout.ex .ans { display:block !important; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="title"><a class="home" href="./">⌂ Hub</a><span id="exam-title">Learn</span><small id="exam-sub"></small></div>
+  <div><a class="drill" id="drill-link" href="app.html">🎯 Go drill →</a></div>
+</header>
+<nav class="doms" id="doms"></nav>
+<div class="layout"><aside id="toc"></aside><main id="app"><div class="empty"><h2>Loading…</h2></div></main></div>
+<script>
+const EXAM_ID = new URLSearchParams(location.search).get('exam') || 'saa-c03';
+const BASE = `./exams/${EXAM_ID}/`;
+const LS = (k) => `hub.${EXAM_ID}.learn.${k}`;
+const lsGet = (k, d) => { try { const v = localStorage.getItem(LS(k)); return v == null ? d : JSON.parse(v); } catch { return d; } };
+const lsSet = (k, v) => { try { localStorage.setItem(LS(k), JSON.stringify(v)); } catch {} };
+const esc = (s) => s == null ? '' : String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+const S = { manifest:null, learn:{}, cheat:null, traps:null, view:'D1', done:lsGet('done', {}), checks:lsGet('checks', {}) };
+document.getElementById('drill-link').href = `app.html?exam=${EXAM_ID}`;
+async function loadJSON(f) { try { const r = await fetch(BASE + f, {cache:'no-store'}); if (!r.ok) throw 0; return await r.json(); } catch { return null; } }
+const slug = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'');
+function conceptKey(d, sec, c) { return `${d}/${sec.id || slug(sec.title)}/${slug(c.name)}`; }
+function domainProgress(d) { const g = S.learn[d]; if (!g) return null; const all = g.sections.flatMap(s => s.concepts.map(c => conceptKey(d, s, c))); const n = all.filter(k => S.done[k]).length; return { n, total: all.length }; }
+
+function buildNav() {
+  const tabs = S.manifest.domains.map(d => { const p = domainProgress(d.id); return { id:d.id, label:`${d.id} · ${d.title.replace('Design ','')}`, pct: p ? `${p.n}/${p.total}` : (S.learn[d.id] === null ? 'soon' : '') }; });
+  if (S.cheat) tabs.push({ id:'cheat', label:'📋 Cheat Sheet' });
+  document.getElementById('doms').innerHTML = tabs.map(t => `<button data-v="${t.id}" class="${S.view === t.id ? 'active' : ''}">${esc(t.label)}${t.pct ? `<span class="pct">${t.pct}</span>` : ''}</button>`).join('');
+  document.querySelectorAll('nav.doms button').forEach(b => b.addEventListener('click', () => { S.view = b.dataset.v; lsSet('view', S.view); render(); window.scrollTo({top:0}); }));
+}
+function render() { buildNav(); if (S.view === 'cheat') return renderCheat(); renderDomain(S.view); }
+
+function renderDomain(d) {
+  const g = S.learn[d], app = document.getElementById('app'), toc = document.getElementById('toc');
+  const dInfo = S.manifest.domains.find(x => x.id === d) || {};
+  if (!g) { toc.innerHTML = ''; app.innerHTML = `<div class="empty"><h2>${d} · ${esc(dInfo.title)}</h2><p>Learning guide for this domain is still being written. Refresh in a few minutes — or <a href="app.html?exam=${EXAM_ID}">drill ${d} now</a>.</p></div>`; return; }
+  const p = domainProgress(d);
+  toc.innerHTML = `<div style="font-weight:700;margin-bottom:6px">${d} · ${p.n}/${p.total} understood</div>` + g.sections.map((s, i) => `<details ${i < 2 ? 'open' : ''}><summary>${esc(s.title)}</summary>${s.concepts.map(c => `<a href="#${slug(conceptKey(d, s, c))}" class="${S.done[conceptKey(d, s, c)] ? 'done' : ''}">${S.done[conceptKey(d, s, c)] ? '✓ ' : ''}${esc(c.name)}</a>`).join('')}</details>`).join('') + `<a href="#checklist" style="margin-top:8px;font-weight:700;border-color:var(--green)">✅ Self-check</a>`;
+  app.innerHTML = `<div class="toolbar"><button id="expand-all">Reveal all examples</button><button id="print">Print / PDF</button><button id="reset-dom">Reset progress</button></div>
+    <div class="intro"><h1>${d} · ${esc(g.title)} <small style="color:var(--text-dim);font-weight:400">${Math.round((g.weight || dInfo.weight || 0) * 100)}%</small></h1><p>${esc(g.intro)}</p></div>
+    ${g.sections.map(s => `<section class="sec" id="${slug(s.id || s.title)}"><h2>${esc(s.title)}</h2>${s.summary ? `<div class="sec-summary">${esc(s.summary)}</div>` : ''}
+      ${s.concepts.map(c => { const k = conceptKey(d, s, c), done = !!S.done[k]; return `<article class="concept ${done ? 'done' : ''}" id="${slug(k)}">
+        <h3><span>${esc(c.name)}</span><label><input type="checkbox" data-k="${esc(k)}" ${done ? 'checked' : ''}> understood</label></h3>
+        <div class="explain">${esc(c.explain)}</div>
+        ${c.exam_tests ? `<div class="callout exam"><div class="lbl">How the exam tests it</div>${esc(c.exam_tests)}</div>` : ''}
+        ${c.compare ? `<div class="table-wrap"><table class="dt"><thead><tr>${c.compare.columns.map(x => `<th>${esc(x)}</th>`).join('')}</tr></thead><tbody>${c.compare.rows.map(r => `<tr>${r.map(x => `<td>${esc(x)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>` : ''}
+        ${c.example ? `<div class="callout ex"><div class="lbl">Worked example — decide before revealing</div><div>${esc(c.example.scenario)}</div><button class="reveal">Reveal answer</button><div class="ans" hidden><strong>→ ${esc(c.example.answer)}</strong><div style="margin-top:4px;color:var(--text-dim)">${esc(c.example.why)}</div></div></div>` : ''}
+        ${(c.gotchas || []).length ? `<ul class="gotchas">${c.gotchas.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
+        ${(c.numbers || []).length ? `<div class="numbers">${c.numbers.map(x => `<span>${esc(x)}</span>`).join('')}</div>` : ''}
+        ${c.mnemonic ? `<div class="mnemo"><strong>🧠 </strong>${esc(c.mnemonic)}</div>` : ''}
+      </article>`; }).join('')}</section>`).join('')}
+    ${(g.end_of_domain_checklist || []).length ? `<div class="checklist" id="checklist"><h2>✅ Can I…? (${d} self-check)</h2>${g.end_of_domain_checklist.map((x, i) => { const k = `${d}/check/${i}`; return `<label><input type="checkbox" data-c="${k}" ${S.checks[k] ? 'checked' : ''}> <span>${esc(x)}</span></label>`; }).join('')}</div>` : ''}`;
+  app.querySelectorAll('input[data-k]').forEach(i => i.addEventListener('change', () => { S.done[i.dataset.k] = i.checked; if (!i.checked) delete S.done[i.dataset.k]; lsSet('done', S.done); i.closest('.concept').classList.toggle('done', i.checked); buildNav(); const a = toc.querySelector(`a[href="#${slug(i.dataset.k)}"]`); if (a) { a.classList.toggle('done', i.checked); a.textContent = (i.checked ? '✓ ' : '') + a.textContent.replace(/^✓ /, ''); } toc.firstElementChild.textContent = `${d} · ${domainProgress(d).n}/${domainProgress(d).total} understood`; }));
+  app.querySelectorAll('input[data-c]').forEach(i => i.addEventListener('change', () => { S.checks[i.dataset.c] = i.checked; lsSet('checks', S.checks); }));
+  app.querySelectorAll('.reveal').forEach(b => b.addEventListener('click', () => { b.nextElementSibling.hidden = false; b.hidden = true; }));
+  document.getElementById('expand-all').addEventListener('click', () => app.querySelectorAll('.reveal').forEach(b => b.click()));
+  document.getElementById('print').addEventListener('click', () => { app.querySelectorAll('.reveal').forEach(b => b.click()); window.print(); });
+  document.getElementById('reset-dom').addEventListener('click', () => { if (!confirm(`Reset ${d} progress?`)) return; Object.keys(S.done).filter(k => k.startsWith(d + '/')).forEach(k => delete S.done[k]); Object.keys(S.checks).filter(k => k.startsWith(d + '/')).forEach(k => delete S.checks[k]); lsSet('done', S.done); lsSet('checks', S.checks); render(); });
+}
+
+function renderCheat() {
+  const cs = S.cheat || {}, tr = S.traps || {}, app = document.getElementById('app'), toc = document.getElementById('toc');
+  const secs = [['tier-s', '🔥 Tier-S'], ['tables', '📊 Decision tables'], ...S.manifest.domains.map(d => [`cs-${d.id}`, `${d.id} essentials`]), ['mnemonics', '🧠 Mnemonics'], ['numbers', '🔢 Numbers'], ['traps', '🪤 Traps'], ['keywords', '🔑 Keyword → service']];
+  toc.innerHTML = `<div style="font-weight:700;margin-bottom:6px">Cheat sheet</div>` + secs.map(([id, l]) => `<a href="#${id}">${l}</a>`).join('');
+  app.innerHTML = `<div class="toolbar"><button id="print">Print / PDF</button></div>
+    <div class="intro"><h1>📋 ${esc(S.manifest.exam.code)} Cheat Sheet</h1><p>Everything on one scrollable, printable page. Read it once at the start, once at the end. Use the Learn tabs for the reasoning behind each line.</p></div>
+    <div class="card" id="tier-s"><h2>🔥 Tier-S — must memorize cold</h2><div class="tier-grid">${(cs.tier_s_must_memorize_cold || []).map(c => `<div class="tier-card"><h3>${esc(c.topic)}</h3><p>${esc(c.fact)}</p></div>`).join('')}</div></div>
+    <div id="tables">${(cs.decision_tables || []).map(t => `<div class="card"><h2>${esc(t.title)}</h2>${(t.trigger_words || []).length ? `<div style="margin-bottom:8px">${t.trigger_words.map(w => `<span class="trigger">${esc(w)}</span>`).join('')}</div>` : ''}<div class="table-wrap"><table class="dt"><thead><tr>${(t.columns || []).map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>${(t.rows || []).map(r => `<tr>${r.map(c => `<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>${t.rule_of_thumb ? `<div class="rule">👉 ${esc(t.rule_of_thumb)}</div>` : ''}</div>`).join('')}</div>
+    ${S.manifest.domains.map(d => `<div class="card" id="cs-${d.id}"><h2>${d.id} · ${esc(d.title)} — essentials</h2>${((cs.domains || {})[d.id] || []).map(i => `<div class="cheat-row"><div class="topic">${esc(i.topic)}</div><div class="fact">${esc(i.fact)}</div></div>`).join('') || '<p style="color:var(--text-dim)">Pending.</p>'}</div>`).join('')}
+    <div class="card" id="mnemonics"><h2>🧠 Mnemonics</h2>${(cs.mnemonics || []).map(m => `<div class="mnemo"><strong>${esc(m.hook)}</strong> — ${esc(m.expands_to)}${m.use_for ? `<div style="color:var(--text-dim);font-size:.8rem">Use for: ${esc(m.use_for)}</div>` : ''}</div>`).join('')}</div>
+    <div class="card" id="numbers"><h2>🔢 Numbers that get tested</h2>${(cs.numbers_to_memorize || []).map(n => `<div class="cheat-row"><div class="topic">${esc(n.number)}</div><div class="fact">${esc(n.meaning)}</div></div>`).join('')}</div>
+    <div class="card" id="traps"><h2>🪤 Traps</h2>${(tr.traps || []).map(t => `<div class="cheat-row"><div class="topic">${esc(t.name)}</div><div class="fact">${esc(t.pattern)}${t.spot_it ? `\n→ ${esc(t.spot_it)}` : ''}</div></div>`).join('')}</div>
+    <div class="card" id="keywords"><h2>🔑 Keyword → service</h2>${(tr.keyword_to_service || []).map(k => `<div class="cheat-row"><div class="fact">${esc(k.keyword)}</div><div class="topic">${esc(k.service)}</div></div>`).join('')}</div>`;
+  document.getElementById('print').addEventListener('click', () => window.print());
+}
+
+(async function init() {
+  S.manifest = await loadJSON('manifest.json');
+  if (!S.manifest) { document.getElementById('app').innerHTML = `<div class="empty"><h2>Exam not found</h2><a href="./">Hub</a></div>`; return; }
+  const ex = S.manifest.exam; document.title = `Learn ${ex.code} — Exam Hub`;
+  document.getElementById('exam-title').textContent = `📖 ${ex.code}`; document.getElementById('exam-sub').textContent = ex.short || ex.name;
+  const f = S.manifest.files || {};
+  const [cs, tr, ...ls] = await Promise.all([loadJSON(f.cheatsheets), loadJSON(f.traps), ...S.manifest.domains.map(d => loadJSON((f.learn && f.learn[d.id]) || `learn-${d.id.toLowerCase()}.json`))]);
+  S.cheat = cs; S.traps = tr; S.manifest.domains.forEach((d, i) => S.learn[d.id] = ls[i]);
+  const saved = lsGet('view', null); const hash = location.hash.replace('#', '');
+  S.view = (saved && (S.learn[saved] || saved === 'cheat')) ? saved : (S.learn[S.manifest.domains[0].id] ? S.manifest.domains[0].id : (S.cheat ? 'cheat' : S.manifest.domains[0].id));
+  render();
+  if (hash) setTimeout(() => document.getElementById(hash)?.scrollIntoView(), 50);
+})();
+</script>
+</body>
+</html>
