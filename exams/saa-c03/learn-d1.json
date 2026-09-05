@@ -709,7 +709,7 @@
           },
           "gotchas": [
             "GuardDuty needs no agent and does not require you to enable VPC Flow Logs separately - it reads them independently.",
-            "Inspector for EC2 requires the SSM Agent and the instance to be managed by Systems Manager.",
+            "Inspector's default EC2 scanning needs the SSM Agent and an SSM-managed instance; agentless snapshot-based scanning exists but the exam still tests the SSM requirement.",
             "Macie only looks at S3 - never EBS, RDS, or DynamoDB.",
             "Detective does not generate findings; it explains them. If the stem says 'detect', it is not Detective.",
             "All four support a delegated administrator account in Organizations for org-wide enablement.",

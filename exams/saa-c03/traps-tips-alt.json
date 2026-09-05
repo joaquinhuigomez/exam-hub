@@ -1,0 +1,385 @@
+{
+  "exam": "SAA-C03",
+  "title": "Traps, Tips and Exam-Room Tactics (alt set)",
+  "generated_for": "Joaquin — exam day",
+  "traps": [
+    {
+      "name": "Multi-AZ is not read scaling",
+      "pattern": "\"The reporting team's queries are slowing down the production database. The company also wants high availability.\" One option says \"Enable Multi-AZ\", another says \"Create a read replica\".",
+      "spot_it": "Tell: the requirement contains the word reads, reporting, analytics, or offload. RDS Multi-AZ (instance deployment) keeps a synchronous standby that serves NO traffic — it buys failover, not throughput. Correct move: read replica for read scaling; Multi-AZ for availability; if the stem asks for BOTH, pick the answer that has both, or Aurora (15 readers plus automatic failover). Nuance for 2025+: RDS Multi-AZ DB *cluster* deployments (3 instances) do have two readable standbys — but the exam means the classic instance deployment unless it says \"cluster\"."
+    },
+    {
+      "name": "A read replica is not high availability",
+      "pattern": "\"Which solution provides the HIGHEST availability with automatic failover?\" and an option offers \"Create a read replica in a second Availability Zone\".",
+      "spot_it": "Tell: the words automatic failover, no manual intervention, or RTO in minutes. Read replicas are asynchronous and promotion is a manual (or scripted) action, so data loss and downtime are both possible. Correct move: Multi-AZ for automatic in-Region failover; cross-Region read replica only when the requirement is DR with a manual promotion step, or read latency in another Region."
+    },
+    {
+      "name": "NACLs are stateless — the return rule is missing",
+      "pattern": "\"Users can initiate a connection but responses never arrive\" / \"the health check fails even though the security group allows 443\".",
+      "spot_it": "Tell: traffic works one way only, or the architecture uses custom NACLs. Security groups are stateful (return traffic auto-allowed); NACLs are stateless and need an explicit rule for the ephemeral range 1024–65535 on the return leg. Correct move: pick the option that adds the ephemeral rule. Also: a NACL is the only place you can explicitly DENY a single IP — a security group has no deny."
+    },
+    {
+      "name": "Gateway endpoints only exist for S3 and DynamoDB",
+      "pattern": "\"Private instances must reach Kinesis / Secrets Manager / SQS / ECR without internet access. Create a gateway VPC endpoint.\"",
+      "spot_it": "Tell: any service other than S3 or DynamoDB paired with the words gateway endpoint. Only S3 and DynamoDB have gateway endpoints (route-table entries, free). Everything else is an interface endpoint (PrivateLink ENI, ~$0.01/hr + data). Correct move: gateway endpoint = S3/DynamoDB and it is the cost-optimal answer that eliminates the NAT gateway; interface endpoint = every other service."
+    },
+    {
+      "name": "Spot Instances for anything stateful",
+      "pattern": "\"To minimize cost, run the database tier / the Jenkins controller / the session store on Spot Instances.\"",
+      "spot_it": "Tell: Spot appearing next to a database, a stateful cache, a licence server, or anything a user session depends on. Spot gives a 2-minute interruption notice and can be reclaimed at any time. Correct move: Spot only for fault-tolerant, stateless, restartable work (batch, CI workers, big-data task nodes, rendering). Anything stateful → On-Demand, Reserved, or Savings Plans."
+    },
+    {
+      "name": "Intelligent-Tiering is for UNKNOWN access patterns only",
+      "pattern": "\"Access patterns are unpredictable and change over time\" vs \"objects are accessed once a month\".",
+      "spot_it": "Tell the exact word: unknown, unpredictable, changing, cannot be determined → S3 Intelligent-Tiering (no retrieval fees, small per-object monitoring charge). If the stem TELLS you the pattern (\"accessed twice a year\", \"rarely after 30 days\"), a lifecycle policy into Standard-IA / Glacier is cheaper and is the intended answer. Choosing Intelligent-Tiering for a known pattern is a cost-optimization miss."
+    },
+    {
+      "name": "One Zone-IA only for re-creatable or secondary data",
+      "pattern": "\"MOST cost-effective storage for these files\" where the files are the only copy of production data.",
+      "spot_it": "Tell: One Zone-IA is ~20% cheaper than Standard-IA but lives in a SINGLE AZ — an AZ loss destroys it. It is only correct for re-creatable data (transcodes, thumbnails, derived analytics output) or a secondary copy of something replicated elsewhere. If the data is primary, regulated, or irreplaceable, One Zone-IA is a trap even when it is the cheapest option on screen."
+    },
+    {
+      "name": "Standard-IA / One Zone-IA 30-day minimum",
+      "pattern": "\"Objects are heavily accessed for the first week, then rarely. Move them to Standard-IA after 7 days to save money.\"",
+      "spot_it": "Tell: a lifecycle transition earlier than 30 days. S3 Standard-IA and One Zone-IA bill a 30-day minimum storage duration and a 128 KB minimum billable object size — transitioning at day 7, or moving millions of tiny objects, costs MORE than Standard. Correct move: transition at 30 days or later; for sub-128 KB objects keep Standard or use Intelligent-Tiering."
+    },
+    {
+      "name": "Glacier Instant Retrieval vs Glacier Flexible Retrieval",
+      "pattern": "\"Archived records must be retrievable immediately when an auditor asks\" vs \"retrieval within a few hours is acceptable\".",
+      "spot_it": "Tell the retrieval SLA in the stem. Instant Retrieval = milliseconds, priced for quarterly access. Flexible Retrieval = Expedited 1–5 min, Standard 3–5 h, Bulk 5–12 h (free). Deep Archive = Standard 12 h, Bulk 48 h, cheapest storage. Match the stated wait time to the tier; \"immediately\" or \"milliseconds\" eliminates Flexible and Deep Archive outright."
+    },
+    {
+      "name": "CloudFront (HTTP cache) vs Global Accelerator (TCP/UDP + static IPs)",
+      "pattern": "\"Global users of a multiplayer game / VoIP / MQTT / IoT service report high latency\" or \"the firewall team requires two static IP addresses to allowlist\".",
+      "spot_it": "Tell: non-HTTP protocol, static IP requirement, or instant Regional failover → Global Accelerator (two static anycast IPs, AWS backbone, no caching, ~30 s failover). Cacheable HTTP/S content, TLS at the edge, signed URLs, OAC to S3 → CloudFront. If the stem says \"cache\" the answer is CloudFront; if it says \"static IP\" or names UDP the answer is Global Accelerator."
+    },
+    {
+      "name": "NLB when you need a static IP or non-HTTP",
+      "pattern": "\"The load balancer must present a fixed IP address per AZ\" / \"the application uses a custom TCP protocol on port 9000\" / \"millions of connections per second\".",
+      "spot_it": "Tell: static/Elastic IP, TCP/UDP/TLS passthrough, extreme connection rates, or a PrivateLink endpoint service (which requires an NLB). ALB is Layer 7 only, gets a DNS name, and cannot have an Elastic IP. Gateway Load Balancer is only for inline third-party appliances (GENEVE 6081) — never for normal application traffic."
+    },
+    {
+      "name": "VPC peering is non-transitive",
+      "pattern": "\"VPC A is peered with VPC B, and VPC B is peered with VPC C. VPC A must reach VPC C.\" Or a 20-VPC full mesh.",
+      "spot_it": "Tell: three or more VPCs, the word \"through\", or a growing mesh. Peering never routes transitively and requires non-overlapping CIDRs. Correct move: a direct peering per pair for two or three VPCs; AWS Transit Gateway once the count grows or the stem says LEAST operational overhead (one hub, up to 5,000 attachments, supports VPN/DX too). Also: you cannot reach a peer's internet gateway, NAT gateway, or gateway endpoint over peering."
+    },
+    {
+      "name": "PrivateLink for one-way exposure and overlapping CIDRs",
+      "pattern": "\"A SaaS provider must expose a single application to hundreds of customer VPCs\" / \"the two VPCs have overlapping CIDR blocks\".",
+      "spot_it": "Tell: one-directional access to a single service, an unknown or untrusted consumer, or overlapping IP ranges. Peering and Transit Gateway both need unique CIDRs and open a two-way network path. PrivateLink (endpoint service behind an NLB + interface endpoints in consumers) exposes exactly one service, one direction, with no route table changes and no CIDR conflict."
+    },
+    {
+      "name": "RDS encryption can only be set at creation",
+      "pattern": "\"An existing unencrypted RDS instance must now be encrypted at rest with minimal downtime.\"",
+      "spot_it": "Tell: the word EXISTING plus encryption. You cannot toggle encryption on a running instance, and you cannot create an encrypted read replica of an unencrypted primary. Correct move: snapshot → copy the snapshot with a KMS key (encryption happens in the copy) → restore the encrypted snapshot to a new instance → repoint the app. The same rule applies to unencrypted EBS volumes."
+    },
+    {
+      "name": "SSE-KMS when the requirement is an audit trail",
+      "pattern": "\"The security team must have an auditable record of every use of the encryption key and control over who can decrypt.\"",
+      "spot_it": "Tell: audit, CloudTrail, key rotation on our schedule, separation of duties, or cross-account key control → SSE-KMS with a customer managed key (key policy + grants + a CloudTrail entry per API call). SSE-S3 (AES-256, AWS-managed, free) is correct when the stem only says \"encrypt at rest with the least operational overhead\" and never mentions auditing keys. SSE-C means YOU send the key on every request and manage it yourself."
+    },
+    {
+      "name": "Secrets Manager rotates; Parameter Store does not",
+      "pattern": "\"Database credentials must be rotated automatically every 30 days\" vs \"store non-sensitive configuration values at no additional cost\".",
+      "spot_it": "Tell the word ROTATE (or \"rotation\", \"credentials must change automatically\") → AWS Secrets Manager, which has built-in Lambda rotation for RDS/Redshift/DocumentDB and cross-Region replication (~$0.40 per secret per month). SSM Parameter Store SecureString is free (Standard tier) and encrypted, but has no native rotation. If the stem emphasises \"no additional cost\" and never says rotate, Parameter Store wins."
+    },
+    {
+      "name": "SCPs bound permissions, they never grant them",
+      "pattern": "\"Apply an SCP that allows the developers to launch EC2 instances\" or \"an SCP grants the account access to S3\".",
+      "spot_it": "Tell: any option describing an SCP as granting access. An SCP sets the maximum available permissions for accounts in an OU; the principal still needs an IAM identity-based policy. An SCP also never applies to the management account's root user. Correct move: SCP = guardrail/deny; IAM policy = grant. If the stem wants \"prevent any account from disabling CloudTrail\", the answer is an SCP deny."
+    },
+    {
+      "name": "Session Manager replaces the bastion host",
+      "pattern": "\"Administrators need shell access to instances in private subnets, no inbound ports, all sessions logged.\" Distractors offer a bastion in a public subnet or a VPN.",
+      "spot_it": "Tell: no SSH keys, no open inbound ports, must be audited, least operational overhead → AWS Systems Manager Session Manager (outbound-only via SSM Agent + interface endpoints; sessions logged to CloudWatch Logs/S3). A bastion is the legacy answer and always loses when the stem mentions operational overhead, key management, or auditing."
+    },
+    {
+      "name": "EFS is Linux-only; FSx for Windows is the SMB answer",
+      "pattern": "\"Windows file server with Active Directory integration and NTFS permissions\" — with Amazon EFS among the options.",
+      "spot_it": "Tell: Windows, SMB, Active Directory, NTFS ACLs, DFS Namespaces → Amazon FSx for Windows File Server. EFS is NFS/POSIX, Linux only, and can never serve SMB. If the stem says \"Linux instances across multiple AZs need a shared file system\", it is EFS. If it says both NFS and SMB, or mentions NetApp/snapshots/dedupe, it is FSx for NetApp ONTAP."
+    },
+    {
+      "name": "FSx for Lustre = HPC plus an S3 data repository",
+      "pattern": "\"Machine learning training / genomics / financial simulation needs sub-millisecond latency and hundreds of GB/s against a dataset in S3.\"",
+      "spot_it": "Tell: HPC, ML training, high-performance compute, or \"processes data stored in S3\" → FSx for Lustre with an S3 data repository association (lazy-loads objects, writes results back). EFS Max I/O is the wrong answer: higher throughput but higher per-operation latency, and it is not a parallel file system."
+    },
+    {
+      "name": "A hot partition is a key-design problem, not a capacity problem",
+      "pattern": "\"The DynamoDB table is throttling even though consumed capacity is well below provisioned capacity.\"",
+      "spot_it": "Tell: throttling + \"but capacity looks fine\", or a partition key like date, status, or a device with 90% of traffic. Each partition caps at 3,000 RCU / 1,000 WCU. Correct move: redesign the partition key for high cardinality, add a random/calculated write-sharding suffix, or move the read hotspot to DAX. Adding RCUs/WCUs does not fix skew — and neither does a GSI, which can be throttled by the same skew."
+    },
+    {
+      "name": "DAX for DynamoDB, ElastiCache for relational",
+      "pattern": "Both \"Add DAX\" and \"Add ElastiCache\" appear as options.",
+      "spot_it": "Tell the datastore named in the scenario. DAX is a DynamoDB-only, write-through, API-compatible cache — microsecond reads with no application rewrite. ElastiCache (Redis/Memcached) fronts RDS/Aurora or holds session state, and requires application code to read and invalidate the cache. If the scenario says \"without changing application code\" plus DynamoDB, it is DAX every time."
+    },
+    {
+      "name": "Kinesis Data Streams stores and replays; Firehose does not",
+      "pattern": "\"Multiple teams must consume the same stream, and a new consumer needs to reprocess the last 24 hours.\"",
+      "spot_it": "Tell: replay, reprocess, multiple independent consumers, ordering, or a custom consumer application → Kinesis Data Streams (retention 24 h default, up to 365 days). Amazon Data Firehose is a zero-ops delivery pipe to S3/Redshift/OpenSearch/Splunk with a ~60-second buffer and NO storage and NO replay. \"Least operational overhead, just land it in S3\" → Firehose."
+    },
+    {
+      "name": "EventBridge for SaaS, cross-account, and scheduled events",
+      "pattern": "\"Ingest events from a third-party SaaS application\" / \"route events to accounts in other OUs\" / \"run a job every weekday at 07:00\".",
+      "spot_it": "Tell: SaaS partner event source, cross-account event bus, schema registry, content-based filtering on a JSON body, archive & replay, or a cron schedule → Amazon EventBridge. SNS fans out but cannot filter deeply on payload structure or accept SaaS partner buses; CloudWatch Events is the old name for the same service; EventBridge Scheduler handles one-time and recurring schedules at scale."
+    },
+    {
+      "name": "Aurora Global Database is the sub-second-RPO answer",
+      "pattern": "\"Cross-Region disaster recovery for the MySQL-compatible database with an RPO of less than 1 second and an RTO under a minute.\"",
+      "spot_it": "Tell: RPO measured in seconds plus cross-Region plus MySQL/PostgreSQL-compatible → Aurora Global Database (storage-level replication, typical lag under 1 s, managed unplanned failover ~1 min, up to 5 secondary Regions). An RDS cross-Region read replica is asynchronous with minutes of lag and manual promotion; DMS is for migration, not DR."
+    },
+    {
+      "name": "Snow family when the transfer would take more than a week",
+      "pattern": "\"Migrate 400 TB from a datacenter with a 500 Mbps connection that is also used by the business.\"",
+      "spot_it": "Do the arithmetic: terabytes × 8,000 ÷ Mbps ÷ 86,400 = days. If the result exceeds roughly a week, or the link is shared or expensive, ship it: Snowball Edge Storage Optimized (~80 TB usable each), Snowcone (8 TB HDD / 14 TB SSD) for edge and small sites, Snowmobile for exabyte scale. If the answer is days, DataSync over Direct Connect or the internet wins."
+    },
+    {
+      "name": "DataSync is online and ongoing; Snow is offline and one-time",
+      "pattern": "\"Nightly synchronization of an on-premises NFS share to Amazon EFS with integrity validation.\"",
+      "spot_it": "Tell: recurring, ongoing, incremental, sync, or validate → AWS DataSync (agent, ~10x faster than open-source tools, built-in verification, scheduled tasks, NFS/SMB/HDFS/S3/EFS/FSx). Tell: one-time bulk seed with poor bandwidth → Snowball. Tell: partners upload over SFTP/FTPS/AS2 → AWS Transfer Family. Tell: on-prem apps need a local cache backed by S3 → Storage Gateway."
+    },
+    {
+      "name": "Storage Gateway cached vs stored — where the primary copy lives",
+      "pattern": "\"On-premises applications require low-latency access to the entire dataset\" vs \"only the frequently used subset\".",
+      "spot_it": "Volume Gateway CACHED: primary data lives in S3, hot subset cached on-prem — use when local storage is limited. Volume Gateway STORED: primary data stays on-prem (full copy), asynchronously backed up to S3 as EBS snapshots — use when everything must be local and low-latency. S3 File Gateway = NFS/SMB in front of S3 objects. Tape Gateway = replace a physical VTL."
+    },
+    {
+      "name": "Savings Plans beat RIs unless you need reserved capacity",
+      "pattern": "\"MOST cost-effective for a steady 24/7 workload\" with both Reserved Instances and Savings Plans as options.",
+      "spot_it": "Tell: flexibility across instance family/size/OS/Region, or a mix of EC2 + Fargate + Lambda → Compute Savings Plan (up to 66%). Pinned to one family in one Region → EC2 Instance Savings Plan (up to 72%). The one thing Savings Plans do NOT do is reserve capacity — if the stem says \"must guarantee capacity in a specific Availability Zone\", the answer is a zonal Reserved Instance or an On-Demand Capacity Reservation."
+    },
+    {
+      "name": "\"LEAST operational overhead\" means managed or serverless",
+      "pattern": "Every option is technically workable; the last sentence adds \"with the LEAST operational overhead\" or \"with the LEAST administrative effort\".",
+      "spot_it": "This phrase is a service-tier selector, not a cost selector. Rank: fully managed/serverless (Lambda, Fargate, Aurora Serverless, DynamoDB, Firehose, Session Manager, AWS Backup, Secrets Manager rotation) > managed with knobs (RDS, ECS on EC2, MSK) > self-managed on EC2 > custom scripts and cron. Eliminate any option containing \"write a script\", \"install and maintain an agent\", \"self-managed on EC2\", or \"custom Lambda to do what a managed feature already does\"."
+    },
+    {
+      "name": "\"MOST cost-effective\" does not mean \"cheapest at any cost\"",
+      "pattern": "One option is dramatically cheaper but violates a stated constraint (durability, latency, compliance, retrieval time).",
+      "spot_it": "Cost-optimization questions always carry a hard constraint in the scenario. Apply the constraint FIRST to eliminate, then choose the cheapest survivor. Classic victims: One Zone-IA where the data is primary, Deep Archive where retrieval must be minutes, Spot where the tier is stateful, single-AZ where the SLA demands multi-AZ."
+    },
+    {
+      "name": "Read the last sentence first",
+      "pattern": "A four-sentence scenario with three constraints, then \"Which solution meets these requirements MOST cost-effectively?\"",
+      "spot_it": "The final sentence contains the discriminator — MOST cost-effective, LEAST operational overhead, MOST secure, HIGHEST availability, LOWEST latency, MINIMAL changes to the application. Two options are usually both correct architecturally, and only the qualifier separates them. Read the stem, then the scenario, then the options — this alone recovers several points on a 65-question paper."
+    }
+  ],
+  "tips": [
+    {
+      "tip": "Convert the scenario into a one-line requirement before reading options",
+      "how": "\"Shared Linux storage, 3 AZs, POSIX\" or \"cross-Region DR, RPO < 1 s\". Then look for the option that matches that line. Reading options first lets a plausible distractor anchor you."
+    },
+    {
+      "tip": "Eliminate on hard facts, not on vibes",
+      "how": "Every wrong option in a well-written SAA-C03 question breaks a checkable rule: wrong protocol (EFS cannot do SMB), wrong scope (gateway endpoint for Kinesis), wrong direction (SCP granting), wrong durability (One Zone for primary data). Name the broken rule; if you cannot name one, that option may be the answer."
+    },
+    {
+      "tip": "Two options that do the same thing are both wrong",
+      "how": "If two choices are functionally equivalent, neither can be the single correct answer — eliminate both and choose between the remaining two. This is a scoring shortcut, not a guess."
+    },
+    {
+      "tip": "Prefer the AWS-native managed feature over a hand-built equivalent",
+      "how": "AWS Backup over a Lambda-plus-EventBridge snapshot script; S3 lifecycle over a nightly copy job; RDS automated backups over mysqldump to S3; Secrets Manager rotation over a custom rotator. The exam rewards the managed primitive."
+    },
+    {
+      "tip": "Match 'minimal changes to the application' to drop-in services",
+      "how": "That phrase points to DAX (DynamoDB API compatible), RDS Proxy (same endpoint), ElastiCache with a standard Redis client, Aurora (MySQL/PostgreSQL wire-compatible), an EFS/FSx mount, or an ALB in front of an unchanged app — never a rewrite to a new data model."
+    },
+    {
+      "tip": "When the stem says 'no internet access', look for endpoints",
+      "how": "The correct architecture is almost always private subnet + gateway endpoint for S3/DynamoDB + interface endpoints for everything else. A NAT gateway is the plausible-but-costly distractor, and an internet gateway in a private subnet is always wrong."
+    },
+    {
+      "tip": "Encryption questions decompose into three axes",
+      "how": "(1) At rest or in transit? (2) Who holds the key — AWS, you in KMS, you via SSE-C, or dedicated hardware in CloudHSM? (3) Is an audit trail or key policy required? Answer those three and the option picks itself."
+    },
+    {
+      "tip": "Availability questions decompose into RPO and RTO",
+      "how": "RPO/RTO in hours → backup and restore. RPO minutes / RTO tens of minutes → pilot light. RPO seconds / RTO minutes → warm standby. RPO ~zero / RTO ~zero → multi-site active/active. Read the numbers in the scenario and map directly."
+    },
+    {
+      "tip": "For messaging, ask: does anyone need to read it twice?",
+      "how": "One consumer, work queue, retries and DLQ → SQS. Many subscribers, push, immediate → SNS. Many consumers with replay and ordering → Kinesis Data Streams. Filtering, SaaS sources, schedules, cross-account → EventBridge. Just land it in S3 with no code → Firehose."
+    },
+    {
+      "tip": "In multiple-response questions the two answers usually address two different requirements",
+      "how": "The scenario states two constraints (for example 'encrypt at rest' AND 'restrict to the corporate network'). Pick one option per constraint rather than two options that both solve the same half."
+    },
+    {
+      "tip": "Skip the marketing adjectives in options",
+      "how": "Words like 'highly available', 'secure' and 'scalable' are noise. Underline the concrete nouns — the service name, the storage class, the routing policy, the number — and compare only those."
+    },
+    {
+      "tip": "Trust your first read on service-selection questions; re-check only arithmetic and 'choose two'",
+      "how": "Changed answers on keyword-to-service questions are more often wrong than right. Reserve the review pass for calculations (bandwidth, cost, capacity), multiple-response counts, and questions where you flagged a genuine ambiguity."
+    }
+  ],
+  "exam_room": [
+    {
+      "rule": "130 minutes / 65 questions = 2 minutes each",
+      "detail": "Aim for 1:45 average to bank ~15 minutes for the review pass. At the 65-minute mark you should be at or past question 33. If you are behind, answer-and-flag faster rather than pushing your finish time."
+    },
+    {
+      "rule": "Flag and move — never spend more than 3 minutes on one question",
+      "detail": "Put in your best current answer BEFORE flagging, so a time-out still scores it. A question you return to with fresh context is usually easier; a question you grind on burns two other questions' worth of time."
+    },
+    {
+      "rule": "Eliminate two, then decide between the last two",
+      "detail": "Almost every SAA-C03 question has two obviously wrong options (wrong service class, wrong protocol, wrong direction). Kill those in 20 seconds, then spend your time on the real discriminator between the final pair — which is exactly what the qualifier in the last sentence exists to resolve."
+    },
+    {
+      "rule": "Keyword to service is the core skill",
+      "detail": "SMB/AD → FSx Windows. POSIX/Linux/multi-AZ → EFS. HPC + S3 → FSx Lustre. Static IP/UDP → Global Accelerator or NLB. Unknown access pattern → Intelligent-Tiering. Rotate → Secrets Manager. No SSH → Session Manager. Sub-second cross-Region RPO → Aurora Global. Train the mapping, not the trivia."
+    },
+    {
+      "rule": "Multiple-response: select exactly the number requested",
+      "detail": "The stem always says 'Choose two' (occasionally three). Partial credit does not exist — both must be right. Selecting one, or three when two were asked, scores zero. Count your selections before moving on."
+    },
+    {
+      "rule": "15 of the 65 questions are unscored",
+      "detail": "They are unmarked and mixed in. A question that feels unreasonably obscure may well be one of them. Do not let it rattle you or change your pace — answer, flag, move."
+    },
+    {
+      "rule": "There is no penalty for a wrong answer",
+      "detail": "Never leave a question blank. If time is nearly out, select an option for every remaining question, then spend whatever seconds remain on the flagged ones. A blank is a guaranteed zero; a guess between two survivors is 50%."
+    },
+    {
+      "rule": "720/1000 scaled is roughly 70–72% raw",
+      "detail": "About 36 of the 50 scored questions. You can miss ~14 and still pass, so a handful of genuinely hard questions is not a failing paper. Keep the tempo, protect the easy points, and do not spiral after a bad stretch."
+    }
+  ],
+  "keyword_to_service": [
+    {"keyword": "Shared POSIX file system, Linux, multiple AZs, elastic capacity", "service": "Amazon EFS (Regional)"},
+    {"keyword": "SMB shares, Active Directory, NTFS ACLs, Windows applications", "service": "Amazon FSx for Windows File Server"},
+    {"keyword": "HPC, ML training, sub-millisecond parallel file system linked to S3", "service": "Amazon FSx for Lustre"},
+    {"keyword": "NFS and SMB together, snapshots, dedupe, NetApp features", "service": "Amazon FSx for NetApp ONTAP"},
+    {"keyword": "Highest single-volume IOPS, sub-millisecond block storage, 256k IOPS", "service": "Amazon EBS io2 Block Express"},
+    {"keyword": "Cheap high-throughput sequential block storage for big data and log processing", "service": "Amazon EBS st1 (sc1 for cold archive)"},
+    {"keyword": "Access patterns unknown or changing, no retrieval fees", "service": "S3 Intelligent-Tiering"},
+    {"keyword": "Re-creatable or secondary data, cheapest infrequent access, single AZ acceptable", "service": "S3 One Zone-IA"},
+    {"keyword": "Seven-year archive, 12-hour retrieval acceptable, lowest storage cost", "service": "S3 Glacier Deep Archive"},
+    {"keyword": "WORM retention, legal hold, regulator-proof immutability", "service": "S3 Object Lock (compliance mode)"},
+    {"keyword": "Speed up global uploads to a single bucket over long distances", "service": "S3 Transfer Acceleration"},
+    {"keyword": "Single-digit millisecond key-value at any scale, serverless, no schema", "service": "Amazon DynamoDB"},
+    {"keyword": "Microsecond DynamoDB reads with no application code change", "service": "DynamoDB Accelerator (DAX)"},
+    {"keyword": "Multi-Region active-active key-value with local read and write latency", "service": "DynamoDB global tables"},
+    {"keyword": "Cache repeated relational queries, session state, leaderboards, pub/sub", "service": "Amazon ElastiCache for Redis"},
+    {"keyword": "Simple, multi-threaded, horizontally scalable cache with no persistence", "service": "Amazon ElastiCache for Memcached"},
+    {"keyword": "MySQL/PostgreSQL-compatible, 6 copies across 3 AZs, up to 15 readers", "service": "Amazon Aurora"},
+    {"keyword": "Cross-Region DR with RPO under 1 second and RTO around 1 minute", "service": "Aurora Global Database"},
+    {"keyword": "Unpredictable or intermittent database load, pay for capacity actually used", "service": "Aurora Serverless v2"},
+    {"keyword": "Thousands of Lambda invocations exhausting database connections", "service": "Amazon RDS Proxy"},
+    {"keyword": "Automatic database failover, synchronous standby, standby serves no traffic", "service": "RDS Multi-AZ deployment"},
+    {"keyword": "Offload reporting or analytics reads from the primary database", "service": "RDS read replica"},
+    {"keyword": "Petabyte-scale data warehouse, complex joins, BI dashboards, columnar", "service": "Amazon Redshift (RA3)"},
+    {"keyword": "Ad-hoc SQL directly over S3, pay per TB scanned, no infrastructure", "service": "Amazon Athena"},
+    {"keyword": "Serverless ETL, crawlers, central data catalog", "service": "AWS Glue"},
+    {"keyword": "Managed Spark/Hadoop/Hive cluster you configure and control", "service": "Amazon EMR"},
+    {"keyword": "Streaming ingest with replay, per-shard ordering, multiple independent consumers", "service": "Amazon Kinesis Data Streams"},
+    {"keyword": "Land streaming data in S3/Redshift/OpenSearch with no code and no shards", "service": "Amazon Data Firehose"},
+    {"keyword": "Decouple tiers, buffer spikes, retry, DLQ, one consumer per message", "service": "Amazon SQS"},
+    {"keyword": "Strict ordering and exactly-once processing", "service": "Amazon SQS FIFO queue"},
+    {"keyword": "Fan out one message to many subscribers, push delivery, email and SMS", "service": "Amazon SNS"},
+    {"keyword": "SaaS partner events, cross-account routing, content filtering, cron schedules, replay", "service": "Amazon EventBridge"},
+    {"keyword": "Multi-step workflow with retries, branching, parallel states, human approval", "service": "AWS Step Functions"},
+    {"keyword": "Run code without servers, event-driven, 15 minutes or less", "service": "AWS Lambda"},
+    {"keyword": "Containers with no EC2 instances to patch or scale", "service": "AWS Fargate"},
+    {"keyword": "Kubernetes API and ecosystem required, hybrid portability", "service": "Amazon EKS"},
+    {"keyword": "Static IP per AZ, TCP/UDP/TLS, millions of connections, ultra-low latency", "service": "Network Load Balancer"},
+    {"keyword": "HTTP path and host routing, WAF integration, Lambda and IP targets, OIDC auth", "service": "Application Load Balancer"},
+    {"keyword": "Transparent insertion of third-party firewall or IDS appliances (GENEVE 6081)", "service": "Gateway Load Balancer"},
+    {"keyword": "Cache HTTP content at the edge, signed URLs and cookies, private S3 origin", "service": "Amazon CloudFront with Origin Access Control"},
+    {"keyword": "Static anycast IPs, non-HTTP protocols, near-instant Regional failover", "service": "AWS Global Accelerator"},
+    {"keyword": "Sub-millisecond header or URL rewrites at the edge, vs richer edge logic up to 30 s", "service": "CloudFront Functions (light) / Lambda@Edge (heavy)"},
+    {"keyword": "DNS with health checks and failover, latency, weighted, geolocation, geoproximity", "service": "Amazon Route 53"},
+    {"keyword": "Private access to S3 or DynamoDB with no NAT and no hourly charge", "service": "Gateway VPC endpoint"},
+    {"keyword": "Private access to any other AWS or partner service via an ENI in your subnet", "service": "Interface VPC endpoint (PrivateLink)"},
+    {"keyword": "Expose one service one-way to many consumer VPCs, overlapping CIDRs acceptable", "service": "AWS PrivateLink endpoint service behind an NLB"},
+    {"keyword": "Hub-and-spoke connectivity for hundreds of VPCs plus on-premises, transitive routing", "service": "AWS Transit Gateway"},
+    {"keyword": "Two VPCs, lowest cost, non-overlapping CIDRs, no transitive routing needed", "service": "VPC peering"},
+    {"keyword": "Dedicated 1/10/100/400 Gbps private link, consistent latency, weeks to provision", "service": "AWS Direct Connect"},
+    {"keyword": "Encrypted tunnel over the internet within hours, about 1.25 Gbps per tunnel", "service": "AWS Site-to-Site VPN"},
+    {"keyword": "Private instances need outbound internet access for OS patching", "service": "NAT gateway in a public subnet, one per AZ"},
+    {"keyword": "Stateful instance-level firewall, allow rules only, can reference other security groups", "service": "Security group"},
+    {"keyword": "Stateless subnet-level filter, explicit DENY of a specific IP, ephemeral return rule", "service": "Network ACL"},
+    {"keyword": "Managed stateful VPC firewall with IPS rules and domain filtering", "service": "AWS Network Firewall"},
+    {"keyword": "SQL injection, XSS, geo-blocking and rate limiting on ALB, CloudFront or API Gateway", "service": "AWS WAF"},
+    {"keyword": "DDoS protection with a 24/7 response team and billing cost protection", "service": "AWS Shield Advanced"},
+    {"keyword": "Detect crypto-mining, compromised credentials and anomalies from logs, no agents", "service": "Amazon GuardDuty"},
+    {"keyword": "Continuous CVE and vulnerability scanning of EC2, ECR images and Lambda", "service": "Amazon Inspector"},
+    {"keyword": "Discover and classify PII, PHI or card data stored in S3", "service": "Amazon Macie"},
+    {"keyword": "Aggregate findings across accounts and check against CIS or PCI standards", "service": "AWS Security Hub"},
+    {"keyword": "Who called which API, from which IP, and when — audit trail of API activity", "service": "AWS CloudTrail"},
+    {"keyword": "Resource configuration history, drift detection, compliance rules with auto-remediation", "service": "AWS Config"},
+    {"keyword": "Rotate database credentials automatically on a schedule, cross-Region replica", "service": "AWS Secrets Manager"},
+    {"keyword": "Free encrypted configuration values and plain strings in a hierarchy", "service": "SSM Parameter Store (SecureString)"},
+    {"keyword": "Shell access to private instances with no SSH keys, no bastion, fully logged", "service": "AWS Systems Manager Session Manager"},
+    {"keyword": "Single-tenant hardware security module, FIPS 140-2 Level 3, customer controls the keys", "service": "AWS CloudHSM"},
+    {"keyword": "Key policy, your own rotation schedule, cross-account sharing, CloudTrail per key use", "service": "AWS KMS customer managed key"},
+    {"keyword": "Workforce SSO across many accounts with permission sets and an external IdP", "service": "AWS IAM Identity Center"},
+    {"keyword": "Guardrail capping what any account in an OU can ever do", "service": "Service Control Policy (AWS Organizations)"},
+    {"keyword": "Offline bulk transfer of 100 TB or more where the network would take weeks", "service": "AWS Snowball Edge (~80 TB usable per device)"},
+    {"keyword": "Recurring online sync between on-prem NFS/SMB and S3/EFS/FSx with validation", "service": "AWS DataSync"},
+    {"keyword": "Partners upload over SFTP, FTPS or AS2 into S3 or EFS", "service": "AWS Transfer Family"},
+    {"keyword": "On-prem apps need a local cache with the dataset in S3, or a virtual tape library", "service": "AWS Storage Gateway (File / Volume / Tape)"},
+    {"keyword": "Migrate a database to AWS with minimal downtime, optionally changing engine", "service": "AWS DMS (with SCT for heterogeneous migrations)"},
+    {"keyword": "Alert when actual or forecast spend crosses a threshold", "service": "AWS Budgets"},
+    {"keyword": "Right-size EC2, EBS, Lambda and ECS from real utilization data", "service": "AWS Compute Optimizer"},
+    {"keyword": "Steady-state commitment across EC2, Fargate and Lambda with family and Region flexibility", "service": "Compute Savings Plan"},
+    {"keyword": "Guaranteed capacity in a specific Availability Zone", "service": "Zonal Reserved Instance or On-Demand Capacity Reservation"},
+    {"keyword": "Interruptible, stateless, restartable batch work at up to 90% discount", "service": "EC2 Spot Instances"},
+    {"keyword": "Centralized policy-driven backup of EBS, RDS, DynamoDB, EFS, FSx and on-prem VMs", "service": "AWS Backup"}
+  ],
+  "top_focus_8020": [
+    {
+      "rank": 1,
+      "topic": "S3 storage classes, lifecycle rules and their minimums",
+      "why": "The single highest-frequency topic on the paper and it appears in all four domains. Know the 30-day and 128 KB minimums, One Zone durability, Intelligent-Tiering's 'unknown pattern' trigger, and the full Glacier retrieval-time table. Cost-optimization questions are decided here more than anywhere else."
+    },
+    {
+      "rank": 2,
+      "topic": "RDS Multi-AZ vs read replicas vs Aurora (including Aurora Global)",
+      "why": "The most reliably tested confusion in D2. Availability vs read scaling vs cross-Region RPO is a three-way distinction that shows up several times per exam, and the encryption-at-creation rule rides along with it."
+    },
+    {
+      "rank": 3,
+      "topic": "VPC connectivity: endpoints, peering, Transit Gateway, PrivateLink, Direct Connect, VPN",
+      "why": "Dense in both D1 and D3. Gateway-vs-interface endpoint, non-transitive peering, overlapping-CIDR PrivateLink, and 'DX takes weeks, VPN takes hours' each map to a stock question."
+    },
+    {
+      "rank": 4,
+      "topic": "Storage service selection: EFS vs EBS vs FSx (Windows / Lustre / ONTAP) vs instance store",
+      "why": "Pure keyword matching worth several guaranteed points. The tell (POSIX/Linux, SMB/AD, HPC+S3, NFS+SMB) is stated in the scenario every time and requires no reasoning if you have the mapping cold."
+    },
+    {
+      "rank": 5,
+      "topic": "Messaging and event routing: SQS vs SNS vs EventBridge vs Kinesis Streams vs Firehose",
+      "why": "Heavily tested in D2 and D3, and the distractors are always all five services. Replay, ordering, fan-out, filtering and 'no code' are the five discriminators — one of them is always in the stem."
+    },
+    {
+      "rank": 6,
+      "topic": "IAM, STS, SCPs, permission boundaries and cross-account access",
+      "why": "D1 is 30% of the exam and IAM is its backbone. The recurring rules: roles over long-lived keys, SCPs bound rather than grant, resource policies for cross-account, Identity Center for workforce SSO."
+    },
+    {
+      "rank": 7,
+      "topic": "Encryption: KMS key types, S3 encryption modes, CloudHSM, encrypting existing resources",
+      "why": "Appears in every D1 set. The two decisive facts are 'audit trail and key policy → SSE-KMS with a CMK' and 'you cannot encrypt an existing RDS instance or EBS volume in place — snapshot, copy encrypted, restore'."
+    },
+    {
+      "rank": 8,
+      "topic": "Load balancing and edge: ALB vs NLB vs GWLB, CloudFront vs Global Accelerator",
+      "why": "Latency and availability questions in D3 nearly always resolve to one of these five. Static IP, non-HTTP protocol, caching and appliance insertion are the four unmistakable tells."
+    },
+    {
+      "rank": 9,
+      "topic": "EC2 purchasing models and Auto Scaling policies",
+      "why": "D4's core. Savings Plans vs RIs vs Spot vs Capacity Reservations, plus target-tracking, step, scheduled and predictive scaling, and the hard rule that Spot never carries stateful tiers."
+    },
+    {
+      "rank": 10,
+      "topic": "Data migration and hybrid transfer: Snow family, DataSync, Transfer Family, Storage Gateway, DMS",
+      "why": "A predictable two-to-four question block, decided by a bandwidth calculation (offline vs online) and by whether the transfer is one-time or recurring. Easy points once you can do the days-to-transfer arithmetic in your head."
+    }
+  ]
+}

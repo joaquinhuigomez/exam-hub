@@ -34,7 +34,7 @@
             "FIFO throughput is 300 messages per second per API action — send, receive, delete each get 300/s, not 300 total for the whole pipeline.",
             "Batching 10 messages per call turns 300 API calls/s into 3,000 messages/s; high-throughput mode raises it by orders of magnitude (partition-based, region-dependent).",
             "FIFO dedup window is 5 minutes and is not configurable — a retry 6 minutes later creates a duplicate.",
-            "A FIFO queue name MUST end with .fifo, and an SNS FIFO topic can only deliver to an SQS FIFO queue.",
+            "A FIFO queue name MUST end with .fifo, and an SNS FIFO topic delivers only to SQS queues — a FIFO queue to keep ordering and dedup, or (since 2023) a standard queue if you are willing to lose both.",
             "SQS is a pull service. Nothing is 'pushed' to EC2; the consumer polls. Lambda's SQS event source is Lambda polling on your behalf.",
             "SQS never triggers a workflow by itself — if the stem needs event-driven routing on content, that is EventBridge or SNS filter policies, not SQS."
           ],
@@ -61,7 +61,7 @@
               ["A bad message loops forever", "No redrive policy", "DLQ + maxReceiveCount"],
               ["Empty receives burning API cost", "Short polling", "Long polling (ReceiveMessageWaitTimeSeconds up to 20 s)"],
               ["Consumer needs a head start before the message is visible", "No delay", "Delay queue (0–15 min) or per-message timer"],
-              ["Message payload over 256 KB", "Hard SQS limit", "SQS Extended Client Library — payload in S3, pointer in the message"]
+              ["Message payload over the size limit (256 KB historically, 1 MiB since Aug 2025)", "SQS message size quota", "SQS Extended Client Library — payload in S3, pointer in the message"]
             ]
           },
           "gotchas": [
@@ -71,12 +71,12 @@
             "Retention is 4 days by default, 1 minute minimum, 14 days maximum — 'retain messages for two weeks' is the max, not a config you can exceed.",
             "Long polling reduces cost and empty responses; it does not reduce latency below short polling when messages are available.",
             "Delay queues delay ALL messages in the queue; message timers delay individual messages. Both cap at 15 minutes.",
-            "The Extended Client Library supports payloads up to 2 GB via S3 — the exam phrases this as 'large payloads' or 'video metadata exceeds the message size limit'."
+            "SQS raised its maximum message payload from 256 KB to 1 MiB in August 2025; older question banks still say 256 KB, and either way the Extended Client Library carries payloads up to 2 GB via S3."
           ],
           "numbers": [
             "Visibility timeout: 30 s default, 0–12 h",
             "Retention: 4 days default, 1 min–14 days",
-            "Message size: 256 KB (2 GB with Extended Client Library)",
+            "Message size: 1 MiB maximum since August 2025 (256 KB in older exam material — expect either number); up to 2 GB with the Extended Client Library",
             "Long polling wait: up to 20 s; delay queue 0–15 min"
           ]
         },
@@ -134,8 +134,8 @@
           },
           "gotchas": [
             "SNS is push-only and has no retention — an unsubscribed consumer cannot go back and read old messages.",
-            "SNS message size is 256 KB, the same as SQS; the Extended Client Library trick applies to SNS too.",
-            "SNS FIFO topics exist, but they can only deliver to SQS FIFO queues — no Lambda, no HTTP.",
+            "SNS message size is 256 KB (SQS moved to 1 MiB in 2025, SNS did not); the Extended Client Library trick applies to SNS too.",
+            "SNS FIFO topics deliver only to SQS queues — FIFO queues preserve order, standard queues have been allowed since 2023 but lose ordering and dedup. No Lambda, no HTTP.",
             "A filter policy that matches nothing silently drops the message for that subscription; there is no error.",
             "For SNS to SQS across accounts, the SQS queue policy must allow the SNS topic principal — a resource policy, not an IAM role.",
             "Enable raw message delivery when the consumer should not see the SNS envelope JSON."
@@ -167,7 +167,7 @@
           "gotchas": [
             "EventBridge is the renamed CloudWatch Events — 'CloudWatch Events rule' in an old-looking question means the same thing.",
             "Maximum 5 targets per rule. If a question says 'send to 20 systems', fan out to SNS or use multiple rules.",
-            "Event payload limit is 256 KB, same as SNS/SQS.",
+            "Event payload limit is 256 KB, same as SNS.",
             "Replay re-delivers to the rules you select — it does not replay to targets that did not exist as rules at replay time unless you create them first.",
             "Cross-account event delivery uses a resource policy on the target bus plus a rule with the bus as target; it is not IAM-role-only.",
             "For a scheduled job, EventBridge Scheduler beats a cron on EC2 and beats a CloudWatch alarm — the exam's 'least operational overhead' scheduler answer.",
@@ -198,7 +198,7 @@
             "One shard = 1 MB/s or 1,000 records/s in, 2 MB/s out shared. ProvisionedThroughputExceededException means add shards or switch to on-demand mode.",
             "Enhanced fan-out gives each consumer a dedicated 2 MB/s per shard — the fix when 'the third consumer is being throttled'.",
             "Firehose cannot replay. If the stem mentions reprocessing historical records, Firehose is out even if it is also writing to S3.",
-            "Firehose minimum buffering makes it 'near real time' (typically tens of seconds), so 'sub-second latency' rules it out.",
+            "Firehose buffers before it delivers (60 s / 5 MB by default, and zero buffering is supported since 2023) — it can be fast, but it is still a one-way delivery pipeline with no replay and no independent consumers.",
             "Kinesis Data Analytics is now Managed Service for Apache Flink — same role: SQL/Flink processing over a stream.",
             "Kinesis Data Streams on-demand mode removes shard math but caps at a lower per-stream throughput than a heavily provisioned stream and costs more per GB.",
             "Do not use a stream just because the word 'streaming' appears — if only one consumer needs each record once and order is irrelevant, SQS is cheaper and simpler."
@@ -354,7 +354,7 @@
         },
         {
           "name": "Auto Scaling group fundamentals: AZs, health checks, lifecycle, refresh",
-          "explain": "An Auto Scaling group maintains a desired count of instances between a minimum and a maximum. Spanning at least two Availability Zones is the single most-tested resilience requirement in this domain: ASG rebalances capacity across the AZs you list, so if an AZ fails, it launches replacements in the survivors.\nHealth check type matters more than people expect. The default EC2 health check only sees hypervisor and instance status checks — an instance whose web server has crashed is still 'healthy'. Turning on ELB health checks makes the ASG defer to the target group, so an application-level failure triggers replacement. The health check grace period (default 300 seconds) is the window after launch during which failures are ignored while the instance bootstraps; set too low, the ASG kills instances in a loop.\nLifecycle hooks pause an instance in Pending:Wait or Terminating:Wait so you can install software or drain connections and copy logs before termination. Warm pools keep pre-initialized instances in a stopped (or hibernated) state so a scale-out event takes seconds instead of the ten minutes a heavy bootstrap needs. Instance refresh rolls out a new launch template version across the group with a minimum healthy percentage and optional checkpoints — the managed way to patch a fleet with no downtime.",
+          "explain": "An Auto Scaling group maintains a desired count of instances between a minimum and a maximum. Spanning at least two Availability Zones is the single most-tested resilience requirement in this domain: ASG rebalances capacity across the AZs you list, so if an AZ fails, it launches replacements in the survivors.\nHealth check type matters more than people expect. The default EC2 health check only sees hypervisor and instance status checks — an instance whose web server has crashed is still 'healthy'. Turning on ELB health checks makes the ASG defer to the target group, so an application-level failure triggers replacement. The health check grace period is the window after launch during which failures are ignored while the instance bootstraps; set too low, the ASG kills instances in a loop. Watch the default: the CreateAutoScalingGroup API defaults it to 0 seconds, while the console pre-fills 300.\nLifecycle hooks pause an instance in Pending:Wait or Terminating:Wait so you can install software or drain connections and copy logs before termination. Warm pools keep pre-initialized instances in a stopped (or hibernated) state so a scale-out event takes seconds instead of the ten minutes a heavy bootstrap needs. Instance refresh rolls out a new launch template version across the group with a minimum healthy percentage and optional checkpoints — the managed way to patch a fleet with no downtime.",
           "exam_tests": "'Instances pass status checks but the application returns errors and traffic is still routed' → change ASG health check type to ELB. 'Instances are terminated before they finish bootstrapping' → increase the health check grace period. 'Run a script before termination / copy logs off' → lifecycle hook. 'Scale-out is too slow because the AMI takes minutes to configure' → warm pool or a pre-baked (golden) AMI. 'Deploy a new AMI across the fleet with no downtime' → instance refresh.",
           "example": {
             "scenario": "A web fleet in an Auto Scaling group behind an ALB occasionally has instances where the application process has died. The instances continue to receive traffic and users see 502 errors, even though the ASG reports them healthy.",
@@ -366,7 +366,7 @@
             "rows": [
               ["Multi-AZ ASG", "AZ failure", "At least 2 (ideally 3) subnets in different AZs"],
               ["ELB health check type", "App-level failure not detected", "HealthCheckType = ELB"],
-              ["Health check grace period", "Killing instances mid-bootstrap", "Default 300 s; raise for slow boot"],
+              ["Health check grace period", "Killing instances mid-bootstrap", "0 s via API, 300 s in the console; raise for slow boot"],
               ["Lifecycle hook", "Work needed before in-service or before terminate", "Pending:Wait / Terminating:Wait, heartbeat timeout"],
               ["Warm pool", "Slow scale-out due to long bootstrap", "Stopped/Running/Hibernated pre-initialized pool"],
               ["Instance refresh", "Rolling AMI or launch template update", "Minimum healthy percentage, checkpoints"],
@@ -382,7 +382,7 @@
             "Suspending the ReplaceUnhealthy or Terminate process is the answer to 'we need to troubleshoot an instance without the ASG killing it'.",
             "ASG capacity rebalance is what handles Spot interruption notices gracefully — pair it with a lifecycle hook to drain."
           ],
-          "numbers": ["Health check grace period default 300 s", "Lifecycle hook heartbeat default 3600 s, max 48 h", "Default cooldown 300 s"]
+          "numbers": ["Health check grace period: 0 s API default, 300 s console default", "Lifecycle hook heartbeat default 3600 s, max 48 h", "Default cooldown 300 s"]
         },
         {
           "name": "Scaling policies and ECS service auto scaling",
