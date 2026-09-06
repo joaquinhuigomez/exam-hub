@@ -17,7 +17,7 @@
     {
       "name": "Detailed monitoring is 1 minute, not 1 second",
       "pattern": "'Enable detailed monitoring to get one-second metrics' appears as a plausible option.",
-      "spot_it": "Detailed monitoring = 1-minute periods. One-second granularity only exists for custom high-resolution metrics (StorageResolution 1), with high-resolution alarms evaluating at 10 s or 30 s."
+      "spot_it": "Detailed monitoring = 1-minute periods, and that is the correct answer when the stem wants faster scaling or alarming. One-second granularity only exists if you PUBLISH a custom high-resolution metric (StorageResolution 1) with the agent or the API, and its alarms evaluate at 10 s or 30 s - so any option promising 1-second EC2 metrics from a console toggle is wrong."
     },
     {
       "name": "EC2 recover action only handles system status failures",
@@ -81,7 +81,7 @@
     },
     {
       "name": "VPC peering is non-transitive and has no edge-to-edge routing",
-      "pattern": "A hub VPC is peered to spokes and the stem asks why spokes cannot talk to each other, or why a spoke cannot use the hub's NAT gateway, IGW, or Direct Connect.",
+      "pattern": "A hub VPC is peered to spokes and the stem asks why spokes cannot talk to each other, or why a spoke cannot use the hub's NAT gateway, internet gateway, or VPN connection.",
       "spot_it": "Peering carries no transitive traffic and cannot use the peer's edge devices. The answer is a Transit Gateway (or full-mesh peering for a tiny topology, or PrivateLink for overlapping CIDRs)."
     },
     {
@@ -112,7 +112,7 @@
     {
       "name": "Email-validated and imported ACM certificates do not auto-renew",
       "pattern": "'The certificate expired unexpectedly even though ACM manages renewal.'",
-      "spot_it": "Only DNS-validated ACM certificates that are still in use renew silently. Email validation needs a human every 13 months; imported certificates never renew. Monitor with the ACM expiry EventBridge event or the acm-certificate-expiration-check Config rule."
+      "spot_it": "Only DNS-validated ACM certificates that are still in use renew silently, and ACM starts trying 60 days before the 13-month expiry. Email validation needs a human every 13 months; imported certificates never renew; exportable public certificates (the 2025 feature that lets you use an ACM certificate on EC2 or on-premises) are 395 days and are your job to redeploy. The fix is to move to DNS validation where possible and to monitor the rest with the ACM expiry EventBridge event or the acm-certificate-expiration-check Config rule."
     },
     {
       "name": "An SCP never grants permission",
@@ -175,6 +175,16 @@
       "spot_it": "Separate 'rule did not match' (event pattern is an exact, case-sensitive JSON match, or the event landed on a different bus) from 'target rejected' (missing resource-based policy or IAM role). Add a DLQ on the target to make failures visible."
     },
     {
+      "name": "Governance-mode Vault Lock is not immutable",
+      "pattern": "A regulator requires backups that nobody can delete early, and 'AWS Backup Vault Lock in governance mode' is offered alongside compliance mode.",
+      "spot_it": "Governance mode can be removed at any time by anyone holding the delete-lock permission - it is a guardrail, not WORM. Pick compliance mode, and remember you set a cooling-off period of at least 3 days at creation during which the lock can still be deleted; after that not even root can shorten retention. S3 Object Lock has the same governance-versus-compliance split."
+    },
+    {
+      "name": "A composite alarm cannot stop, reboot, or scale anything",
+      "pattern": "'Combine the child alarms into a composite alarm and have it terminate the instance / trigger the scaling policy' as a way to reduce noise and act at the same time.",
+      "spot_it": "Composite alarms only notify SNS, invoke Lambda, or raise a Systems Manager OpsItem/incident - they cannot perform EC2 or Auto Scaling actions. Keep the metric alarm for the action and add the composite alarm purely for notification, or route the composite alarm to EventBridge and let SSM Automation do the work."
+    },
+    {
       "name": "Lifecycle hooks that never complete",
       "pattern": "Instances sit in Pending:Wait or Terminating:Wait for an hour and then continue or terminate.",
       "spot_it": "Something must call CompleteLifecycleAction (or record a heartbeat). The default heartbeat timeout is 3600 s. This also shows up as 'scaling takes an hour' or 'instances terminate before logs are copied'."
@@ -186,18 +196,19 @@
     "Ops questions have a first step. When a stem asks what to check FIRST, the answer is the cheapest, most diagnostic action (read the CloudFormation Events tab, look at the target group health reason, run Reachability Analyzer) - not the fix.",
     "Translate every symptom into a layer: is it identity (403/AccessDenied), network (timeout/no response), capacity (throttling/5xx under load), configuration (works elsewhere but not here), or data (stale/missing)? The layer usually eliminates two options instantly.",
     "When two options both work, prefer the one that is native, managed, and auditable. AWS answers favour: managed service > AWS-provided document > custom Lambda > custom script on an instance > manual runbook.",
-    "For 'Choose two' questions, look for the pair that forms a complete fix (a permission plus a network path, an agent plus a role). Two options that solve the same half of the problem are rarely both correct.",
+    "For multiple-response questions, look for the combination that forms a complete fix (a permission plus a network path, an agent plus a role). Two options that solve the same half of the problem are rarely both correct.",
     "Numbers in the stem are hints, not decoration. 60 seconds points at the ALB idle timeout, 300 seconds at cooldown or deregistration delay, 35 days at PITR, 30 hours at Compute Optimizer, 13 months at ACM.",
     "If the scenario says the endpoint or resource is private or internal, immediately discount Route 53 endpoint health checks, public internet paths, and anything that assumes a public IP.",
     "Watch for 'without changing the application' and 'without downtime'. Those phrases kill options that change endpoints (PITR restore), require reboots (static parameters), or replace resources (CloudFormation replacement).",
     "Cost questions in networking almost always resolve to: gateway endpoints are free, cross-AZ and NAT per-GB cost money, CloudFront egress is cheaper than direct, and same-AZ private traffic is free.",
-    "When an option mentions a retired or out-of-scope service, or a service outside the official SOA-C03 list, treat it as a distractor. Kiro, AWS DevOps Agent, and AWS Security Agent are plausible options but almost never the discriminating fact.",
+    "Know the scope boundary. Retired or renamed services are automatic distractors (Amazon QLDB, AWS Snowmobile, new launch configurations, and 'Kinesis Data Firehose' - it is Amazon Data Firehose now). So are services the SOA-C03 guide lists as out of scope: AWS CloudHSM, Amazon Security Lake, AWS Cloud WAN, AWS App Mesh, Amazon Lightsail, Amazon EMR, Amazon MSK, Amazon Neptune, AWS Transfer Family, Amazon WorkSpaces, and FSx for OpenZFS. Kiro, AWS DevOps Agent, AWS Security Agent, and Amazon Bedrock ARE on the in-scope list, so they can legitimately appear - but the discriminating fact is still almost always the classic service.",
+    "AWS Direct Connect is not on the SOA-C03 in-scope service list. It can appear as scenario background ('the VPC is connected to the data centre'), but never pick 'provision a Direct Connect connection' as the fix - the in-scope hybrid answers are Site-to-Site VPN, Client VPN, Transit Gateway, PrivateLink, and Route 53 Resolver endpoints.",
     "Practise saying the failure mode out loud before reading the options: 'this is a stateless-NACL return-traffic problem', 'this is a cache-key problem', 'this is a missing instance profile'. Naming it first stops the options from steering you."
   ],
   "exam_room": [
     "65 questions in 130 minutes is 2 minutes each with about 10 minutes spare. Take the first pass at 90 seconds per question and flag anything that needs a second read - do not burn 6 minutes on one CloudFormation state question.",
     "There are no hands-on labs in SOA-C03. Every question is multiple choice or multiple response, so there is no reason to preserve time for a lab at the end.",
-    "Multiple response stems always say '(Choose two.)' and have five options with exactly two correct. If you are certain of one, spend your remaining effort eliminating the three wrong ones rather than hunting for a second confident pick.",
+    "Multiple-response questions have two OR MORE correct answers out of five or more options - read the instruction line rather than assuming 'Choose two'. Once you are certain of one, spend your remaining effort eliminating the wrong options rather than hunting for a second confident pick.",
     "Answer everything - there is no penalty for a wrong answer, and 15 of the 65 questions are unscored anyway, so a question that feels unfairly obscure may not even count.",
     "Use the flag-for-review list deliberately: flag only questions where a second read could realistically change your answer. A long flag list at 20 minutes remaining is a time-management failure.",
     "Read the answer options before re-reading a long scenario. Often the options reveal that only one dimension matters (a port, a policy, a default value) and you can scan the scenario for just that.",
@@ -235,10 +246,10 @@
     {"keyword": "Who deleted the resource", "service": "CloudTrail event history (Lake for long-range SQL queries)"},
     {"keyword": "Who downloaded the S3 object", "service": "CloudTrail data events (must be enabled) or S3 server access logs"},
     {"keyword": "Alarm when a specific error string appears in logs", "service": "CloudWatch Logs metric filter plus alarm"},
-    {"keyword": "Stream logs to OpenSearch or a Lambda in near real time", "service": "CloudWatch Logs subscription filter"},
+    {"keyword": "Push events from one CloudWatch log group elsewhere in near real time", "service": "CloudWatch Logs subscription filter (maximum 2 per log group)"},
     {"keyword": "Ad hoc query across log groups", "service": "CloudWatch Logs Insights"},
     {"keyword": "Query flow logs stored in S3", "service": "Amazon Athena"},
-    {"keyword": "Deliver streaming logs to S3 or OpenSearch without code", "service": "Amazon Data Firehose"},
+    {"keyword": "Buffer a high-volume stream and land it in S3, OpenSearch, or Splunk with no code", "service": "Amazon Data Firehose (formerly Kinesis Data Firehose)"},
     {"keyword": "One notification instead of twenty related alarms", "service": "CloudWatch composite alarm"},
     {"keyword": "Route an alarm or finding to an automated fix", "service": "EventBridge rule targeting SSM Automation or Lambda"},
     {"keyword": "Millions of scheduled invocations with time zones", "service": "EventBridge Scheduler"},

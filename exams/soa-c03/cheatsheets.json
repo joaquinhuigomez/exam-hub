@@ -6,27 +6,27 @@
   "tier_s_must_memorize_cold": [
     {
       "topic": "CloudWatch metrics, agent, and alarms",
-      "fact": "Default EC2 metrics are hypervisor-visible only: CPU, network, disk I/O of instance-store, status checks. Memory (MemoryUtilization), disk space used, swap, and page file need the CloudWatch agent installed plus an instance profile with CloudWatchAgentServerPolicy.\nBasic monitoring = 5-minute periods and is free; detailed monitoring = 1-minute periods and costs extra. Detailed monitoring is NOT 1 second - only custom high-resolution metrics (StorageResolution=1) give 1-second granularity, with high-resolution alarms at 10 s or 30 s.\nAlarm has three states: OK, ALARM, INSUFFICIENT_DATA. INSUFFICIENT_DATA is not a failure and does not trigger the ALARM action; if a stopped or terminated instance stops publishing, set Treat missing data as to breaching/notBreaching/ignore/missing deliberately.\nM out of N (datapoints to alarm) smooths flapping: alarm fires when M of the last N evaluation periods breach. Composite alarms (ALARM rule over child alarms with AND/OR/NOT) exist to suppress noise, and support an actions-suppressor alarm.\nAlarm actions: SNS notification, Auto Scaling policy, EC2 action (stop / terminate / reboot / recover), Systems Manager OpsItem or incident. EC2 recover only responds to SYSTEM status check failure (StatusCheckFailed_System) - an instance (OS) status failure needs reboot, not recover.\nEC2 status checks: system = AWS underlying host/network (fix = stop-start to move host, or recover); instance = OS/network config inside the guest (fix = reboot or repair OS); attached EBS status check = impaired volume.\nMetric math and anomaly detection alarms exist; a metric filter on a log group converts log text into a metric so you can alarm on log content (metric filters do not backfill historical logs)."
+      "fact": "Default EC2 metrics are hypervisor-visible only: CPU, network, disk I/O of instance-store, status checks. Memory (MemoryUtilization), disk space used, swap, and page file need the CloudWatch agent installed plus an instance profile with CloudWatchAgentServerPolicy.\nBasic monitoring = 5-minute periods and is free; detailed monitoring = 1-minute periods and costs extra. Detailed monitoring is NOT 1 second - only custom high-resolution metrics (StorageResolution=1) give 1-second granularity, with high-resolution alarms at 10 s or 30 s.\nAlarm has three states: OK, ALARM, INSUFFICIENT_DATA. INSUFFICIENT_DATA is not a failure and does not trigger the ALARM action; if a stopped or terminated instance stops publishing, set Treat missing data as to breaching/notBreaching/ignore/missing deliberately.\nM out of N (datapoints to alarm) smooths flapping: alarm fires when M of the last N evaluation periods breach. Composite alarms (ALARM rule over child alarms with AND/OR/NOT) exist to suppress noise, and support an actions-suppressor alarm. A composite alarm can only send an SNS notification, invoke a Lambda function, or raise a Systems Manager OpsItem/incident - it can NEVER perform an EC2 action or an Auto Scaling action, and like any alarm it is capped at 5 actions per alarm state.\nAlarm actions: SNS notification, Auto Scaling policy, EC2 action (stop / terminate / reboot / recover), Lambda invoke (a DIRECT alarm action since 2023 - no SNS or EventBridge hop required), Systems Manager OpsItem or incident. EC2 recover only responds to SYSTEM status check failure (StatusCheckFailed_System) - an instance (OS) status failure needs reboot, not recover.\nEC2 status checks: system = AWS underlying host/network (fix = stop-start to move host, or recover); instance = OS/network config inside the guest (fix = reboot or repair OS); attached EBS status check = impaired volume.\nMetric math and anomaly detection alarms exist; a metric filter on a log group converts log text into a metric so you can alarm on log content (metric filters do not backfill historical logs)."
     },
     {
       "topic": "Systems Manager suite and managed-node prerequisites",
-      "fact": "Managed node prerequisites are three and they are the single most tested SSM fact: (1) SSM Agent installed and running, (2) instance profile role with AmazonSSMManagedInstanceCore, (3) outbound HTTPS 443 network path to ssm, ssmmessages, and ec2messages endpoints - via IGW/NAT or via three interface VPC endpoints.\nSession Manager needs NO inbound security group rule, no open port 22, no bastion, no key pair. Session logs go to S3 and/or CloudWatch Logs; KMS can encrypt the session.\nRun Command = ad hoc command on many nodes at once, targeted by instance IDs, tags, or a resource group; supports rate control (concurrency and error threshold).\nAutomation = multi-step runbook against AWS APIs and instances (AWS-RestartEC2Instance, AWS-StartEC2Instance, AWS-PatchInstanceWithRollback); the standard remediation target for Config rules and EventBridge rules.\nState Manager = enforce desired configuration on a schedule (association), e.g. keep agent installed, apply a policy, run Ansible/DSC. Patch Manager = baselines + patch groups (tag key Patch Group) + scan or install, executed inside a Maintenance Window.\nParameter Store: Standard tier free, 4 KB value, 10,000 params; Advanced tier paid, 8 KB, policies (expiration, notification). SecureString uses KMS. Hierarchies with / allow GetParametersByPath and IAM path-based access.\nFleet Manager = GUI file/registry/user management; Inventory = software and config collection; OpsCenter = aggregated OpsItems; Quick Setup = baseline SSM config across accounts/Regions."
+      "fact": "Managed node prerequisites are three and they are the single most tested SSM fact: (1) SSM Agent installed and running, (2) an instance profile role with AmazonSSMManagedInstanceCore - or Default Host Management Configuration (DHMC) turned on for the Region, which lets the agent obtain its own credentials so no instance profile is needed, (3) outbound HTTPS 443 network path to ssm, ssmmessages, and ec2messages endpoints - via IGW/NAT or via three interface VPC endpoints.\nSession Manager needs NO inbound security group rule, no open port 22, no bastion, no key pair. Session logs go to S3 and/or CloudWatch Logs; KMS can encrypt the session.\nRun Command = ad hoc command on many nodes at once, targeted by instance IDs, tags, or a resource group; rate control defaults are MaxConcurrency 50 (a count or a percentage) and MaxErrors 0, so a single failed node stops the whole invocation until you raise MaxErrors.\nAutomation = multi-step runbook against AWS APIs and instances (AWS-RestartEC2Instance, AWS-StartEC2Instance, AWS-PatchInstanceWithRollback); the standard remediation target for Config rules and EventBridge rules.\nState Manager = enforce desired configuration on a schedule (association), e.g. keep agent installed, apply a policy, run Ansible/DSC. Patch Manager = baselines + patch groups (tag key Patch Group) + scan or install, executed inside a Maintenance Window.\nParameter Store: Standard tier free, 4 KB maximum value, 10,000 parameters per account per Region; Advanced tier paid, 8 KB value, 100,000 parameters, plus parameter policies (expiration, notification). SecureString uses KMS. Hierarchies with / allow GetParametersByPath and IAM path-based access.\nFleet Manager = GUI file/registry/user management; Inventory = software and config collection; OpsCenter = aggregated OpsItems; Quick Setup = baseline SSM config across accounts/Regions."
     },
     {
       "topic": "CloudFormation stuck states, policies, and order of operations",
-      "fact": "ROLLBACK_COMPLETE cannot be updated. The only action is DELETE the stack and recreate. ROLLBACK_FAILED and UPDATE_ROLLBACK_FAILED must be resolved with ContinueUpdateRollback, optionally with ResourcesToSkip.\nUPDATE_ROLLBACK_FAILED usually means the resource that failed to roll back was changed outside CloudFormation, or a dependency (e.g. an S3 bucket, a security group in use) blocks it. Fix the underlying resource manually, then ContinueUpdateRollback.\nDELETE_FAILED classic causes: non-empty S3 bucket, ENI still attached, security group still referenced, a nested stack in a bad state, or a resource with DeletionPolicy Retain. Empty the bucket, then retry delete with RetainResources for the stuck resource.\nAn Output Export cannot be deleted or changed while another stack imports it (Fn::ImportValue). Remove the importing stack or the import first - the error reads Export cannot be updated as it is in use by <stack>.\nDeletionPolicy (Retain / Snapshot / Delete) applies on stack delete; UpdateReplacePolicy applies when an update replaces the resource. Both are needed to protect data on both paths. Stack policy = JSON that denies Update:Replace/Delete on specific resources during updates (protects during update, NOT during stack delete). Termination protection blocks stack delete.\nCreationPolicy + cfn-signal = wait for the app inside the instance to report success before CloudFormation marks it CREATE_COMPLETE (timeout produces a failed create). UpdatePolicy on an Auto Scaling group = AutoScalingRollingUpdate / AutoScalingReplacingUpdate.\nChange set = preview and see Replacement: True before you break something; drift detection finds manual out-of-band changes but is detect-only and never fixes them. StackSets: self-managed needs AWSCloudFormationStackSetAdministrationRole in the admin account and AWSCloudFormationStackSetExecutionRole in each target; service-managed uses Organizations trusted access and supports automatic deployment to new accounts."
+      "fact": "ROLLBACK_COMPLETE cannot be updated. The only action is DELETE the stack and recreate. ROLLBACK_FAILED and UPDATE_ROLLBACK_FAILED must be resolved with ContinueUpdateRollback, optionally with ResourcesToSkip.\nUPDATE_ROLLBACK_FAILED usually means the resource that failed to roll back was changed outside CloudFormation, or a dependency (e.g. an S3 bucket, a security group in use) blocks it. Fix the underlying resource manually, then ContinueUpdateRollback.\nDELETE_FAILED classic causes: non-empty S3 bucket, ENI still attached, security group still referenced, a nested stack in a bad state, or a resource with DeletionPolicy Retain. Empty the bucket, then retry delete with RetainResources for the stuck resource.\nAn Output Export cannot be deleted or changed while another stack imports it (Fn::ImportValue). Remove the importing stack or the import first - the error reads Export cannot be updated as it is in use by <stack>.\nDeletionPolicy (Retain / Snapshot / Delete) applies on stack delete; Snapshot is only valid on resources that can be snapshotted - EBS volume, RDS DB instance, RDS/Aurora DB cluster, ElastiCache cache cluster and replication group, Redshift cluster, Neptune and DocumentDB clusters - everywhere else the only choices are Retain and Delete. UpdateReplacePolicy applies when an update replaces the resource. Both are needed to protect data on both paths. Stack policy = JSON that denies Update:Replace/Delete on specific resources during updates (protects during update, NOT during stack delete). Termination protection blocks stack delete.\nCreationPolicy + cfn-signal = wait for the app inside the instance to report success before CloudFormation marks it CREATE_COMPLETE; ResourceSignal Timeout defaults to PT5M (5 minutes), so a long bootstrap must raise it or the create fails. UpdatePolicy on an Auto Scaling group = AutoScalingRollingUpdate / AutoScalingReplacingUpdate.\nTemplate size limits: 51,200 bytes when the template is passed inline in the API request, 1 MB when it is stored in S3 and referenced by URL; 500 resources, 200 parameters, 200 outputs, and 200 mappings per stack - which is why big templates get split into nested stacks.\nChange set = preview and see Replacement: True before you break something; drift detection finds manual out-of-band changes but is detect-only and never fixes them. StackSets: self-managed needs AWSCloudFormationStackSetAdministrationRole in the admin account and AWSCloudFormationStackSetExecutionRole in each target; service-managed uses Organizations trusted access and supports automatic deployment to new accounts."
     },
     {
       "topic": "EC2 Auto Scaling mechanics and defaults",
-      "fact": "Default cooldown is 300 seconds and applies to simple scaling policies; target tracking and step scaling use instance warm-up instead, which is the better answer when scaling is too slow.\nHealth check type defaults to EC2 (instance status checks only). To have the ASG replace instances that the load balancer marks unhealthy, set health check type to ELB. Health check grace period default 300 s - too short and instances get killed mid-bootstrap, which is the classic instance-churn cause.\nDefault termination policy order: AZ with most instances (rebalance) -> then the instance with the oldest launch template or launch configuration -> then the instance closest to the next billing hour -> then random. Custom policies: OldestInstance, NewestInstance, OldestLaunchTemplate, AllocationStrategy, plus Lambda-based.\nLifecycle hooks pause instances in Pending:Wait or Terminating:Wait so you can bootstrap or drain; you must CompleteLifecycleAction or wait for the heartbeat timeout (default 3600 s, max 48 h) - a stuck hook looks like instances sitting in Pending:Wait.\nScaling policy types: target tracking (pick a metric and a target value - simplest, default answer), step (scale by amount depending on breach size), simple (single step with cooldown - legacy), scheduled (known time patterns), predictive (ML forecast, needs 24 h of history, best with daily/weekly cycles).\nSuspend the AZRebalance, Terminate, Launch, HealthCheck, ReplaceUnhealthy, ScheduledActions, AddToLoadBalancer processes to stop the ASG interfering during maintenance. Standby removes an instance from service without terminating it.\nInstance refresh = rolling replacement to a new launch template version, with MinHealthyPercentage and checkpoints - the exam answer for immutable/rolling deployment across an ASG. Warm pools cut long boot times. Launch configurations are legacy; launch templates support versions and newer features."
+      "fact": "Default cooldown is 300 seconds and applies to simple scaling policies; target tracking and step scaling use instance warm-up instead, which is the better answer when scaling is too slow.\nHealth check type defaults to EC2 (instance status checks only). To have the ASG replace instances that the load balancer marks unhealthy, set health check type to ELB. Health check grace period is 300 s when you create the group in the console but 0 by default through the API/CLI/CloudFormation - too short and instances get killed mid-bootstrap, which is the classic instance-churn cause.\nDefault termination policy order: AZ with most instances (rebalance) -> then the instance with the oldest launch template or launch configuration -> then the instance closest to the next billing hour -> then random. Custom policies: OldestInstance, NewestInstance, OldestLaunchTemplate, AllocationStrategy, plus Lambda-based.\nLifecycle hooks pause instances in Pending:Wait or Terminating:Wait so you can bootstrap or drain; you must CompleteLifecycleAction (or extend it with RecordLifecycleActionHeartbeat) or wait for the heartbeat timeout (default 3,600 s, maximum 172,800 s / 48 h) - a stuck hook looks like instances sitting in Pending:Wait.\nScaling policy types: target tracking (pick a metric and a target value - simplest, default answer), step (scale by amount depending on breach size), simple (single step with cooldown - legacy), scheduled (known time patterns), predictive (ML forecast, needs 24 h of history, best with daily/weekly cycles).\nSuspend the AZRebalance, Terminate, Launch, HealthCheck, ReplaceUnhealthy, ScheduledActions, AddToLoadBalancer processes to stop the ASG interfering during maintenance. Standby removes an instance from service without terminating it.\nInstance refresh = rolling replacement to a new launch template version, with MinHealthyPercentage (default 90%) and optional checkpoints - the exam answer for immutable/rolling deployment across an ASG. Warm pools cut long boot times. Launch configurations are retired for new use - you cannot create new ones, so any option that says 'create a launch configuration' is wrong; launch templates support versions and every newer feature."
     },
     {
       "topic": "ELB 5xx codes, target health, and Route 53 health checks",
-      "fact": "ALB 503 = no healthy or no registered targets in the target group (or no target group for the rule). ALB 502 = target returned a malformed response, closed the connection, or a Lambda target errored. ALB 504 = target did not respond within the idle timeout (default 60 s). ALB 460 = client closed the connection before the target responded. ALB 400 = malformed client request. HTTP 5xx with ELB 5XX_Count vs Target 5XX_Count tells you whether the LB or the app produced it.\nTarget health check: protocol, port (traffic-port by default), path, healthy threshold (default 5 for ALB), unhealthy threshold, interval (30 s default), timeout (5 s), success matcher (default 200 for ALB; NLB matcher 200-399). Health-check failure reasons appear verbatim in the console: Target.Timeout, Target.FailedHealthChecks, Target.ResponseCodeMismatch, Target.NotInUse, Elb.RegistrationInProgress.\nThe target security group must allow the health-check port FROM the load balancer security group (ALB) or from the VPC/NLB subnet CIDRs (NLB, which preserves client IP and has no SG on the NLB itself by default).\nDeregistration delay (connection draining) default 300 s - lower it to speed up deployments, raise it for long-lived requests. ALB idle timeout default 60 s; keep the target keep-alive timeout HIGHER than the ALB idle timeout to avoid 502s.\nCross-zone load balancing: ALB is ON by default and free; NLB and GWLB are OFF by default (and cross-zone data is charged). Uneven load across AZs on an NLB is the cross-zone-off symptom.\nRoute 53 health checks: types are endpoint, calculated (parent of child checks), and CloudWatch alarm. Failure threshold default 3, request interval 30 s standard or 10 s fast. Health checkers are PUBLIC internet - a private endpoint cannot be checked directly, so publish a metric and use a CloudWatch alarm health check.\nAlias records are free, can point at the zone apex, and support Evaluate Target Health; CNAMEs cannot exist at the zone apex. Failover routing needs a health check attached to the primary record."
+      "fact": "ALB 503 = no healthy or no registered targets in the target group (or no target group for the rule). ALB 502 = target returned a malformed response, closed the connection, or a Lambda target errored. ALB 504 = target did not respond within the idle timeout (default 60 s). ALB 460 = client closed the connection before the target responded. ALB 400 = malformed client request. HTTP 5xx with ELB 5XX_Count vs Target 5XX_Count tells you whether the LB or the app produced it.\nTarget health check: protocol, port (traffic-port by default), path, and the 30 / 5 / 5 / 2 defaults - interval 30 s, timeout 5 s, healthy threshold 5, unhealthy threshold 2 - plus the success matcher (default 200 for ALB; NLB matcher 200-399). Health-check failure reasons appear verbatim in the console: Target.Timeout, Target.FailedHealthChecks, Target.ResponseCodeMismatch, Target.NotInUse, Elb.RegistrationInProgress.\nThe target security group must allow the health-check port FROM the load balancer security group (ALB) or from the VPC/NLB subnet CIDRs (NLB, which preserves client IP and has no SG on the NLB itself by default).\nDeregistration delay (connection draining) default 300 s - lower it to speed up deployments, raise it for long-lived requests. ALB idle timeout default 60 s; keep the target keep-alive timeout HIGHER than the ALB idle timeout to avoid 502s.\nCross-zone load balancing: ALB is ON by default and free; NLB and GWLB are OFF by default (and cross-zone data is charged). Uneven load across AZs on an NLB is the cross-zone-off symptom.\nRoute 53 health checks: types are endpoint, calculated (parent of child checks), and CloudWatch alarm. Failure threshold default 3, request interval 30 s standard or 10 s fast. Health checkers are PUBLIC internet - a private endpoint cannot be checked directly, so publish a metric and use a CloudWatch alarm health check.\nAlias records are free, can point at the zone apex, and support Evaluate Target Health; CNAMEs cannot exist at the zone apex. Failover routing needs a health check attached to the primary record."
     },
     {
       "topic": "Backup, snapshots, and point-in-time recovery",
-      "fact": "RDS automated backup retention is 0 to 35 days (0 disables and also disables PITR); manual snapshots persist until you delete them, and survive DB instance deletion. PITR restores to a NEW DB instance with a NEW endpoint - you must repoint the application or move the CNAME. Same for snapshot restore.\nDynamoDB PITR gives 35 days of continuous backup and also restores to a NEW table; on-demand backups are retained until deleted and are full backups.\nEBS snapshots are incremental but each snapshot is independently restorable - deleting an old snapshot never breaks a newer one. A restored volume is lazy-loaded from S3; Fast Snapshot Restore (FSR) removes that first-touch latency and is enabled per snapshot per AZ (charged per AZ-hour). Data Lifecycle Manager (DLM) automates snapshot/AMI create, copy, retain, and cross-Region copy by tag.\nAn AMI is an EBS snapshot plus launch metadata. To share an encrypted snapshot or AMI you MUST use a customer managed KMS key and share the key too - snapshots encrypted with the default aws/ebs key cannot be shared.\nAWS Backup = central plans (rules: frequency, backup window, lifecycle to cold storage, retention), vaults, resource assignment by tag or resource ID, cross-Region and cross-account copy, Vault Lock in governance mode (removable within 3 days) or compliance mode (immutable, cannot be deleted or shortened), Backup Audit Manager for compliance reports, and restore testing.\nS3 durability tools: versioning (protects against overwrite/delete), MFA Delete (root-only to enable, blocks version delete), Object Lock in governance or compliance mode (requires versioning, must be enabled ideally at bucket creation), and CRR/SRR replication (needs versioning on both buckets plus an IAM role; replication is not retroactive - use Batch Replication for existing objects).\nDR patterns by RTO/RPO and cost: backup and restore (hours, cheapest) -> pilot light (tens of minutes, data replicated, compute off) -> warm standby (minutes, scaled-down live copy) -> multi-site active-active (near zero, most expensive)."
+      "fact": "RDS automated backup retention is 0 to 35 days (0 disables and also disables PITR); manual snapshots persist until you delete them, and survive DB instance deletion. PITR restores to a NEW DB instance with a NEW endpoint - you must repoint the application or move the CNAME. Same for snapshot restore.\nDynamoDB PITR gives 35 days of continuous backup and also restores to a NEW table; on-demand backups are retained until deleted and are full backups.\nEBS snapshots are incremental but each snapshot is independently restorable - deleting an old snapshot never breaks a newer one. A restored volume is lazy-loaded from S3; Fast Snapshot Restore (FSR) removes that first-touch latency and is enabled per snapshot per AZ (charged per AZ-hour). Data Lifecycle Manager (DLM) automates snapshot/AMI create, copy, retain, and cross-Region copy by tag.\nAn AMI is an EBS snapshot plus launch metadata. To share an encrypted snapshot or AMI you MUST use a customer managed KMS key and share the key too - snapshots encrypted with the default aws/ebs key cannot be shared.\nAWS Backup = central plans (rules: frequency, backup window, lifecycle to cold storage, retention), vaults, resource assignment by tag or resource ID, cross-Region and cross-account copy, Vault Lock in governance mode (a principal with backup:DeleteBackupVaultLockConfiguration can remove it at any time - it never becomes immutable) or compliance mode (deletable only during the cooling-off period you set at creation, minimum 3 days, and immutable to everyone including root after that), Backup Audit Manager for compliance reports, and restore testing.\nS3 durability tools: versioning (protects against overwrite/delete), MFA Delete (root-only to enable, blocks version delete), Object Lock in governance or compliance mode (requires versioning, must be enabled ideally at bucket creation), and CRR/SRR replication (needs versioning on both buckets plus an IAM role; replication is not retroactive - use Batch Replication for existing objects).\nDR patterns by RTO/RPO and cost: backup and restore (hours, cheapest) -> pilot light (tens of minutes, data replicated, compute off) -> warm standby (minutes, scaled-down live copy) -> multi-site active-active (near zero, most expensive)."
     },
     {
       "topic": "VPC troubleshooting checklist (run in this order)",
@@ -38,7 +38,7 @@
     },
     {
       "topic": "CloudFront caching and error troubleshooting",
-      "fact": "Low cache hit ratio is almost always the cache key. Forwarding all headers, all cookies, or all query strings in the cache policy fragments the cache - forward only what the origin actually varies on. Use an origin request policy to pass values to the origin WITHOUT adding them to the cache key.\nTTL controls: origin Cache-Control max-age wins between MinTTL and MaxTTL; DefaultTTL (24 h) applies when the origin sends no caching header. Cache-Control: no-store or private from the origin means nothing is cached.\nStale content: invalidation (/* or specific paths) purges now but is slow and only 1,000 paths per month are free. Versioned object names (app.v2.js) are the recommended, cheaper answer for controlled releases.\n403 from CloudFront with an S3 origin: bucket policy does not allow the Origin Access Control principal, the object does not exist and the bucket denies s3:ListBucket (S3 returns 403 instead of 404), or WAF/geo restriction blocked it. Use OAC (current) rather than legacy OAI, and remember OAC with SSE-KMS needs kms:Decrypt for the CloudFront service principal.\n502 from CloudFront = origin SSL/TLS negotiation failure or invalid certificate/cipher; 504 = origin timed out or a security group/firewall blocks the CloudFront edge; 503 = origin capacity.\nCertificates: a CloudFront alternate domain name requires an ACM certificate in us-east-1 (N. Virginia). ALB/other regional services need the certificate in their own Region.\nOther levers: origin failover with an origin group (fails over on defined 4xx/5xx), geo restriction, signed URLs (one object) vs signed cookies (many objects), field-level encryption, compression (must also allow the client to signal Accept-Encoding), Price Classes to limit edge locations, CloudFront Functions (viewer request/response, sub-ms, header/URL manipulation) vs Lambda@Edge (all four triggers, can call other services and access the body)."
+      "fact": "Low cache hit ratio is almost always the cache key. Forwarding all headers, all cookies, or all query strings in the cache policy fragments the cache - forward only what the origin actually varies on. Use an origin request policy to pass values to the origin WITHOUT adding them to the cache key.\nTTL controls: origin Cache-Control max-age wins between MinTTL and MaxTTL; DefaultTTL (24 hours) applies when the origin sends no caching header, MinTTL defaults to 0 and MaxTTL to 365 days. Cache-Control: no-store or private from the origin means nothing is cached.\nStale content: invalidation (/* or specific paths) purges now but is slow and only 1,000 paths per month are free. Versioned object names (app.v2.js) are the recommended, cheaper answer for controlled releases.\n403 from CloudFront with an S3 origin: bucket policy does not allow the Origin Access Control principal, the object does not exist and the bucket denies s3:ListBucket (S3 returns 403 instead of 404), or WAF/geo restriction blocked it. Use OAC (current) rather than legacy OAI, and remember OAC with SSE-KMS needs kms:Decrypt for the CloudFront service principal.\n502 from CloudFront = origin SSL/TLS negotiation failure or invalid certificate/cipher; 504 = origin timed out or a security group/firewall blocks the CloudFront edge; 503 = origin capacity.\nCertificates: a CloudFront alternate domain name requires an ACM certificate in us-east-1 (N. Virginia). ALB/other regional services need the certificate in their own Region.\nOther levers: origin failover with an origin group (fails over on defined 4xx/5xx), geo restriction, signed URLs (one object) vs signed cookies (many objects), field-level encryption, compression (must also allow the client to signal Accept-Encoding), Price Classes to limit edge locations, CloudFront Functions (viewer request/response, sub-ms, header/URL manipulation) vs Lambda@Edge (all four triggers, can call other services and access the body)."
     },
     {
       "topic": "IAM, SCPs, Config, and Trusted Advisor",
@@ -46,11 +46,11 @@
     },
     {
       "topic": "KMS, ACM, and Secrets operations",
-      "fact": "KMS key types: AWS owned (invisible, no control), AWS managed aws/<service> (rotated every year, key policy not editable, CANNOT be shared cross-account), and customer managed (CMK - editable key policy, optional automatic rotation, cross-account sharing, scheduled deletion 7 to 30 days waiting period, default 30).\nA KMS key policy must exist and must at minimum grant the account root so IAM policies can take effect - a key policy that does not delegate to IAM makes every IAM grant useless. Cross-account use needs BOTH the key policy in the owning account AND an IAM policy in the using account.\nYou cannot encrypt an existing unencrypted EBS volume in place. The path is: snapshot -> copy the snapshot with Encrypted=true and a KMS key -> create a volume from the encrypted copy -> attach. Same idea for AMIs. Encryption by default can be enabled per Region per account.\nRDS encryption can only be enabled at CREATE time; to encrypt an existing unencrypted DB, snapshot it, copy the snapshot with encryption, and restore. You cannot remove encryption from an encrypted DB.\nKMS ThrottlingException under load = raise a quota increase, add exponential backoff, or use S3 Bucket Keys / DEK caching to reduce KMS calls.\nACM: DNS validation auto-renews indefinitely as long as the CNAME record stays and the certificate is in use; EMAIL validation does NOT auto-renew silently - it needs manual action every 13 months. IMPORTED certificates never auto-renew - watch the ACM expiry EventBridge event / Config rule. Certificates are regional; CloudFront requires us-east-1. ACM public certs cannot be exported for use on EC2 (use ACM Private CA or import).\nSecrets Manager vs Parameter Store: Secrets Manager costs per secret, supports built-in automatic ROTATION (managed rotation for RDS/Redshift/DocumentDB), cross-account resource policies, and cross-Region replication. Parameter Store SecureString is free (standard tier), integrates with CloudFormation and SSM, but has no native rotation. Rotation requirement in the stem = Secrets Manager."
+      "fact": "KMS key types: AWS owned (invisible, no control), AWS managed aws/<service> (rotated every year, key policy not editable, CANNOT be shared cross-account), and customer managed (CMK - editable key policy, optional automatic rotation on a configurable period from 90 to 2,560 days plus on-demand rotation you can trigger yourself, cross-account sharing, scheduled deletion with a 7 to 30 day waiting period, default 30). KMS HSMs are validated to FIPS 140-3 Level 3, which is the answer to any 'validated hardware key store' stem that does not require CloudHSM.\nA KMS key policy must exist and must at minimum grant the account root so IAM policies can take effect - a key policy that does not delegate to IAM makes every IAM grant useless. Cross-account use needs BOTH the key policy in the owning account AND an IAM policy in the using account.\nYou cannot encrypt an existing unencrypted EBS volume in place. The path is: snapshot -> copy the snapshot with Encrypted=true and a KMS key -> create a volume from the encrypted copy -> attach. Same idea for AMIs. Encryption by default can be enabled per Region per account.\nRDS encryption can only be enabled at CREATE time; to encrypt an existing unencrypted DB, snapshot it, copy the snapshot with encryption, and restore. You cannot remove encryption from an encrypted DB.\nKMS ThrottlingException under load = raise a quota increase, add exponential backoff, or use S3 Bucket Keys / DEK caching to reduce KMS calls.\nACM: DNS validation auto-renews indefinitely as long as the CNAME record stays and the certificate is in use; EMAIL validation does NOT auto-renew silently - it needs manual action every 13 months. IMPORTED certificates never auto-renew - watch the ACM expiry EventBridge event / Config rule. A public ACM certificate is valid 13 months and ACM begins attempting renewal 60 days before expiry. Certificates are regional; CloudFront requires us-east-1. Since June 2025 ACM can issue EXPORTABLE public certificates (certificate, chain, and private key, priced per FQDN, 395-day validity, and the exportable flag must be set at request time) for EC2, on-premises, or other clouds - ordinary free ACM certificates still cannot be exported and only attach to integrated AWS services.\nSecrets Manager vs Parameter Store: Secrets Manager costs roughly $0.40 per secret per month plus API calls and holds up to 64 KB per secret, supports built-in automatic ROTATION (managed rotation for RDS, Aurora, Redshift, and DocumentDB needs NO Lambda function of your own - only non-managed targets need a rotation Lambda), cross-account resource policies, and cross-Region replication. Parameter Store SecureString is free (standard tier), integrates with CloudFormation and SSM, but has no native rotation. Rotation requirement in the stem = Secrets Manager."
     },
     {
       "topic": "RDS operations",
-      "fact": "Multi-AZ standby is NOT readable and serves no traffic - it exists only for failover (60 to 120 s typical) and the writer ENDPOINT stays the same, so an app that fails after failover has a stale DNS cache / JVM TTL problem, not an RDS problem. Read replicas serve reads, are asynchronous, have their own endpoint, and can be cross-Region; promoting a replica breaks replication and creates a standalone instance. Multi-AZ DB cluster (two readable standbys) is the hybrid.\nPerformance Insights = database-internal load: DB load in Average Active Sessions, top SQL, top waits, top hosts/users. Enhanced Monitoring = OS-level metrics from an agent on the host at 1 to 60 second granularity (process list, per-process CPU/memory) delivered to CloudWatch Logs. Question mentions OS process or per-process memory -> Enhanced Monitoring. Question mentions slow query / wait events / top SQL -> Performance Insights.\nCloudWatch RDS metrics to know: CPUUtilization, FreeableMemory, FreeStorageSpace, DatabaseConnections, ReadIOPS/WriteIOPS, ReadLatency/WriteLatency, ReplicaLag, BurstBalance (gp2), DiskQueueDepth, SwapUsage.\nParameter groups: dynamic parameters apply immediately; STATIC parameters require a manual reboot of the instance to take effect (pending-reboot status). You cannot edit the default parameter group - create a custom one, associate it, then reboot. Option groups are for engine features (Oracle TDE, SQL Server native backup).\nStorage: storage autoscaling raises allocated storage automatically up to a max threshold; storage-full is a hard stop that puts the instance in storage-full state. You cannot shrink RDS storage. There is a 6-hour cooldown between storage modifications.\nRDS Proxy pools and multiplexes connections - the answer when Lambda or a bursty app exhausts DatabaseConnections, and it also shortens failover time and holds credentials in Secrets Manager.\nBackups: automated backups 0-35 days with a backup window; PITR to any second in the window, restoring to a NEW instance with a NEW endpoint. Events (failover, low storage, backup) publish to SNS via RDS event subscriptions. Maintenance window applies engine patches; Multi-AZ patches the standby first, then fails over, reducing downtime. Aurora: up to 15 read replicas sharing one storage volume, failover priority tiers 0-15 (lowest tier promoted first), reader/writer/custom endpoints, Backtrack (MySQL) rewinds without restore, Aurora Serverless v2 scales in 0.5 ACU increments."
+      "fact": "Multi-AZ standby is NOT readable and serves no traffic - it exists only for failover (60 to 120 s typical) and the writer ENDPOINT stays the same, so an app that fails after failover has a stale DNS cache / JVM TTL problem, not an RDS problem. Read replicas serve reads, are asynchronous, have their own endpoint, and can be cross-Region; promoting a replica breaks replication and creates a standalone instance; the limit is 15 read replicas for MySQL, MariaDB, and PostgreSQL but only 5 for SQL Server and Oracle. Multi-AZ DB cluster is the hybrid: two standbys that ARE readable and a failover of typically under 35 seconds, versus 60-120 s and no readable standby for a Multi-AZ DB instance.\nPerformance Insights = database-internal load: DB load in Average Active Sessions, top SQL, top waits, top hosts/users. Enhanced Monitoring = OS-level metrics from an agent on the host at 1 to 60 second granularity (process list, per-process CPU/memory) delivered to CloudWatch Logs. Question mentions OS process or per-process memory -> Enhanced Monitoring. Question mentions slow query / wait events / top SQL -> Performance Insights.\nCloudWatch RDS metrics to know: CPUUtilization, FreeableMemory, FreeStorageSpace, DatabaseConnections, ReadIOPS/WriteIOPS, ReadLatency/WriteLatency, ReplicaLag, BurstBalance (gp2), DiskQueueDepth, SwapUsage.\nParameter groups: dynamic parameters apply immediately; STATIC parameters require a manual reboot of the instance to take effect (pending-reboot status). You cannot edit the default parameter group - create a custom one, associate it, then reboot. Option groups are for engine features (Oracle TDE, SQL Server native backup).\nStorage: storage autoscaling raises allocated storage automatically up to the maximum threshold you set, and it triggers only when free space drops below 10% of allocated storage, stays there for at least 5 minutes, and at least 6 hours have passed since the last storage modification; storage-full is a hard stop that puts the instance in storage-full state. You cannot shrink RDS storage. There is a 6-hour cooldown between storage modifications.\nRDS Proxy pools and multiplexes connections - the answer when Lambda or a bursty app exhausts DatabaseConnections, and it also shortens failover time and holds credentials in Secrets Manager.\nBackups: automated backups 0-35 days with a backup window; PITR to any second in the window, restoring to a NEW instance with a NEW endpoint. Events (failover, low storage, backup) publish to SNS via RDS event subscriptions. Maintenance window applies engine patches; Multi-AZ patches the standby first, then fails over, reducing downtime. Aurora: up to 15 read replicas sharing one storage volume, failover priority tiers 0-15 (lowest tier promoted first), reader/writer/custom endpoints, Backtrack (MySQL) rewinds without restore, Aurora Serverless v2 scales in 0.5 ACU increments."
     }
   ],
   "domains": {
@@ -61,7 +61,7 @@
       },
       {
         "topic": "Metric resolution and retention",
-        "fact": "Metrics retention: 1-second data 3 hours, 1-minute 15 days, 5-minute 63 days, 1-hour 15 months. Data is aggregated as it ages, never deleted outright. Sub-1-minute data disappears fast - alarm on it quickly or export."
+        "fact": "Metrics retention: 1-second (high-resolution) data 3 hours, 1-minute data 15 days, 5-minute data 63 days, 1-hour data 455 days (15 months). Data is aggregated as it ages, never deleted outright. Sub-1-minute data disappears fast - alarm on it quickly or export."
       },
       {
         "topic": "Statistics and periods",
@@ -77,7 +77,7 @@
       },
       {
         "topic": "Metric filters vs subscription filters",
-        "fact": "Metric filter turns log patterns into a CloudWatch metric you can alarm on (no historical backfill). Subscription filter streams log events in near real time to Lambda, Data Firehose, or OpenSearch. Filter pattern syntax differs for JSON ({$.errorCode = \"AccessDenied\"}) vs plain text."
+        "fact": "Metric filter turns log patterns into a CloudWatch metric you can alarm on (no historical backfill). Subscription filter streams log events in near real time to Lambda, Data Firehose, Kinesis Data Streams, or OpenSearch - and you can attach only 2 subscription filters to a single log group, so a third consumer means fanning out through Firehose or Lambda. Filter pattern syntax differs for JSON ({$.errorCode = \"AccessDenied\"}) vs plain text."
       },
       {
         "topic": "Logs Insights",
@@ -101,11 +101,11 @@
       },
       {
         "topic": "CloudTrail integrity and org trails",
-        "fact": "Log file validation produces digest files so you can prove logs were not altered. An organization trail captures all member accounts into one bucket and members cannot disable it. CloudTrail Lake gives SQL queries over event data stores with 7-year retention."
+        "fact": "Log file validation produces digest files so you can prove logs were not altered. An organization trail captures all member accounts into one bucket and members cannot disable it. CloudTrail Event history is the free, always-on 90-day console record of management events in each Region - anything older, or any data event, needs a trail or a CloudTrail Lake event data store. CloudTrail Lake gives SQL queries over event data stores with retention configurable up to 10 years."
       },
       {
         "topic": "EventBridge rule troubleshooting",
-        "fact": "Rule does not fire -> event pattern mismatch (patterns are exact JSON match, case-sensitive; use the Sandbox to test) or the event is on a different bus. Rule fires but nothing happens -> target permissions (resource policy for Lambda/SNS/SQS, IAM role for API targets). Add a DLQ to the target and enable retry policy to catch failures. Archive plus replay to reprocess."
+        "fact": "Rule does not fire -> event pattern mismatch (patterns are exact JSON match, case-sensitive; use the Sandbox to test) or the event is on a different bus. Rule fires but nothing happens -> target permissions (resource policy for Lambda/SNS/SQS, IAM role for API targets). The default target retry policy is 24 hours and 185 attempts; add an SQS dead-letter queue on the target so the events that still fail are visible instead of silently dropped. A rule can have at most 5 targets - more than that means fanning out through SNS or a second rule. Archive plus replay to reprocess."
       },
       {
         "topic": "EventBridge Scheduler",
@@ -133,7 +133,7 @@
       },
       {
         "topic": "EFS and FSx",
-        "fact": "EFS: Elastic throughput is the default modern choice; Bursting uses BurstCreditBalance (draining to zero = throughput throttling). Lifecycle management moves files to IA/Archive after a set idle period. FSx for Windows = SMB/AD; FSx for Lustre = HPC and S3-linked; FSx for NetApp ONTAP = multiprotocol; FSx for OpenZFS = NFS."
+        "fact": "EFS: Elastic throughput is the default modern choice; Bursting uses BurstCreditBalance (draining to zero = throughput throttling). Lifecycle management moves files to IA/Archive after a set idle period. FSx for Windows = SMB/AD; FSx for Lustre = HPC and S3-linked; FSx for NetApp ONTAP = multiprotocol. FSx for OpenZFS is explicitly out of scope for SOA-C03 - if it appears as an option it is a distractor."
       }
     ],
     "D2": [
@@ -159,7 +159,7 @@
       },
       {
         "topic": "DynamoDB scaling",
-        "fact": "On-demand for unpredictable traffic (no capacity planning); provisioned plus auto scaling with a target utilization (default 70%) for predictable. Hot partition / throttling = poor partition key design; ProvisionedThroughputExceededException plus ThrottledRequests metric. DAX gives microsecond reads for read-heavy eventually consistent workloads."
+        "fact": "On-demand for unpredictable traffic (no capacity planning; it instantly absorbs up to double the previous peak, and a bigger jump than that needs pre-warming or provisioned capacity); provisioned plus auto scaling with a target utilization (default 70%) for predictable. Hot partition / throttling = poor partition key design; ProvisionedThroughputExceededException plus ThrottledRequests metric. DAX gives microsecond reads for read-heavy eventually consistent workloads."
       },
       {
         "topic": "Caching layers",
@@ -179,7 +179,7 @@
       },
       {
         "topic": "Multi-AZ RDS behaviour",
-        "fact": "Failover is triggered by AZ failure, instance failure, storage failure, instance-type change, or OS patching, and by a manual reboot-with-failover. The endpoint is unchanged - the CNAME repoints. Applications that cache DNS forever (Java networkaddress.cache.ttl) must set a short TTL."
+        "fact": "Failover is triggered by AZ failure, instance failure, storage failure, instance-type change, or OS patching, and by a manual reboot-with-failover. A Multi-AZ DB INSTANCE takes 60-120 s and its standby is not readable; a Multi-AZ DB CLUSTER fails over in under 35 s and its two standbys are readable. The endpoint is unchanged - the CNAME repoints. Applications that cache DNS forever (Java networkaddress.cache.ttl) must set a short TTL."
       },
       {
         "topic": "Route 53 routing policies",
@@ -199,7 +199,7 @@
       },
       {
         "topic": "Vault Lock modes",
-        "fact": "Governance mode: users with backup:DisableVaultLock permission can remove it (there is a 3-day grace period before it becomes immutable). Compliance mode: after the grace period nobody, including root, can delete the lock, shorten retention, or delete recovery points. Regulatory WORM requirement -> compliance mode."
+        "fact": "Governance mode: a principal with backup:DeleteBackupVaultLockConfiguration can remove the lock at any time - there is no cooling-off period and it never becomes immutable, so it is a guardrail against mistakes, not a regulator. Compliance mode: you set a cooling-off period of at least 3 days (ChangeableForDays) when you create the lock; during it the lock can still be deleted, and once it expires nobody, including the root user or AWS, can delete the lock, shorten retention, or delete recovery points. Regulatory WORM requirement -> compliance mode."
       },
       {
         "topic": "Snapshot and AMI copying",
@@ -331,7 +331,7 @@
       },
       {
         "topic": "SCP semantics",
-        "fact": "SCPs apply to member accounts (never the management account) and filter permissions for IAM users/roles in those accounts - they do NOT grant anything and do not apply to service-linked roles. Common patterns: deny outside approved Regions with aws:RequestedRegion, deny leaving the organization, deny disabling CloudTrail/GuardDuty/Config, require tags on create."
+        "fact": "SCPs apply to member accounts (never the management account) and filter permissions for IAM users/roles in those accounts - they do NOT grant anything and do not apply to service-linked roles. A policy document is capped at 5,120 characters, which is why real-world SCPs are split across several attached policies. Common patterns: deny outside approved Regions with aws:RequestedRegion, deny leaving the organization, deny disabling CloudTrail/GuardDuty/Config, require tags on create."
       },
       {
         "topic": "RCPs and Control Tower",
@@ -393,7 +393,7 @@
       },
       {
         "topic": "NAT gateway facts",
-        "fact": "NAT GW is AZ-scoped, needs an EIP, must sit in a PUBLIC subnet with a route to the IGW, and is not a security boundary. It supports 55,000 concurrent connections per unique destination and scales to 100 Gbps. ErrorPortAllocation / IdleTimeoutCount metrics indicate port exhaustion. For HA put one NAT GW per AZ and route each private subnet to its own AZ's NAT. Private NAT gateway handles VPC-to-VPC overlapping-free private routing without internet."
+        "fact": "NAT GW is AZ-scoped, needs an EIP, must sit in a PUBLIC subnet with a route to the IGW, and is not a security boundary. It supports 55,000 concurrent connections per unique destination (same IP, port, and protocol) and scales to 100 Gbps, and it drops idle flows after 350 seconds - so long-lived idle connections need application keep-alives below that. ErrorPortAllocation / IdleTimeoutCount metrics indicate port exhaustion. For HA put one NAT GW per AZ and route each private subnet to its own AZ's NAT. Private NAT gateway handles VPC-to-VPC overlapping-free private routing without internet."
       },
       {
         "topic": "NAT instance legacy points",
@@ -409,7 +409,7 @@
       },
       {
         "topic": "Gateway vs interface endpoints",
-        "fact": "Gateway endpoint: S3 and DynamoDB only, free, route-table based, cannot be reached from on-premises or across peering. Interface endpoint (PrivateLink): ENI with a private IP and security group, hourly plus per-GB charge, works over VPN/Direct Connect/peering, needs private DNS enabled (or use the endpoint-specific DNS name)."
+        "fact": "Gateway endpoint: S3 and DynamoDB only, free, route-table based, cannot be reached from on-premises or across peering. Interface endpoint (PrivateLink): ENI with a private IP and security group, hourly plus per-GB charge, reachable from on-premises over Site-to-Site VPN and from other VPCs over peering or Transit Gateway, needs private DNS enabled (or use the endpoint-specific DNS name)."
       },
       {
         "topic": "Endpoint policy",
@@ -425,7 +425,7 @@
       },
       {
         "topic": "Transit Gateway",
-        "fact": "Hub-and-spoke with attachments (VPC, VPN, Direct Connect gateway, peering) and TGW route tables using association (which route table an attachment uses) and propagation (which routes get advertised). Isolation between spokes is achieved with separate route tables. Appliance mode keeps flow symmetry for inspection VPCs. Also check the SUBNET route table pointing to the TGW - the most missed step."
+        "fact": "Hub-and-spoke with attachments (VPC, Site-to-Site VPN, TGW peering - and a Direct Connect gateway, which is background context only since Direct Connect is not on the SOA-C03 in-scope list) and TGW route tables using association (which route table an attachment uses) and propagation (which routes get advertised). Isolation between spokes is achieved with separate route tables. Appliance mode keeps flow symmetry for inspection VPCs. Also check the SUBNET route table pointing to the TGW - the most missed step."
       },
       {
         "topic": "Site-to-Site VPN",
@@ -453,7 +453,7 @@
       },
       {
         "topic": "Reachability Analyzer vs Network Access Analyzer",
-        "fact": "Reachability Analyzer tests a specific source-to-destination path and names the blocking component - the fastest answer to 'why can't A reach B' without sending traffic. Network Access Analyzer evaluates whether unintended network access paths exist against a scope (compliance-style)."
+        "fact": "Reachability Analyzer tests a specific source-to-destination path and names the blocking component (the exact security group, NACL, or missing route) - the fastest answer to 'why can't A reach B' without sending traffic, and the one named on the SOA-C03 in-scope service list. Network Access Analyzer evaluates whether unintended network access paths exist against a scope (compliance-style); treat it as the compliance-sweep tool, not the troubleshooting answer."
       },
       {
         "topic": "CloudWatch network monitoring",
@@ -518,7 +518,7 @@
         [
           "Targets flapping healthy/unhealthy",
           "Health check interval/threshold too aggressive or the health path does real work",
-          "Health check interval 30 s, healthy threshold 5, timeout 5 s, matcher 200",
+          "The 30 / 5 / 5 / 2 defaults - interval 30 s, timeout 5 s, healthy threshold 5, unhealthy threshold 2 - and matcher 200",
           "Use a lightweight /health path, widen the threshold, and lengthen the timeout"
         ],
         [
@@ -629,58 +629,69 @@
       "columns": [
         "State",
         "Meaning",
+        "What to check",
         "Action"
       ],
       "rows": [
         [
           "CREATE_FAILED",
           "A resource failed during initial create and rollback is starting or disabled",
-          "Read the FIRST failure event; fix the template/permission/quota; with OnFailure=DO_NOTHING resources are kept for debugging"
+          "Events tab sorted oldest-first: the FIRST CREATE_FAILED status reason (quota, AMI not in Region, IAM propagation, name already taken)",
+          "Fix the template, permission, or quota named in that first reason; set OnFailure=DO_NOTHING on the retry to keep resources for debugging"
         ],
         [
           "ROLLBACK_COMPLETE",
-          "Initial create failed and everything was rolled back - the stack is a shell",
-          "You CANNOT update it. Delete the stack and create it again"
+          "Initial create failed and everything was rolled back - the stack is a shell with no usable resources",
+          "Nothing to check on the stack itself; read the earlier CREATE_FAILED reason to learn why the create failed",
+          "You CANNOT update it and ContinueUpdateRollback does not apply. Delete the stack and create it again"
         ],
         [
           "ROLLBACK_FAILED",
           "Rollback of a failed create could not complete",
-          "Delete the stack (retain the stuck resources if needed), or fix the blocking resource then delete"
+          "The resource named in the last failure event and whatever still references it (ENI attachment, non-empty bucket, SG in use)",
+          "Clear the blocking dependency then delete the stack, using RetainResources for anything that will not delete"
         ],
         [
           "UPDATE_ROLLBACK_FAILED",
           "Rollback of a failed update could not complete, usually because a resource was changed outside CloudFormation",
-          "Fix the resource manually, then ContinueUpdateRollback - optionally with ResourcesToSkip for resources you will reconcile by hand"
+          "The failing resource's live configuration versus the template, and CloudTrail for the out-of-band change that broke it",
+          "Fix the resource manually, then call ContinueUpdateRollback - optionally with ResourcesToSkip for resources you will reconcile by hand"
         ],
         [
           "UPDATE_ROLLBACK_COMPLETE_CLEANUP_IN_PROGRESS",
           "Rollback succeeded, old resources are being removed",
+          "Nothing - the stack is already usable and the cleanup is cosmetic",
           "Wait - no action needed"
         ],
         [
           "DELETE_FAILED",
           "A resource could not be deleted (non-empty S3 bucket, ENI in use, SG referenced, retained resource)",
+          "The deletion failure reason on that resource, plus who still holds it (other stacks, Lambda ENIs, other security groups)",
           "Empty/detach the blocking resource, then delete again with RetainResources for anything you must keep"
         ],
         [
           "CREATE_IN_PROGRESS for hours on a custom resource or WaitCondition",
-          "cfn-signal or the custom-resource Lambda never sent a response",
-          "Send the signal manually, fix the Lambda response to the pre-signed URL, or wait for the timeout then fix the bootstrap"
+          "cfn-signal or the custom-resource Lambda never sent a response to the pre-signed URL",
+          "The Lambda's CloudWatch log group for an unhandled exception, and cfn-init/cloud-init logs on the instance for a bootstrap failure",
+          "Fix the function to always respond SUCCESS/FAILED, or send the signal manually; a CreationPolicy timeout defaults to PT5M"
         ],
         [
           "UPDATE_IN_PROGRESS stuck on an ASG",
-          "UpdatePolicy rolling update is waiting for signals or health",
-          "Check the ASG activity history and instance health; correct MinSuccessfulInstancesPercent / PauseTime"
+          "UpdatePolicy rolling update is waiting for success signals or for instances to become healthy",
+          "ASG activity history, target-group health, and whether the new instances are running cfn-signal at all",
+          "Fix the bootstrap that never signals; correct MinSuccessfulInstancesPercent, PauseTime, or MaxBatchSize"
         ],
         [
           "IMPORT_ROLLBACK_FAILED",
           "Resource import failed and could not roll back",
-          "Fix the resource identifier or template mismatch and retry the import"
+          "The physical resource identifier supplied against the resource's real properties - imports require an exact match",
+          "Fix the identifier or template mismatch and retry the import"
         ],
         [
           "REVIEW_IN_PROGRESS",
-          "A change set was created but never executed",
-          "Execute or delete the change set"
+          "A change set was created but never executed - the stack does not exist yet",
+          "The change set list for the stack and what each one would replace",
+          "Execute the change set to create the stack, or delete the change set"
         ]
       ],
       "rule_of_thumb": "ROLLBACK_COMPLETE means delete and recreate - there is no other answer. UPDATE_ROLLBACK_FAILED means ContinueUpdateRollback."
@@ -705,7 +716,7 @@
         [
           "Instances launch then terminate in a loop",
           "Health check grace period shorter than boot/bootstrap time",
-          "Grace period (default 300 s); ASG activity history reason 'failed ELB health checks'",
+          "Grace period (300 s from the console, 0 when the group was created by API/CLI/CloudFormation); ASG activity history reason 'failed ELB health checks'",
           "Increase the health check grace period, or speed up bootstrap with a baked AMI / warm pool"
         ],
         [
@@ -760,7 +771,7 @@
           "Deployment via new AMI is manual and slow",
           "No instance refresh configured",
           "Launch template versions",
-          "Start an instance refresh with MinHealthyPercentage and checkpoints (immutable/rolling deployment)"
+          "Start an instance refresh with MinHealthyPercentage (default 90%) and checkpoints (immutable/rolling deployment)"
         ]
       ],
       "rule_of_thumb": "Churn = grace period or health check type. No scaling = max size or a suspended process. Stuck = a lifecycle hook."
@@ -1021,8 +1032,8 @@
         [
           "Instance in storage-full state",
           "Allocated storage exhausted by data, logs, or temp files",
-          "FreeStorageSpace metric; binlog/tempdb growth",
-          "Enable storage autoscaling with a max threshold, increase allocated storage, shorten log retention (storage cannot be shrunk afterwards)"
+          "FreeStorageSpace metric; binlog/tempdb growth; whether storage autoscaling is on and what its maximum threshold is",
+          "Enable storage autoscaling (it fires only below 10% free, sustained 5 minutes, and 6 hours after the last storage change), increase allocated storage, shorten log retention (storage cannot be shrunk afterwards)"
         ],
         [
           "Read replica lag climbing",
@@ -1189,7 +1200,7 @@
           "Run Command",
           "Execute a command or script once across many nodes, targeted by tag or resource group",
           "run a script on all instances, ad hoc, one-off",
-          "Managed nodes only; supports concurrency and error thresholds"
+          "Managed nodes only; rate control defaults are MaxConcurrency 50 and MaxErrors 0 (one failure halts the run)"
         ],
         [
           "Automation",
@@ -1225,7 +1236,7 @@
           "Parameter Store",
           "Hierarchical configuration and secret storage",
           "config value, connection string, license key, SecureString",
-          "Standard tier free (4 KB); Advanced tier paid (8 KB, policies); no automatic rotation"
+          "Standard tier free (4 KB value, 10,000 parameters); Advanced tier paid (8 KB value, 100,000 parameters, policies); no automatic rotation"
         ],
         [
           "Session Manager",
@@ -1409,7 +1420,7 @@
           "Health check grace period",
           "Time before health checks can mark a new instance unhealthy",
           "Long bootstrap",
-          "Default 300 s"
+          "300 s in the console, 0 by default through the API/CLI/CloudFormation"
         ],
         [
           "Termination policy - default order",
@@ -1427,7 +1438,7 @@
           "Lifecycle hook",
           "Pauses launch or termination for custom work",
           "Register with a config system, drain connections, copy logs off",
-          "Heartbeat default 3600 s, max 48 h; must CompleteLifecycleAction"
+          "Heartbeat default 3,600 s, max 172,800 s (48 h); must call CompleteLifecycleAction"
         ]
       ],
       "rule_of_thumb": "Unless the question describes steps or a schedule, target tracking is the answer. Scale-in kills the oldest launch template in the biggest AZ."
@@ -1459,8 +1470,8 @@
         [
           "AWS Backup Vault Lock",
           "Any vault",
-          "Governance mode (removable with permission, 3-day grace) or Compliance mode (immutable after the grace period)",
-          "Prevents early deletion and retention shortening - the WORM answer"
+          "Governance mode (removable at any time by a principal with the delete-lock permission, no cooling-off) or Compliance mode (cooling-off of at least 3 days set at creation, immutable to everyone including root afterwards)",
+          "Only compliance mode prevents early deletion and retention shortening - it is the WORM answer; governance mode is only a guardrail"
         ],
         [
           "Amazon Data Lifecycle Manager (DLM)",
@@ -1601,7 +1612,7 @@
           "Calculated health check",
           "Parent check over child checks with a threshold",
           "Consider the service healthy if X of Y components are up",
-          "Up to 256 child checks"
+          "Up to 255 child health checks; the children can themselves be CloudWatch alarm checks for private endpoints"
         ],
         [
           "CloudWatch alarm health check",
@@ -1715,10 +1726,10 @@
           "Use as an assisting option, not the discriminating fact"
         ],
         [
-          "Detective-style investigation",
-          "Correlated activity around a finding",
-          "Not on the SOA-C03 service list - do not pick services outside the in-scope list",
-          "Stay with GuardDuty plus CloudTrail plus Security Hub"
+          "Amazon Detective (context only)",
+          "Correlated account, network, and finding activity for deep investigation",
+          "Graph-based investigation views - useful in real life but NOT on the SOA-C03 in-scope service list",
+          "Do not pick it: investigate with GuardDuty findings plus CloudTrail plus Security Hub instead"
         ]
       ],
       "rule_of_thumb": "Threats = GuardDuty. Vulnerabilities = Inspector. Sensitive data = Macie. Configuration compliance = Config. One pane of glass = Security Hub. Who did it = CloudTrail."
@@ -1755,8 +1766,8 @@
         ],
         [
           "Customer managed key (CMK)",
-          "Editable key policy, optional automatic rotation (yearly by default, configurable), grants, aliases",
-          "Enables cross-account use, imported key material, and multi-Region keys",
+          "Editable key policy; optional automatic rotation on a configurable 90 to 2,560 day period (365 days if you do not set one) plus on-demand rotation; grants and aliases",
+          "Enables cross-account use, imported key material, and multi-Region keys; KMS HSMs are FIPS 140-3 Level 3 validated",
           "Cross-account, rotation control, or shareable encryption"
         ],
         [
@@ -1785,9 +1796,15 @@
         ],
         [
           "ACM DNS validation",
-          "Auto-renews indefinitely while the CNAME remains and the certificate is in use",
+          "Auto-renews indefinitely while the CNAME remains and the certificate is in use; renewal attempts start 60 days before the 13-month expiry",
           "The maintenance-free option",
           "Any 'reduce operational overhead for certificate renewal' stem"
+        ],
+        [
+          "ACM exportable public certificate",
+          "Since June 2025 you can request a public certificate as exportable and download the body, chain, and private key (paid per FQDN, 395-day validity)",
+          "The only way to put an ACM public certificate on EC2, on-premises, or another cloud; the exportable flag cannot be added after issue and exported copies are renewed by you",
+          "Terminate TLS on an instance or an on-premises server with an AWS-issued certificate"
         ],
         [
           "ACM email validation",
@@ -1809,7 +1826,7 @@
         ],
         [
           "Secrets Manager",
-          "Per-secret cost, native automatic rotation (managed for RDS/Redshift/DocumentDB), resource policies, cross-Region replication",
+          "About $0.40 per secret per month plus API calls, 64 KB maximum value, native automatic rotation (managed rotation for RDS/Aurora/Redshift/DocumentDB needs no Lambda of your own), resource policies, cross-Region replication",
           "The answer whenever rotation is required",
           "Rotate the database password every 30 days automatically"
         ],
@@ -1952,7 +1969,7 @@
     },
     {
       "number": "300 s",
-      "meaning": "Default Auto Scaling health check grace period"
+      "meaning": "Auto Scaling health check grace period as set by the console (the API/CLI/CloudFormation default is 0)"
     },
     {
       "number": "300 s",
@@ -1964,7 +1981,7 @@
     },
     {
       "number": "350 s",
-      "meaning": "NLB idle timeout for TCP flows (fixed, not configurable) - keep app keep-alives below it"
+      "meaning": "NAT gateway idle timeout and the NLB TCP idle timeout - keep application keep-alives below it or long-idle flows are silently dropped"
     },
     {
       "number": "30 s / 5 s",
@@ -1991,8 +2008,8 @@
       "meaning": "High-resolution custom metric granularity (StorageResolution=1); high-res alarms at 10 s or 30 s"
     },
     {
-      "number": "3 h / 15 d / 63 d / 15 months",
-      "meaning": "CloudWatch metric retention for 1-second / 1-minute / 5-minute / 1-hour data"
+      "number": "3 h / 15 d / 63 d / 455 d",
+      "meaning": "CloudWatch metric retention for 1-second / 1-minute / 5-minute / 1-hour data (455 days = 15 months)"
     },
     {
       "number": "1 day to 10 years",
@@ -2019,8 +2036,8 @@
       "meaning": "DynamoDB point-in-time recovery window"
     },
     {
-      "number": "60-120 s",
-      "meaning": "Typical RDS Multi-AZ failover time (endpoint unchanged)"
+      "number": "60-120 s vs under 35 s",
+      "meaning": "Multi-AZ DB instance failover (standby not readable) vs Multi-AZ DB cluster failover (two readable standbys); the endpoint is unchanged either way"
     },
     {
       "number": "15",
@@ -2052,7 +2069,7 @@
     },
     {
       "number": "3 IOPS per GiB",
-      "meaning": "gp2 baseline, bursting to 3,000 IOPS while BurstBalance lasts"
+      "meaning": "gp2 baseline (minimum 100); volumes under 1 TiB burst to 3,000 IOPS only while BurstBalance lasts, at and above 1 TiB the baseline already exceeds 3,000 and there is no burst dependency"
     },
     {
       "number": "5",
@@ -2071,8 +2088,8 @@
       "meaning": "Security groups per network interface (default; up to 16 with a quota increase), 60 inbound + 60 outbound rules each"
     },
     {
-      "number": "200",
-      "meaning": "Route table entries quota per route table (default 50 propagated routes for VGW)"
+      "number": "50",
+      "meaning": "Non-propagated routes per VPC route table by default (adjustable to 1,000); propagated routes from a virtual private gateway are capped at 100"
     },
     {
       "number": "55,000",
@@ -2084,11 +2101,11 @@
     },
     {
       "number": "4 KB / 8 KB",
-      "meaning": "Parameter Store Standard vs Advanced tier maximum value size (10,000 standard parameters free)"
+      "meaning": "Parameter Store Standard vs Advanced maximum value size; 10,000 standard parameters free per account per Region, 100,000 on the Advanced tier"
     },
     {
-      "number": "3,600 s (max 48 h)",
-      "meaning": "Auto Scaling lifecycle hook default heartbeat timeout and maximum"
+      "number": "3,600 s (max 172,800 s)",
+      "meaning": "Auto Scaling lifecycle hook default heartbeat timeout and its 48-hour maximum"
     },
     {
       "number": "7-30 days",
@@ -2096,11 +2113,11 @@
     },
     {
       "number": "1 year",
-      "meaning": "KMS automatic key rotation interval (AWS managed keys rotate yearly; customer managed rotation is configurable, 90-2560 days)"
+      "meaning": "KMS automatic key rotation interval for AWS managed keys (not configurable); customer managed key rotation is configurable from 90 to 2,560 days and can also be triggered on demand"
     },
     {
       "number": "13 months",
-      "meaning": "ACM public certificate validity - DNS-validated certificates renew automatically, email-validated do not"
+      "meaning": "ACM public certificate validity; ACM starts attempting renewal 60 days before expiry, and only DNS-validated certificates renew without a human (exportable certificates are 395 days and are renewed by you)"
     },
     {
       "number": "45 days",
@@ -2115,8 +2132,8 @@
       "meaning": "Free CloudFront invalidation paths per month"
     },
     {
-      "number": "24 hours",
-      "meaning": "CloudFront default TTL when the origin sends no Cache-Control header"
+      "number": "24 hours / 365 days",
+      "meaning": "CloudFront DefaultTTL when the origin sends no Cache-Control header / the MaxTTL default ceiling (MinTTL defaults to 0)"
     },
     {
       "number": "30 s / 5 s",
@@ -2151,6 +2168,30 @@
       "meaning": "Targets per EventBridge rule"
     },
     {
+      "number": "24 h / 185 attempts",
+      "meaning": "EventBridge default target retry policy before the event is discarded - send it to a dead-letter queue instead"
+    },
+    {
+      "number": "2",
+      "meaning": "Subscription filters allowed on a single CloudWatch log group - a third consumer needs a fan-out through Firehose or Lambda"
+    },
+    {
+      "number": "51,200 bytes / 1 MB",
+      "meaning": "CloudFormation template size limit inline in the API request / when stored in S3 and referenced by URL"
+    },
+    {
+      "number": "PT5M",
+      "meaning": "CreationPolicy ResourceSignal default timeout - raise it when the bootstrap takes longer than 5 minutes to cfn-signal"
+    },
+    {
+      "number": "90%",
+      "meaning": "Default MinHealthyPercentage for an Auto Scaling instance refresh"
+    },
+    {
+      "number": "5,120 characters",
+      "meaning": "Maximum size of a service control policy document (SCPs bound permissions, never grant them, and never apply to the management account)"
+    },
+    {
       "number": "256 KB",
       "meaning": "Maximum SNS and SQS message size (SQS extended client for larger via S3)"
     },
@@ -2176,7 +2217,7 @@
     },
     {
       "number": "3 days",
-      "meaning": "AWS Backup Vault Lock grace period before compliance mode becomes immutable"
+      "meaning": "Minimum AWS Backup Vault Lock cooling-off period in COMPLIANCE mode before the lock becomes permanent (governance mode has no cooling-off and stays removable)"
     },
     {
       "number": "2",
