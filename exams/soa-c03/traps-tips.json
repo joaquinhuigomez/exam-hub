@@ -1,0 +1,363 @@
+{
+  "exam": "SOA-C03",
+  "layer": "cram",
+  "generated_for": "AWS Certified CloudOps Engineer - Associate (SOA-C03), facts current 2025-2026",
+  "how_to_use": "Traps are the misreads that cost points - read the pattern, then the tell. Keyword mapping is pure reflex drilling: cover the right column and recite. The 80/20 list is what you revise if you only have one hour left.",
+  "traps": [
+    {
+      "name": "Default EC2 metrics do not include memory or disk space",
+      "pattern": "A stem asks you to alarm on memory utilization, swap usage, or free disk space and offers 'create a CloudWatch alarm on the EC2 MemoryUtilization metric' as an option.",
+      "spot_it": "That metric does not exist without the CloudWatch agent. The correct answer always includes installing/configuring the agent plus an instance profile with CloudWatchAgentServerPolicy. Same trap for RDS: OS-level per-process detail needs Enhanced Monitoring, not CloudWatch metrics."
+    },
+    {
+      "name": "INSUFFICIENT_DATA is not ALARM",
+      "pattern": "'The alarm never notified anyone' when the resource stopped publishing metrics (instance stopped, ASG scaled to zero, log group idle).",
+      "spot_it": "An alarm in INSUFFICIENT_DATA does not fire the ALARM action. The fix is the 'Treat missing data as' setting (breaching, notBreaching, ignore, missing) - not a lower threshold and not more evaluation periods."
+    },
+    {
+      "name": "Detailed monitoring is 1 minute, not 1 second",
+      "pattern": "'Enable detailed monitoring to get one-second metrics' appears as a plausible option.",
+      "spot_it": "Detailed monitoring = 1-minute periods. One-second granularity only exists for custom high-resolution metrics (StorageResolution 1), with high-resolution alarms evaluating at 10 s or 30 s."
+    },
+    {
+      "name": "EC2 recover action only handles system status failures",
+      "pattern": "An instance is failing its INSTANCE status check (OS hung, bad kernel, misconfigured network inside the guest) and 'create an alarm with the recover action' is offered.",
+      "spot_it": "Recover responds to StatusCheckFailed_System (AWS-side hardware/host). For StatusCheckFailed_Instance the action is reboot, or repair the OS. Recover also has constraints: instance-store-backed instances are not supported."
+    },
+    {
+      "name": "PITR and snapshot restores create a NEW endpoint",
+      "pattern": "'PITR was performed successfully but the application still cannot connect / still shows old data.'",
+      "spot_it": "Every RDS PITR, RDS snapshot restore, and DynamoDB PITR restore produces a NEW instance or table with a NEW name/endpoint. The missing step is repointing the application (or swapping the CNAME) and reattaching the right security group, parameter group, and option group."
+    },
+    {
+      "name": "Multi-AZ standby is not readable and does not add capacity",
+      "pattern": "'Reads are slow - enable Multi-AZ so the standby can serve reads' or 'convert the read replica to Multi-AZ for higher read throughput.'",
+      "spot_it": "Multi-AZ is availability only; the standby serves nothing. Read scaling is read replicas (or an Aurora reader endpoint, or a Multi-AZ DB cluster whose two standbys ARE readable). Watch for the Multi-AZ DB cluster exception."
+    },
+    {
+      "name": "ROLLBACK_COMPLETE cannot be updated",
+      "pattern": "'The stack is in ROLLBACK_COMPLETE. What should the engineer do?' with options like ContinueUpdateRollback, update with a corrected template, or execute a change set.",
+      "spot_it": "None of those work. Delete the stack and create it again. ContinueUpdateRollback belongs to UPDATE_ROLLBACK_FAILED, a different state entirely."
+    },
+    {
+      "name": "An export in use blocks deletion and modification",
+      "pattern": "A shared VPC/network stack cannot be deleted or updated with 'Export cannot be updated as it is in use by <stack>'.",
+      "spot_it": "Fn::ImportValue creates a hard dependency. You must remove the import from the consuming stack (or delete that stack) first. Nested stacks avoid this coupling; exports are for long-lived shared infrastructure."
+    },
+    {
+      "name": "StackSets self-managed permissions need two roles",
+      "pattern": "A stack set deployment fails in target accounts with an access error, and the options mention adding permissions in the administrator account only.",
+      "spot_it": "Self-managed StackSets need AWSCloudFormationStackSetAdministrationRole in the admin account AND AWSCloudFormationStackSetExecutionRole (trusting the admin account) in every target. Service-managed StackSets instead need Organizations trusted access - and only those support automatic deployment to new accounts."
+    },
+    {
+      "name": "Systems Manager needs agent plus role plus network - all three",
+      "pattern": "'Instances do not appear as managed nodes.' One option fixes only the agent, another only the IAM role, another only the endpoints.",
+      "spot_it": "Read the scenario for which one is actually absent. Private subnet with no NAT = the network path (three interface endpoints or a NAT route). No instance profile mentioned = the role. Old custom AMI = the agent. If it is a Choose two, it is usually role plus network."
+    },
+    {
+      "name": "Session Manager needs no inbound rule",
+      "pattern": "'Allow inbound port 22 from the corporate CIDR so administrators can use Session Manager' or 'deploy a bastion host'.",
+      "spot_it": "Session Manager is outbound-only over 443 through the agent. Any answer that opens inbound SSH/RDP, adds a bastion, or manages key pairs is the wrong answer when Session Manager is available."
+    },
+    {
+      "name": "NACL return traffic on ephemeral ports",
+      "pattern": "Traffic works in one direction, or works after a security group change but breaks again for responses; custom NACLs are mentioned.",
+      "spot_it": "NACLs are stateless. The response uses ephemeral ports 1024-65535 and needs its own explicit allow rule. A security group would never cause a one-directional failure because it is stateful."
+    },
+    {
+      "name": "Flow Logs REJECT on the outbound leg means NACL",
+      "pattern": "Flow logs show an inbound ACCEPT record and an outbound REJECT record for the same 5-tuple, and options blame the security group.",
+      "spot_it": "A stateful security group cannot accept the request and reject the response. Outbound REJECT after inbound ACCEPT is always a network ACL. Inbound REJECT alone points at the security group."
+    },
+    {
+      "name": "Gateway endpoint needs a route table entry",
+      "pattern": "'We created an S3 VPC endpoint but private instances still cannot reach S3.'",
+      "spot_it": "Gateway endpoints only work if the endpoint is associated with the route tables of the subnets in question (a prefix-list route is added). Check also the endpoint policy and any bucket policy with aws:SourceVpce. Gateway endpoints are unreachable from on-premises or over peering - that scenario needs an interface endpoint."
+    },
+    {
+      "name": "Interface endpoint private DNS depends on VPC DNS attributes",
+      "pattern": "The interface endpoint exists but the service hostname still resolves to a public IP, or resolution fails outright.",
+      "spot_it": "Private DNS must be enabled on the endpoint AND the VPC needs enableDnsSupport plus enableDnsHostnames. Also confirm the endpoint's security group allows 443 from the client subnets - endpoints have SGs, gateway endpoints do not."
+    },
+    {
+      "name": "VPC peering is non-transitive and has no edge-to-edge routing",
+      "pattern": "A hub VPC is peered to spokes and the stem asks why spokes cannot talk to each other, or why a spoke cannot use the hub's NAT gateway, IGW, or Direct Connect.",
+      "spot_it": "Peering carries no transitive traffic and cannot use the peer's edge devices. The answer is a Transit Gateway (or full-mesh peering for a tiny topology, or PrivateLink for overlapping CIDRs)."
+    },
+    {
+      "name": "Route 53 health checkers cannot reach private endpoints",
+      "pattern": "Failover routing for an internal ALB or an on-premises endpoint behind a VPN, with 'create an endpoint health check against the private IP' as an option.",
+      "spot_it": "Route 53 health checkers are public internet hosts. For anything not publicly reachable, publish a custom metric and use a CloudWatch alarm health check (or a calculated check over alarm-based children)."
+    },
+    {
+      "name": "CNAME cannot live at the zone apex",
+      "pattern": "'Point example.com at the load balancer' with a CNAME option and an alias option.",
+      "spot_it": "Apex requires an alias record (also free for AWS targets and able to evaluate target health). CNAME is only valid for subdomains."
+    },
+    {
+      "name": "Forwarding everything to the origin destroys the CloudFront cache",
+      "pattern": "Low cache hit ratio with a cache policy that forwards all headers, all cookies, or all query strings 'so the application works'.",
+      "spot_it": "Anything in the cache key fragments the cache. Move values the origin needs but the cache should ignore into an ORIGIN REQUEST policy. Only include in the cache key what genuinely changes the response."
+    },
+    {
+      "name": "Invalidation vs versioned object names",
+      "pattern": "'Users still see the old JavaScript after every release. What is the most cost-effective and operationally simple long-term fix?'",
+      "spot_it": "Invalidation is the emergency lever (only 1,000 paths free per month, and it is slow). The standing answer for release workflows is versioned object names (app.v2.js) with long TTLs."
+    },
+    {
+      "name": "aws/ebs default key cannot be shared - you need a CMK",
+      "pattern": "'Share an encrypted AMI or snapshot with another account' with an option to just modify the snapshot permissions.",
+      "spot_it": "AWS managed keys (aws/ebs) have an uneditable key policy and cannot be shared. Copy the snapshot re-encrypting with a customer managed key, share the snapshot AND grant the other account use of the CMK."
+    },
+    {
+      "name": "Email-validated and imported ACM certificates do not auto-renew",
+      "pattern": "'The certificate expired unexpectedly even though ACM manages renewal.'",
+      "spot_it": "Only DNS-validated ACM certificates that are still in use renew silently. Email validation needs a human every 13 months; imported certificates never renew. Monitor with the ACM expiry EventBridge event or the acm-certificate-expiration-check Config rule."
+    },
+    {
+      "name": "An SCP never grants permission",
+      "pattern": "'Users in the member account cannot call the API - add the action to the SCP' presented as a complete fix.",
+      "spot_it": "SCPs (and permissions boundaries) only set the maximum. The identity still needs an IAM policy allow. If the SCP already allows it and access is still denied, look at the IAM policy, the resource policy, a permissions boundary, or the KMS key policy."
+    },
+    {
+      "name": "Full Trusted Advisor checks require Business or Enterprise Support",
+      "pattern": "'Use Trusted Advisor to review service limits, cost optimization, and fault tolerance' in an account described as Developer support or unspecified.",
+      "spot_it": "Basic and Developer plans get only the free core security checks and service quota checks. If the stem never mentions a support plan and the check is outside the free set, prefer Config, Security Hub, or Compute Optimizer."
+    },
+    {
+      "name": "Config auto-remediation runs an SSM Automation document",
+      "pattern": "'Automatically remediate non-compliant resources' with options for a Lambda invoked directly by Config, an EventBridge rule, and an SSM Automation remediation action.",
+      "spot_it": "Config's native remediation target is an SSM Automation document (which may itself call a Lambda step). A Lambda can also be reached via EventBridge on the compliance-change event - but when the question says least operational overhead and the option exists, pick the Automation remediation action."
+    },
+    {
+      "name": "Cross-zone load balancing is OFF by default on NLB",
+      "pattern": "Uneven target utilization across Availability Zones behind an NLB, or one AZ's targets saturating while another idles.",
+      "spot_it": "ALB has cross-zone on by default and free. NLB and GWLB have it off by default, and turning it on incurs cross-AZ data charges. Equal target counts per AZ is the alternative."
+    },
+    {
+      "name": "503 vs 504 vs 502 are three different root causes",
+      "pattern": "Any ALB error-code question where the distractors mix 'increase the idle timeout', 'register healthy targets', and 'fix the application response'.",
+      "spot_it": "503 = no healthy/registered targets (fix health checks or registration). 504 = target exceeded the 60 s idle timeout (fix latency or raise the timeout). 502 = malformed response or connection reset by the target (fix the app, keep-alive, or TLS)."
+    },
+    {
+      "name": "Compute Optimizer needs 30 hours of data",
+      "pattern": "'Compute Optimizer shows no recommendations for the newly launched fleet.'",
+      "spot_it": "It requires at least 30 hours of metrics within the last 14 days, and it needs the CloudWatch agent for memory-aware recommendations. Newly launched or idle instances legitimately produce nothing."
+    },
+    {
+      "name": "T-instance credit exhaustion masquerades as normal CPU",
+      "pattern": "A t3/t4g instance is slow but CPUUtilization looks moderate; options suggest a larger volume or more memory.",
+      "spot_it": "Check CPUCreditBalance and CPUSurplusCreditBalance. Standard mode throttles at zero credits; unlimited mode charges for surplus. The fix is unlimited mode or a non-burstable instance family - not storage."
+    },
+    {
+      "name": "gp2 BurstBalance exhaustion looks like an application problem",
+      "pattern": "Disk latency climbs after a period of normal operation on a small gp2 volume or a burstable RDS instance.",
+      "spot_it": "BurstBalance falling to 0 means baseline-only IOPS (3 per GiB). Move to gp3 (3,000 IOPS baseline regardless of size), enlarge the volume, or use io2 - and remember the 6-hour modification cooldown."
+    },
+    {
+      "name": "Static RDS parameters need a reboot",
+      "pattern": "'The parameter was changed but the behaviour did not change.'",
+      "spot_it": "Static parameters sit in pending-reboot until you reboot the instance; you also cannot edit a default parameter group, so the real answer often includes creating a custom group and associating it first."
+    },
+    {
+      "name": "Metric filters do not backfill",
+      "pattern": "'Create a metric filter to count the errors that occurred last week.'",
+      "spot_it": "Metric filters only evaluate log events ingested after creation. For historical analysis use CloudWatch Logs Insights or Athena over exported logs."
+    },
+    {
+      "name": "CloudTrail data events are not on by default",
+      "pattern": "'CloudTrail is enabled but we cannot see who downloaded the S3 object / invoked the Lambda function.'",
+      "spot_it": "Management events are logged by default; S3 object-level, Lambda invoke, and DynamoDB item-level are DATA events that must be enabled explicitly (and cost extra). Same reasoning for Insights events."
+    },
+    {
+      "name": "EventBridge rule matches but nothing happens",
+      "pattern": "The rule shows invocations but the Lambda/SNS/SQS target never runs, or FailedInvocations climbs.",
+      "spot_it": "Separate 'rule did not match' (event pattern is an exact, case-sensitive JSON match, or the event landed on a different bus) from 'target rejected' (missing resource-based policy or IAM role). Add a DLQ on the target to make failures visible."
+    },
+    {
+      "name": "Lifecycle hooks that never complete",
+      "pattern": "Instances sit in Pending:Wait or Terminating:Wait for an hour and then continue or terminate.",
+      "spot_it": "Something must call CompleteLifecycleAction (or record a heartbeat). The default heartbeat timeout is 3600 s. This also shows up as 'scaling takes an hour' or 'instances terminate before logs are copied'."
+    }
+  ],
+  "tips": [
+    "Read the last sentence of the stem first. 'LEAST operational overhead' means a managed service or a native feature (SSM Automation over custom Lambda, target tracking over step, AWS Backup over scripts, DNS-validated ACM over imported). 'MOST cost-effective' flips several answers (gateway endpoint over NAT, S3 lifecycle over larger storage, gp3 over io2).",
+    "Eliminate on prerequisites before you evaluate elegance. If an option requires SSM but the instances have no role, or requires an ACM certificate in the wrong Region, or opens inbound ports when Session Manager exists, it is dead regardless of how good it sounds.",
+    "Ops questions have a first step. When a stem asks what to check FIRST, the answer is the cheapest, most diagnostic action (read the CloudFormation Events tab, look at the target group health reason, run Reachability Analyzer) - not the fix.",
+    "Translate every symptom into a layer: is it identity (403/AccessDenied), network (timeout/no response), capacity (throttling/5xx under load), configuration (works elsewhere but not here), or data (stale/missing)? The layer usually eliminates two options instantly.",
+    "When two options both work, prefer the one that is native, managed, and auditable. AWS answers favour: managed service > AWS-provided document > custom Lambda > custom script on an instance > manual runbook.",
+    "For 'Choose two' questions, look for the pair that forms a complete fix (a permission plus a network path, an agent plus a role). Two options that solve the same half of the problem are rarely both correct.",
+    "Numbers in the stem are hints, not decoration. 60 seconds points at the ALB idle timeout, 300 seconds at cooldown or deregistration delay, 35 days at PITR, 30 hours at Compute Optimizer, 13 months at ACM.",
+    "If the scenario says the endpoint or resource is private or internal, immediately discount Route 53 endpoint health checks, public internet paths, and anything that assumes a public IP.",
+    "Watch for 'without changing the application' and 'without downtime'. Those phrases kill options that change endpoints (PITR restore), require reboots (static parameters), or replace resources (CloudFormation replacement).",
+    "Cost questions in networking almost always resolve to: gateway endpoints are free, cross-AZ and NAT per-GB cost money, CloudFront egress is cheaper than direct, and same-AZ private traffic is free.",
+    "When an option mentions a retired or out-of-scope service, or a service outside the official SOA-C03 list, treat it as a distractor. Kiro, AWS DevOps Agent, and AWS Security Agent are plausible options but almost never the discriminating fact.",
+    "Practise saying the failure mode out loud before reading the options: 'this is a stateless-NACL return-traffic problem', 'this is a cache-key problem', 'this is a missing instance profile'. Naming it first stops the options from steering you."
+  ],
+  "exam_room": [
+    "65 questions in 130 minutes is 2 minutes each with about 10 minutes spare. Take the first pass at 90 seconds per question and flag anything that needs a second read - do not burn 6 minutes on one CloudFormation state question.",
+    "There are no hands-on labs in SOA-C03. Every question is multiple choice or multiple response, so there is no reason to preserve time for a lab at the end.",
+    "Multiple response stems always say '(Choose two.)' and have five options with exactly two correct. If you are certain of one, spend your remaining effort eliminating the three wrong ones rather than hunting for a second confident pick.",
+    "Answer everything - there is no penalty for a wrong answer, and 15 of the 65 questions are unscored anyway, so a question that feels unfairly obscure may not even count.",
+    "Use the flag-for-review list deliberately: flag only questions where a second read could realistically change your answer. A long flag list at 20 minutes remaining is a time-management failure.",
+    "Read the answer options before re-reading a long scenario. Often the options reveal that only one dimension matters (a port, a policy, a default value) and you can scan the scenario for just that.",
+    "Your first instinct on defaults is usually right. Change an answer only if you find a concrete fact in the stem you had missed, not because a distractor started to look sophisticated.",
+    "Before submitting, sweep the flagged questions for the classic five: ROLLBACK_COMPLETE, SSM prerequisites, ALB 502/503/504, NACL return traffic, and PITR new endpoint. Those five patterns repeat and are worth a deliberate final check."
+  ],
+  "keyword_to_service": [
+    {"keyword": "OS-level memory metric on an RDS instance", "service": "RDS Enhanced Monitoring (agent-based, 1-60 s, to CloudWatch Logs)"},
+    {"keyword": "Top SQL, wait events, database load in AAS", "service": "RDS Performance Insights"},
+    {"keyword": "Memory or disk-space metric on EC2", "service": "CloudWatch agent (plus CloudWatchAgentServerPolicy)"},
+    {"keyword": "Run a shell command on 500 instances by tag", "service": "Systems Manager Run Command"},
+    {"keyword": "Multi-step remediation workflow with approvals", "service": "Systems Manager Automation runbook"},
+    {"keyword": "Continuously enforce a configuration on a schedule", "service": "Systems Manager State Manager association"},
+    {"keyword": "Patch compliance across a fleet during off-hours", "service": "Patch Manager baseline plus Maintenance Window"},
+    {"keyword": "Shell access with no inbound ports and full audit", "service": "Systems Manager Session Manager"},
+    {"keyword": "Store a database password and rotate it automatically", "service": "AWS Secrets Manager"},
+    {"keyword": "Store configuration values and license keys cheaply", "service": "Systems Manager Parameter Store SecureString"},
+    {"keyword": "What is installed on every server (software inventory)", "service": "Systems Manager Inventory"},
+    {"keyword": "Central queue of operational issues with runbooks", "service": "Systems Manager OpsCenter"},
+    {"keyword": "Drift - someone changed the resource in the console", "service": "CloudFormation drift detection (or AWS Config for change history)"},
+    {"keyword": "Preview what an update will replace", "service": "CloudFormation change set"},
+    {"keyword": "Do not delete the database when the stack is deleted", "service": "DeletionPolicy Retain or Snapshot"},
+    {"keyword": "Wait until the application is ready before CREATE_COMPLETE", "service": "CreationPolicy with cfn-signal"},
+    {"keyword": "Roll instances in batches during a stack update", "service": "UpdatePolicy AutoScalingRollingUpdate"},
+    {"keyword": "Deploy one template to many accounts and Regions", "service": "CloudFormation StackSets (service-managed with Organizations)"},
+    {"keyword": "Which security group or ACL blocked the packet", "service": "VPC Reachability Analyzer (path test) or VPC Flow Logs (evidence)"},
+    {"keyword": "Find unintended network access paths for compliance", "service": "Network Access Analyzer"},
+    {"keyword": "Packet-level inspection with a third-party appliance", "service": "Traffic Mirroring (or Gateway Load Balancer for inline inspection)"},
+    {"keyword": "Internet performance affecting my users by city and ISP", "service": "CloudWatch Internet Monitor"},
+    {"keyword": "Continuous probes between VPC and on-premises endpoints", "service": "CloudWatch Network Monitor"},
+    {"keyword": "Detect the outage before customers report it", "service": "CloudWatch Synthetics canary"},
+    {"keyword": "Which microservice is adding the latency", "service": "AWS X-Ray / CloudWatch Application Signals"},
+    {"keyword": "Pod and node level container metrics", "service": "CloudWatch Container Insights"},
+    {"keyword": "Existing Prometheus exporters and Grafana dashboards", "service": "Amazon Managed Service for Prometheus + Amazon Managed Grafana"},
+    {"keyword": "Who deleted the resource", "service": "CloudTrail event history (Lake for long-range SQL queries)"},
+    {"keyword": "Who downloaded the S3 object", "service": "CloudTrail data events (must be enabled) or S3 server access logs"},
+    {"keyword": "Alarm when a specific error string appears in logs", "service": "CloudWatch Logs metric filter plus alarm"},
+    {"keyword": "Stream logs to OpenSearch or a Lambda in near real time", "service": "CloudWatch Logs subscription filter"},
+    {"keyword": "Ad hoc query across log groups", "service": "CloudWatch Logs Insights"},
+    {"keyword": "Query flow logs stored in S3", "service": "Amazon Athena"},
+    {"keyword": "Deliver streaming logs to S3 or OpenSearch without code", "service": "Amazon Data Firehose"},
+    {"keyword": "One notification instead of twenty related alarms", "service": "CloudWatch composite alarm"},
+    {"keyword": "Route an alarm or finding to an automated fix", "service": "EventBridge rule targeting SSM Automation or Lambda"},
+    {"keyword": "Millions of scheduled invocations with time zones", "service": "EventBridge Scheduler"},
+    {"keyword": "Replay events after a downstream outage", "service": "EventBridge archive and replay"},
+    {"keyword": "Rightsize instances based on real utilization", "service": "AWS Compute Optimizer (needs 30 h in 14 d)"},
+    {"keyword": "Detect underutilized or idle resources for cost", "service": "Cost Explorer rightsizing recommendations / Trusted Advisor cost checks"},
+    {"keyword": "Chargeback and detailed hourly cost data", "service": "AWS Cost and Usage Report (queried with Athena)"},
+    {"keyword": "Instances repeatedly replaced by the ASG", "service": "Health check grace period / health check type ELB"},
+    {"keyword": "Keep CPU at 60 percent automatically", "service": "Auto Scaling target tracking policy"},
+    {"keyword": "Traffic spikes every weekday at 09:00", "service": "Scheduled scaling (or predictive scaling)"},
+    {"keyword": "Drain connections before an instance terminates", "service": "Auto Scaling lifecycle hook plus target group deregistration delay"},
+    {"keyword": "Replace every instance with a new AMI, no downtime", "service": "Auto Scaling instance refresh"},
+    {"keyword": "Long boot time hurting scale-out speed", "service": "Auto Scaling warm pool (or a pre-baked AMI from Image Builder)"},
+    {"keyword": "Shift 10 percent of traffic to the new version", "service": "ALB weighted target groups (or Route 53 weighted records, or a Lambda alias weight)"},
+    {"keyword": "Static IP addresses in front of a regional service", "service": "AWS Global Accelerator (or NLB with Elastic IPs)"},
+    {"keyword": "Cache static and dynamic HTTP content at the edge", "service": "Amazon CloudFront"},
+    {"keyword": "Microsecond reads for DynamoDB", "service": "DynamoDB Accelerator (DAX)"},
+    {"keyword": "Offload repeated database reads", "service": "ElastiCache (Redis/Valkey or Memcached)"},
+    {"keyword": "Lambda exhausting database connections", "service": "Amazon RDS Proxy"},
+    {"keyword": "Automated backups across many services with one policy", "service": "AWS Backup plan with tag-based resource assignment"},
+    {"keyword": "Backups that nobody can delete early", "service": "AWS Backup Vault Lock in compliance mode"},
+    {"keyword": "Objects that cannot be overwritten or deleted (WORM)", "service": "S3 Object Lock in compliance mode (requires versioning)"},
+    {"keyword": "Automate EBS snapshots and AMI retention by tag", "service": "Amazon Data Lifecycle Manager (DLM)"},
+    {"keyword": "Remove first-touch latency after restoring a snapshot", "service": "EBS Fast Snapshot Restore"},
+    {"keyword": "Recover an object deleted five minutes ago", "service": "S3 versioning (delete the delete marker)"},
+    {"keyword": "Rewind an Aurora MySQL cluster without a restore", "service": "Aurora Backtrack"},
+    {"keyword": "Copy petabytes from on-premises NAS to S3 on a schedule", "service": "AWS DataSync"},
+    {"keyword": "Faster long-distance uploads to a bucket", "service": "S3 Transfer Acceleration"},
+    {"keyword": "Give on-premises apps an NFS/SMB view of S3", "service": "AWS Storage Gateway"},
+    {"keyword": "Shared POSIX file system across many Linux instances", "service": "Amazon EFS"},
+    {"keyword": "SMB file shares joined to Active Directory", "service": "Amazon FSx for Windows File Server"},
+    {"keyword": "High-performance scratch storage linked to S3", "service": "Amazon FSx for Lustre"},
+    {"keyword": "Move traffic out of one impaired Availability Zone", "service": "Application Recovery Controller zonal shift"},
+    {"keyword": "Prove that the DR Region is actually ready", "service": "Application Recovery Controller readiness checks"},
+    {"keyword": "Resolve on-premises names from inside the VPC", "service": "Route 53 Resolver outbound endpoint plus forwarding rules"},
+    {"keyword": "Let on-premises resolve private hosted zone names", "service": "Route 53 Resolver inbound endpoint"},
+    {"keyword": "Block DNS queries to known-bad domains", "service": "Route 53 Resolver DNS Firewall"},
+    {"keyword": "Record at the apex pointing at a load balancer", "service": "Route 53 alias record"},
+    {"keyword": "Active-passive DR cutover on health", "service": "Route 53 failover routing with a health check"},
+    {"keyword": "Health check for a private endpoint", "service": "Route 53 CloudWatch alarm health check"},
+    {"keyword": "Reach S3 privately with no NAT and no cost", "service": "S3 gateway VPC endpoint (route table entry required)"},
+    {"keyword": "Reach an AWS API privately from on-premises over VPN", "service": "Interface VPC endpoint (PrivateLink) with private DNS"},
+    {"keyword": "Expose an internal service to other accounts with overlapping CIDRs", "service": "AWS PrivateLink endpoint service behind an NLB"},
+    {"keyword": "Connect hundreds of VPCs and on-premises with transitive routing", "service": "AWS Transit Gateway"},
+    {"keyword": "IPv6 outbound-only internet access", "service": "Egress-only internet gateway"},
+    {"keyword": "Block a single malicious IP address at the subnet", "service": "Network ACL deny rule (security groups cannot deny)"},
+    {"keyword": "Layer 7 filtering, SQL injection, rate limiting", "service": "AWS WAF web ACL with managed and rate-based rules"},
+    {"keyword": "DDoS cost protection and a response team", "service": "AWS Shield Advanced"},
+    {"keyword": "Stateful IPS/IDS inside the VPC", "service": "AWS Network Firewall"},
+    {"keyword": "Cryptomining, credential exfiltration, anomalous API calls", "service": "Amazon GuardDuty"},
+    {"keyword": "CVEs in EC2, container images, and Lambda", "service": "Amazon Inspector"},
+    {"keyword": "PII discovered in S3 buckets", "service": "Amazon Macie"},
+    {"keyword": "Single pane of findings and CIS/FSBP scores", "service": "AWS Security Hub"},
+    {"keyword": "Is this resource configured compliantly, and fix it", "service": "AWS Config rule with SSM Automation remediation"},
+    {"keyword": "Roles and permissions nobody has used", "service": "IAM Access Analyzer unused access findings"},
+    {"keyword": "Is this bucket or role shared outside the organization", "service": "IAM Access Analyzer external access findings"},
+    {"keyword": "Would this policy allow the call", "service": "IAM policy simulator"},
+    {"keyword": "Prevent any account from using an unapproved Region", "service": "Service control policy with aws:RequestedRegion"},
+    {"keyword": "Federated human access to many accounts", "service": "IAM Identity Center permission sets"},
+    {"keyword": "Self-service approved infrastructure without broad IAM", "service": "AWS Service Catalog with a launch constraint role"},
+    {"keyword": "Share subnets, Transit Gateway, or Resolver rules across accounts", "service": "AWS Resource Access Manager (RAM)"},
+    {"keyword": "Golden AMI pipeline with automated patching and testing", "service": "EC2 Image Builder"},
+    {"keyword": "Automatic container image vulnerability scanning on push", "service": "Amazon ECR enhanced scanning (Amazon Inspector)"},
+    {"keyword": "Encrypt an existing unencrypted EBS volume", "service": "Snapshot, copy with a KMS key, restore (no in-place option)"},
+    {"keyword": "Reduce KMS calls and throttling on a busy bucket", "service": "S3 Bucket Keys"},
+    {"keyword": "Certificate renewal with zero operational effort", "service": "ACM with DNS validation"},
+    {"keyword": "Alert before a third-party certificate expires", "service": "ACM EventBridge expiry event / acm-certificate-expiration-check Config rule"},
+    {"keyword": "AWS is having an incident affecting my resources", "service": "AWS Health Dashboard (events also via EventBridge)"}
+  ],
+  "top_focus_8020": [
+    {
+      "rank": 1,
+      "topic": "CloudWatch metrics, alarms, and the agent (including missing-data behaviour and status checks)",
+      "why": "D1 is 22 percent of the exam and nearly every domain reuses alarms as the trigger for automation. The agent gap (memory/disk), INSUFFICIENT_DATA, 5-min vs 1-min, and system vs instance status checks are the highest-frequency single facts on the paper."
+    },
+    {
+      "rank": 2,
+      "topic": "Systems Manager managed-node prerequisites and capability picker",
+      "why": "SSM appears in D1 remediation, D3 automation, and D4 patching/Inspector. Agent + role + network resolves an entire family of questions, and Session Manager quietly invalidates every bastion and inbound-SSH distractor."
+    },
+    {
+      "rank": 3,
+      "topic": "ALB error codes, target health checks, and the ELB/ASG interaction",
+      "why": "The 502/503/504 discrimination plus health check type, grace period, and deregistration delay covers most of D2's reliability troubleshooting and shows up again in deployment questions."
+    },
+    {
+      "rank": 4,
+      "topic": "CloudFormation stuck states, protection policies, and StackSets prerequisites",
+      "why": "D3 is 22 percent and CloudFormation is its backbone. ROLLBACK_COMPLETE, ContinueUpdateRollback, DeletionPolicy vs stack policy, and export-in-use are deterministic, memorizable points."
+    },
+    {
+      "rank": 5,
+      "topic": "VPC connectivity order of checks plus SG vs NACL semantics",
+      "why": "D5 is 18 percent and almost every question reduces to route, gateway, public IP, SG, NACL. The stateful/stateless distinction alone decides multiple questions."
+    },
+    {
+      "rank": 6,
+      "topic": "VPC endpoints (gateway vs interface) and Flow Logs interpretation",
+      "why": "Private connectivity and evidence-based diagnosis are heavily tested, and the ACCEPT-in/REJECT-out rule is a one-line answer generator."
+    },
+    {
+      "rank": 7,
+      "topic": "Auto Scaling defaults, policy types, and termination order",
+      "why": "The 300-second trio, target tracking as the default answer, and the termination policy order appear in both reliability and deployment scenarios."
+    },
+    {
+      "rank": 8,
+      "topic": "Backup, snapshots, PITR, and the new-endpoint consequence",
+      "why": "D2's backup section is very mechanical: retention ranges, Vault Lock modes, DLM vs AWS Backup, and the fact that every restore creates a new resource."
+    },
+    {
+      "rank": 9,
+      "topic": "RDS operations: Multi-AZ vs read replica, Performance Insights vs Enhanced Monitoring, parameter groups, RDS Proxy",
+      "why": "RDS spans D1 performance, D2 reliability, and D4 encryption. The four discriminating facts here resolve most database questions without deeper engine knowledge."
+    },
+    {
+      "rank": 10,
+      "topic": "IAM evaluation logic with SCPs plus the security findings picker (GuardDuty / Inspector / Macie / Config / Security Hub)",
+      "why": "D4 is 16 percent and is mostly two skills: reasoning about why a call was denied, and mapping a finding type to the service that produces it."
+    }
+  ]
+}

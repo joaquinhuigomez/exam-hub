@@ -12,7 +12,7 @@
         "iam",
         "custom-metrics"
       ],
-      "scenario": "A CloudOps engineer builds a CloudWatch dashboard for a fleet of Amazon Linux 2023 EC2 instances launched from a minimal base AMI. CPUUtilization, NetworkIn, and DiskReadOps appear normally, but no memory metric is ever available when creating an alarm, and the CWAgent namespace does not exist in the account.",
+      "scenario": "A CloudOps engineer builds a CloudWatch dashboard for a fleet of Amazon Linux 2023 EC2 instances launched from a minimal base AMI. CPUUtilization, NetworkIn, and EBSReadOps appear normally in the AWS/EC2 namespace, but no memory utilization metric is ever available when creating an alarm, and the CWAgent namespace does not exist in the account.",
       "stem": "Which two actions are required to make memory utilization available as a CloudWatch metric? (Choose two.)",
       "options": [
         {
@@ -390,7 +390,7 @@
         "notifications",
         "troubleshooting"
       ],
-      "scenario": "A newly created CloudWatch alarm transitions to ALARM as expected and its history shows the SNS action, but the operations mailbox never receives the message. The SNS topic was created this morning with server-side encryption enabled using the AWS managed key for SNS, and the topic's NumberOfNotificationsFailed metric is non-zero.",
+      "scenario": "A newly created CloudWatch alarm transitions to ALARM as expected and its history records the SNS action, but the operations mailbox never receives the message. The SNS topic was created this morning with server-side encryption enabled using the AWS managed key for SNS. The topic's NumberOfMessagesPublished metric stays at zero, and the email subscription for the mailbox still shows a subscription ARN of PendingConfirmation.",
       "stem": "Which two actions should the CloudOps engineer take to deliver the notifications? (Choose two.)",
       "options": [
         {
@@ -425,7 +425,7 @@
         }
       ],
       "knowledge_point": "Two classic causes of a missing alarm email: the subscription was never confirmed (PendingConfirmation), or the topic policy / SSE key policy does not allow the publishing service principal. AWS managed KMS keys have immutable key policies, so SSE topics that AWS services publish to need a customer managed key.",
-      "trap_alert": "The alarm turning red proves the alarm evaluated, not that the notification was delivered. Check the subscription state and the topic's NumberOfNotificationsFailed metric.",
+      "trap_alert": "The alarm turning red proves the alarm evaluated, not that the notification was delivered. Check the subscription state, then the topic's NumberOfMessagesPublished and NumberOfNotificationsFailed metrics to tell a publish failure apart from a delivery failure.",
       "mnemonic": "Confirm the subscription, then check who is allowed to publish.",
       "doc_refs": [
         "https://docs.aws.amazon.com/sns/latest/dg/sns-key-management.html",
@@ -442,8 +442,8 @@
         "data-firehose",
         "metric-filter"
       ],
-      "scenario": "Application logs land in a CloudWatch Logs log group. A security team needs those events searchable in their central OpenSearch domain within seconds of being written. Today a scheduled Lambda function calls FilterLogEvents every hour, which is slow, misses events during high-volume periods, and is being throttled.",
-      "stem": "Which solution delivers the log events in near real time?",
+      "scenario": "Application logs land in a CloudWatch Logs log group. A security team needs those events landing continuously in their central Amazon S3 security data lake, where they are queried with Amazon Athena, within a minute or two of being written. Today a scheduled Lambda function calls FilterLogEvents every hour, which is slow, misses events during high-volume periods, and is being throttled.",
+      "stem": "Which solution delivers the log events in near real time with the LEAST operational overhead?",
       "options": [
         {
           "letter": "A",
@@ -453,9 +453,9 @@
         },
         {
           "letter": "B",
-          "text": "Create a CloudWatch Logs subscription filter on the log group that streams matching events to Amazon Data Firehose, which delivers them to the destination.",
+          "text": "Create a CloudWatch Logs subscription filter on the log group that streams matching events to an Amazon Data Firehose delivery stream, which buffers and writes them to the S3 bucket.",
           "correct": true,
-          "why": "Subscription filters push matching log events out of CloudWatch Logs in near real time to Lambda, Amazon Data Firehose, or OpenSearch, removing all polling."
+          "why": "Subscription filters push matching log events out of CloudWatch Logs continuously as they arrive, and Firehose is a fully managed delivery path to S3 with a buffering interval as low as 60 seconds, so no polling code remains."
         },
         {
           "letter": "C",
@@ -470,7 +470,7 @@
           "why": "Logs Insights is an interactive analysis tool over data already in CloudWatch Logs; it does not continuously deliver events to an external system."
         }
       ],
-      "knowledge_point": "Metric filter = logs to metrics for alarms. Subscription filter = near-real-time delivery of log events to Lambda, Amazon Data Firehose, or OpenSearch (including cross-account). Export task = batch to S3. Logs Insights = ad hoc query.",
+      "knowledge_point": "Metric filter = logs to metrics for alarms. Subscription filter = near-real-time delivery of the log events themselves to Lambda or Amazon Data Firehose, including cross-account destinations (up to 2 subscription filters per log group). Export task = batch dump to S3. Logs Insights = ad hoc query over data already in CloudWatch Logs.",
       "trap_alert": "Do not choose export-to-S3 for anything described as real time or near real time; that is always the subscription filter.",
       "mnemonic": "Filter to metric, subscribe to stream, export to bucket.",
       "doc_refs": [
@@ -533,7 +533,7 @@
         "alarms",
         "remediation"
       ],
-      "scenario": "When a CloudWatch alarm on a custom application health metric enters ALARM, the CloudOps team wants the AWS-RestartEC2Instance Automation runbook to run automatically against the affected instance. While editing the alarm, the engineer finds only Auto Scaling, EC2, SNS, and Systems Manager OpsItem or incident actions, and cannot select the runbook.",
+      "scenario": "When a CloudWatch alarm on a custom application health metric enters ALARM, the CloudOps team wants the AWS-RestartEC2Instance Automation runbook to run automatically against the affected instance. While editing the alarm, the engineer finds actions for Auto Scaling, EC2, Lambda, SNS, and Systems Manager OpsItem or incident, but no way to select an Automation runbook.",
       "stem": "How should the engineer wire the alarm to the runbook?",
       "options": [
         {
@@ -561,8 +561,8 @@
           "why": "Polling on a schedule adds latency and cost and reverses the event-driven model the alarm already provides."
         }
       ],
-      "knowledge_point": "CloudWatch alarm actions are limited to SNS, Auto Scaling, EC2 actions (stop/terminate/reboot/recover), and Systems Manager OpsItem or incident. Anything else, including Lambda and Automation runbooks, is reached by an EventBridge rule matching the 'CloudWatch Alarm State Change' event.",
-      "trap_alert": "The alarm-to-Lambda and alarm-to-Automation paths always go through EventBridge; only OpsItem and incident creation are native alarm actions for Systems Manager.",
+      "knowledge_point": "CloudWatch alarm actions are SNS, Auto Scaling, EC2 actions (stop/terminate/reboot/recover), Systems Manager OpsItem or incident, and — since 2023 — invoking a Lambda function directly. Systems Manager Automation runbooks are not an alarm action, so they are reached by an EventBridge rule matching the 'CloudWatch Alarm State Change' event.",
+      "trap_alert": "An alarm can call Lambda directly, but it can never start an Automation execution directly; for Systems Manager, only OpsItem and incident creation are native alarm actions.",
       "mnemonic": "Alarm fires an event; EventBridge picks the target.",
       "doc_refs": [
         "https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/cloudwatch-and-eventbridge.html",
@@ -622,10 +622,10 @@
         "eventbridge",
         "dlq",
         "iam",
-        "automation",
+        "lambda",
         "troubleshooting"
       ],
-      "scenario": "An EventBridge rule that targets a Systems Manager Automation runbook shows a healthy TriggeredRules count but a rising FailedInvocations count, and no automation executions appear in the Systems Manager console. The team also discovered that events failing delivery are being lost with no record of what they contained.",
+      "scenario": "An EventBridge rule that targets a remediation Lambda function shows a healthy TriggeredRules count but a rising FailedInvocations count, and the function's Invocations metric stays at zero. The team also discovered that events failing delivery are being lost with no record of what they contained.",
       "stem": "Which two actions should the CloudOps engineer take? (Choose two.)",
       "options": [
         {
@@ -642,9 +642,9 @@
         },
         {
           "letter": "C",
-          "text": "Attach an IAM role to the rule's target that allows ssm:StartAutomationExecution and iam:PassRole for the runbook's automation assume role.",
+          "text": "Add a resource-based policy to the Lambda function that allows the events.amazonaws.com service principal to invoke it, scoped to the rule's ARN.",
           "correct": true,
-          "why": "EventBridge assumes the rule's role to start the execution; without StartAutomationExecution and PassRole on the automation role, every invocation fails with AccessDenied."
+          "why": "Lambda, SNS, and SQS targets are authorized by a resource-based policy on the target itself rather than by a rule IAM role, so without it EventBridge matches the event and then fails every delivery attempt."
         },
         {
           "letter": "D",
@@ -775,7 +775,7 @@
       "options": [
         {
           "letter": "A",
-          "text": "Create an EventBridge rule with an event pattern on the aws.health source and target an SNS topic plus a Systems Manager Automation runbook that opens an OpsItem in OpsCenter.",
+          "text": "Create an EventBridge rule with an event pattern on the aws.health source and give it two targets: an SNS topic for the on-call channel and a Systems Manager OpsItem so each event becomes a tracked work item in OpsCenter.",
           "correct": true,
           "why": "AWS Health delivers account-specific events, including scheduled instance retirements and degraded hardware, to EventBridge, where they can fan out to notification and remediation targets."
         },
@@ -816,7 +816,7 @@
         "tracing",
         "root-cause"
       ],
-      "scenario": "After a release, p99 latency on a customer-facing API rose from 300 ms to 4 seconds. The ALB TargetResponseTime metric confirms the increase, but CPU, memory, and connection metrics look normal on all six services behind the API, and each team insists their service is fast. The request path traverses several internal services and a DynamoDB table.",
+      "scenario": "After a release, p99 latency on a customer-facing API rose from 300 ms to 4 seconds. The ALB TargetResponseTime metric confirms the increase, but CPU, memory, and connection metrics look normal on all six Amazon ECS services behind the API, and each team insists their service is fast. A single request traverses several of those internal services and a DynamoDB table.",
       "stem": "What is the MOST effective way to identify which component is responsible for the added latency?",
       "options": [
         {

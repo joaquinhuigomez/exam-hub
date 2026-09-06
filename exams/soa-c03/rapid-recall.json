@@ -82,7 +82,7 @@
       "id": "RR-007",
       "domain": "D1",
       "kind": "pick_service",
-      "cue": "Paging should occur only when CPU is high AND the ALB healthy host count is low at the same time, to suppress noise.",
+      "cue": "Separate alarms already exist for CPU utilization and for ALB healthy host count. Paging must happen only when BOTH are in ALARM at the same time, to suppress noise.",
       "answer": "A CloudWatch composite alarm whose rule ANDs the two child alarms",
       "why": "Composite alarms combine child alarm states with AND/OR/NOT expressions and fire a single action. They are the documented way to cut alarm noise from correlated conditions.",
       "distractors": [
@@ -148,8 +148,8 @@
       "domain": "D1",
       "kind": "number",
       "cue": "What resolution does a high-resolution custom metric support, and which alarm periods does it allow?",
-      "answer": "1-second resolution, with alarm evaluation periods of 10 or 30 seconds (or any multiple of 60)",
-      "why": "Standard-resolution custom metrics are 1-minute; high-resolution are 1-second and unlock the 10-second and 30-second high-resolution alarms, which are billed at a higher rate.",
+      "answer": "1-second resolution, with alarm evaluation periods of 10, 20, or 30 seconds (or any multiple of 60)",
+      "why": "Standard-resolution custom metrics are 1-minute; high-resolution are 1-second and unlock high-resolution alarm periods of 10, 20, or 30 seconds, which are billed at a higher rate.",
       "distractors": [
         "1-second resolution, with alarm periods of 1 or 5 seconds",
         "5-second resolution, with alarm periods of 10 or 30 seconds",
@@ -330,8 +330,8 @@
       "domain": "D1",
       "kind": "symptom_to_fix",
       "cue": "A batch job alarm flips to INSUFFICIENT_DATA every night and pages on-call, because the metric is only emitted while the job runs.",
-      "answer": "Set the alarm missing data treatment to notBreaching (or missing) so gaps do not change the alarm state",
-      "why": "Missing data treatment has four options - notBreaching, breaching, ignore, and missing - and defaults to missing, which surfaces INSUFFICIENT_DATA. This is a configuration change, not a code change.",
+      "answer": "Set the alarm missing data treatment to notBreaching (or ignore) so gaps no longer push the alarm into INSUFFICIENT_DATA",
+      "why": "Treat-missing-data has four values - notBreaching, breaching, ignore, and missing - and defaults to missing, which is exactly what surfaces INSUFFICIENT_DATA; ignore holds the last state instead. This is a configuration change, not a code change.",
       "distractors": [
         "Set the alarm missing data treatment to breaching",
         "Increase the alarm evaluation period to 24 hours",
@@ -409,7 +409,7 @@
       "kind": "pick_service",
       "cue": "Regulators require that backups cannot be deleted or shortened by anyone, including the account root user, for the full retention period.",
       "answer": "AWS Backup Vault Lock in compliance mode",
-      "why": "Compliance mode is immutable once the cooling-off period elapses and cannot be disabled or deleted by any principal. Governance mode is reversible by principals with explicit permissions.",
+      "why": "Compliance mode is immutable once the cooling-off period (minimum 3 days) elapses and cannot then be disabled or deleted by any principal, including root. Governance mode is reversible by principals with explicit permissions.",
       "distractors": [
         "AWS Backup Vault Lock in governance mode",
         "An S3 Object Lock retention policy on the backup bucket",
@@ -1421,7 +1421,7 @@
       "id": "RR-110",
       "domain": "D5",
       "kind": "pick_service",
-      "cue": "Outbound DNS queries from a VPC to known malicious or unapproved domains must be blocked and logged.",
+      "cue": "Outbound DNS queries from a VPC to known malicious or unapproved domains must be blocked at resolution time and logged, with no inline inspection appliance and no routing changes.",
       "answer": "Route 53 Resolver DNS Firewall with domain lists and rule groups associated to the VPC",
       "why": "DNS Firewall filters at the Resolver, so it stops name resolution for blocked domains and can alert, block, or return NODATA. Network Firewall filters packets, not resolver queries.",
       "distractors": [
@@ -1447,7 +1447,7 @@
       "id": "RR-112",
       "domain": "D5",
       "kind": "pick_service",
-      "cue": "Private-subnet instances must reach Amazon S3 without a NAT gateway, and the team wants to eliminate the per-GB NAT data charge.",
+      "cue": "Private-subnet instances must reach Amazon S3 without a NAT gateway, and the replacement path must add no hourly or per-GB endpoint charge of its own.",
       "answer": "An S3 gateway VPC endpoint, added as a route in the private subnet route tables",
       "why": "Gateway endpoints for S3 and DynamoDB have no hourly or data charge and work through route table prefix lists. Interface endpoints for S3 exist but bill hourly and per GB.",
       "distractors": [
@@ -1643,7 +1643,7 @@
       "domain": "D5",
       "kind": "symptom_to_fix",
       "cue": "Instances in a private subnet cannot download OS updates from the internet, though DNS resolves correctly.",
-      "answer": "Check the private subnet route table has 0.0.0.0/0 pointing at a NAT gateway in a public subnet in the same AZ, and that the NAT gateway subnet routes 0.0.0.0/0 to an internet gateway",
+      "answer": "Check the private subnet route table has 0.0.0.0/0 pointing at a NAT gateway that sits in a PUBLIC subnet (ideally the same AZ, to avoid cross-AZ charges), and that the NAT gateway subnet routes 0.0.0.0/0 to an internet gateway",
       "why": "This is a routing problem, not a security group problem, because security groups already allow all outbound by default. A gateway endpoint would only cover S3 and DynamoDB traffic.",
       "distractors": [
         "Assign public IP addresses to the instances so they can reach the internet",
