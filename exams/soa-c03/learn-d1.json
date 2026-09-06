@@ -1,0 +1,671 @@
+{
+  "domain": "D1",
+  "title": "Monitoring, Logging, Analysis, Remediation, and Performance Optimization",
+  "weight": 0.22,
+  "intro": "This is the biggest domain on SOA-C03 at 22 percent, roughly 14 of the 65 questions, and it is where the exam stops asking 'which architecture' and starts asking 'the alarm never fired, why?'. Three mental models unlock almost every question here. First: CloudWatch only sees what something publishes to it — the hypervisor publishes CPU and network, the guest OS publishes nothing until you install the CloudWatch agent, and every 'no memory metric' question resolves to that fact. Second: an alarm is a state machine over a fixed evaluation window, so a silent alarm is almost always missing datapoints, a wrong period, a disabled action, or an unconfirmed SNS subscription — not a broken threshold. Third: remediation is a chain — metric to alarm to EventBridge to SSM Automation or Lambda — and a broken chain fails at exactly one link, usually an IAM role or a resource policy. Performance questions follow the same discipline: every resource has a specific metric that proves saturation (BurstBalance, VolumeQueueLength, CPUCreditBalance, PercentIOLimit, DB load in AAS), and the exam wants you to name that metric before you name the fix.",
+  "sections": [
+    {
+      "id": "cw-metrics-model",
+      "title": "The CloudWatch metrics model",
+      "summary": "A metric is namespace plus name plus a dimension set, and its resolution and retention decide what an alarm can even see.",
+      "concepts": [
+        {
+          "name": "Namespaces, dimensions, statistics, periods",
+          "explain": "A CloudWatch metric is uniquely identified by three things: namespace (AWS/EC2, AWS/EBS, AWS/RDS, CWAgent for the agent, or any custom string you choose), metric name, and the exact set of dimensions attached to it. Dimensions are name-value pairs like InstanceId=i-0abc or AutoScalingGroupName=web-asg, and here is the trap: a different dimension set is a different metric, not a filter over one metric. That is why 'CPUUtilization with no dimensions' does not exist for EC2 and why you cannot average across instances unless the service publishes an aggregate or you use metric math or Metric Streams.\nA statistic is how CloudWatch collapses the datapoints inside a period: Average, Sum, Minimum, Maximum, SampleCount, and percentiles like p90 or p99. The period is the aggregation window. Choosing the wrong statistic is a classic silent failure — Average hides a spike that Maximum would catch, and Sum on a rate metric is meaningless. For counters like RequestCount or Invocations use Sum; for utilisation use Average plus a Maximum alarm if spikes matter; for latency use p99, not Average, because Average is dominated by the fast requests.",
+          "exam_tests": "Stems say 'the metric does not appear in the console', 'the alarm on the fleet-wide average does not work', or 'intermittent latency spikes are not being detected'. The discriminating fact is usually either that dimensions define a distinct metric (so a fleet aggregate needs metric math / SEARCH, not a dimensionless alarm) or that the statistic is wrong for the metric type (Average hiding spikes, Sum wanted for counts, p99 wanted for latency).",
+          "example": {
+            "scenario": "An application publishes a custom metric OrderErrors with dimension Environment=prod from six instances. An alarm on OrderErrors with statistic Average and threshold greater than 10 has never fired, even during an incident when the fleet logged 300 errors in a minute.",
+            "answer": "Change the alarm statistic to Sum, since Average divides the total across the datapoints published in the period.",
+            "why": "With six instances each publishing about 50 errors, the Average per datapoint is 50 but if publishing is uneven the Average can stay far below the intended fleet threshold, and Average never represents a fleet total. Sum aggregates every datapoint in the period, which is what a count-type metric requires. Raising the threshold does not fix a statistic that is measuring the wrong thing."
+          },
+          "gotchas": [
+            "A metric with dimensions and the 'same' metric without them are two different metrics — you cannot query one and get the other.",
+            "Percentile statistics are unavailable if any datapoint in the metric is negative.",
+            "Metric math and SEARCH expressions let one alarm cover a whole fleet; there is no wildcard dimension on a plain alarm.",
+            "PutMetricData accepts timestamps up to two weeks in the past and two hours in the future — backfilled data outside that window is silently rejected.",
+            "Up to 30 dimensions per metric; each unique combination bills as a separate custom metric, which is how custom metric cost explodes.",
+            "Metrics are Regional. A metric published in eu-west-1 is invisible to an alarm created in us-east-1."
+          ],
+          "numbers": [
+            "Retention: 1-second data 3 hours, 60-second data 15 days, 5-minute data 63 days, 1-hour data 455 days (15 months)",
+            "Up to 30 dimensions per metric",
+            "PutMetricData window: 2 weeks past, 2 hours future"
+          ]
+        },
+        {
+          "name": "Basic vs detailed vs high-resolution, and what EC2 never emits",
+          "explain": "EC2 basic monitoring publishes metrics every 5 minutes and is free. Detailed monitoring publishes every 1 minute and costs extra per instance; you enable it per instance or in the launch template, and Auto Scaling target tracking works far better with it because 5-minute data makes scaling reactions sluggish. Custom metrics you publish yourself are standard resolution (1 minute) unless you set StorageResolution to 1, which makes them high-resolution 1-second metrics.\nThe fact the exam leans on hardest: the hypervisor can only see the outside of the instance. It publishes CPUUtilization, NetworkIn/NetworkOut, NetworkPacketsIn/Out, DiskReadOps and DiskWriteOps for instance store volumes, and the status checks. It cannot see inside the guest OS, so there is no memory utilisation, no swap usage, no logical disk free space, no per-process metrics, and no application log content. Those all require the CloudWatch agent. Note also that CPUUtilization is the hypervisor's view of steal-adjusted CPU, which is why it can disagree with what top shows inside the instance.",
+          "exam_tests": "Any stem containing 'memory', 'disk space used', 'swap', or 'process' plus 'metric not available' has the same answer: install and configure the CloudWatch agent. A second variant asks why an Auto Scaling policy reacts slowly or why an alarm sits in INSUFFICIENT_DATA with a 60-second period — answer: the instance is on basic 5-minute monitoring, so enable detailed monitoring.",
+          "compare": {
+            "columns": ["Mode", "Granularity", "Cost", "Minimum alarm period", "Use when"],
+            "rows": [
+              ["EC2 basic monitoring", "5 minutes", "Free", "300 s (a 60 s alarm goes INSUFFICIENT_DATA)", "Steady-state, non-scaling workloads"],
+              ["EC2 detailed monitoring", "1 minute", "Per-instance charge", "60 s", "Auto Scaling target tracking, faster incident detection"],
+              ["Custom metric, standard resolution", "1 minute", "Per custom metric", "60 s", "Application counters and business metrics"],
+              ["Custom metric, high resolution (StorageResolution=1)", "1 second", "Per custom metric, higher API cost", "10 s or 30 s", "Sub-minute detection: spiky latency, real-time scaling"],
+              ["CloudWatch agent metrics (CWAgent namespace)", "Configurable, default 60 s", "Billed as custom metrics", "Matches configured interval", "Memory, disk, swap, process, StatsD/collectd"]
+            ]
+          },
+          "example": {
+            "scenario": "A CloudOps engineer needs an alarm that fires within 30 seconds when a payment service's in-process queue depth exceeds 500. The queue depth is emitted by the application. A standard custom metric alarm with a 60-second period is considered too slow.",
+            "answer": "Publish the metric as a high-resolution metric with StorageResolution set to 1 and create a high-resolution alarm with a 10-second or 30-second period.",
+            "why": "Only high-resolution metrics support alarm periods below 60 seconds; standard-resolution alarms are floored at 60 s. Enabling EC2 detailed monitoring is irrelevant because this is an application-published custom metric, not an EC2 metric."
+          },
+          "gotchas": [
+            "Detailed monitoring is an EC2 feature — it does not add memory or disk-space metrics, only more frequent versions of the metrics EC2 already emits.",
+            "High-resolution metrics are only retained at 1-second granularity for 3 hours, then rolled up to 1 minute.",
+            "High-resolution alarms allow 10 s and 30 s periods; any multiple of 60 s is also allowed.",
+            "DiskReadOps and DiskWriteOps in AWS/EC2 cover instance store volumes only — EBS activity lives in the AWS/EBS namespace.",
+            "Enabling detailed monitoring on an Auto Scaling group's launch template does not retroactively affect already-running instances.",
+            "The agent's metrics land in the CWAgent namespace by default, not AWS/EC2 — engineers 'lose' them by looking in the wrong namespace."
+          ],
+          "mnemonic": "Hypervisor sees the box, agent sees inside the box."
+        },
+        {
+          "name": "EC2 status checks and automatic recovery",
+          "explain": "EC2 runs three independent health checks every minute and publishes each as its own metric. The system status check (StatusCheckFailed_System) covers AWS-side problems: loss of network connectivity or system power, host software or hardware faults. You cannot fix those from inside the instance — the fix is to move the instance to new hardware, which means stop then start, or the automatic recover action. The instance status check (StatusCheckFailed_Instance) covers the guest: exhausted memory, corrupted file system, incompatible kernel, misconfigured networking. The fix there is reboot or repair the OS; recovery would just move a broken OS to a new host. A third check, StatusCheckFailed_AttachedEBS, fails when attached EBS volumes cannot complete I/O.\nAutomatic recovery restarts the instance on new underlying hardware while preserving instance ID, private IPv4, Elastic IP, and EBS volumes. It does not preserve in-memory data or instance store data. Modern instance types get simplified automatic recovery on by default; you can still create an explicit CloudWatch alarm with the EC2 recover action for control and notification.",
+          "exam_tests": "Stems describe an instance that is 'unreachable' and give you which status check failed. System failed means stop/start or recover; instance failed means reboot or fix the OS. A second angle: 'why did recovery not work' — the instance has instance store volumes, sits on a Dedicated Host, or the alarm was built on the wrong status check metric.",
+          "compare": {
+            "columns": ["Check", "Metric", "What broke", "Correct action", "Wrong tempting action"],
+            "rows": [
+              ["System status check", "StatusCheckFailed_System", "AWS host hardware, power, or network", "Stop/start (new host) or CloudWatch alarm with EC2 recover action", "Reboot — keeps the instance on the same failing host"],
+              ["Instance status check", "StatusCheckFailed_Instance", "Guest OS: full disk, bad kernel, exhausted memory, broken network config", "Reboot, or fix the OS/AMI", "Recover — moves a broken OS to a healthy host"],
+              ["Attached EBS status check", "StatusCheckFailed_AttachedEBS", "Attached volumes cannot complete I/O", "Investigate the volume, detach/replace, or recover", "Terminate and relaunch before capturing the volume"],
+              ["Combined", "StatusCheckFailed", "Either of the first two", "Diagnostic only", "Alarming on this when you need a specific remediation action"]
+            ]
+          },
+          "example": {
+            "scenario": "An instance running a licensed application fails its system status check twice in a month. The team wants automatic remediation that preserves the instance ID because the software licence is bound to it. The instance uses one gp3 root volume and one gp3 data volume.",
+            "answer": "Create a CloudWatch alarm on StatusCheckFailed_System with the EC2 recover action, notifying an SNS topic.",
+            "why": "Recovery migrates the instance to new hardware while keeping instance ID, private IP, Elastic IP, and all EBS volumes, which satisfies the licence constraint. Terminating and relaunching through Auto Scaling would produce a new instance ID and break the licence, and reboot would not move it off the failing host."
+          },
+          "gotchas": [
+            "Recover is only valid on instances with no instance store volumes and not on Dedicated Hosts.",
+            "Recovery preserves EBS data but never in-memory state — the OS boots cold and applications must restart cleanly.",
+            "Status check alarms need the EC2 per-instance dimension; the EC2 action is unavailable on aggregated or composite alarms.",
+            "Status checks run every minute and are not billed, but the alarm on them is.",
+            "A stopped instance publishes no status checks — the alarm goes INSUFFICIENT_DATA, not ALARM.",
+            "Auto Scaling with health check type EC2 already replaces instances failing status checks; use recover when identity must be preserved instead."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cw-agent",
+      "title": "The CloudWatch agent on EC2, ECS, and EKS",
+      "summary": "Everything inside the OS or the container — memory, disk, logs, StatsD, Prometheus — reaches CloudWatch only through an agent with an IAM role, a config, and a network path.",
+      "concepts": [
+        {
+          "name": "Installing and configuring the unified CloudWatch agent",
+          "explain": "The unified agent replaces the old EC2Config and awslogs agent and does both metrics and logs from one config file. The clean install path is Systems Manager: the AmazonCloudWatchAgent package via Distributor or Run Command with AWS-ConfigureAWSPackage, which means the node must already be an SSM managed node. The instance profile needs CloudWatchAgentServerPolicy, which grants cloudwatch:PutMetricData, the logs write actions, ec2:DescribeTags, and ssm:GetParameter so the agent can read its config from Parameter Store.\nStore the config JSON in SSM Parameter Store under a name starting with AmazonCloudWatch- because that prefix is what CloudWatchAgentServerPolicy permits reading. Then start the agent with amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -c ssm:AmazonCloudWatch-linux -s. Changing the parameter alone does nothing — every node must re-run fetch-config, which is exactly what Run Command or State Manager is for. The append_dimensions block adds InstanceId, ImageId, InstanceType and AutoScalingGroupName automatically, and aggregation_dimensions lets you roll up by ASG.",
+          "exam_tests": "Trigger words: 'memory utilization is not visible', 'central configuration for hundreds of instances', 'least operational overhead to update agent config'. The discriminating fact is usually the IAM policy name (CloudWatchAgentServerPolicy for nodes that read config, CloudWatchAgentAdminPolicy for a node that writes config to Parameter Store) or that the config must be redistributed with SSM after editing.",
+          "compare": {
+            "columns": ["Task", "Mechanism", "Required permission", "Note"],
+            "rows": [
+              ["Install the agent fleet-wide", "SSM Distributor / Run Command AWS-ConfigureAWSPackage", "AmazonSSMManagedInstanceCore on the instance profile", "Node must already be SSM-managed"],
+              ["Read agent config centrally", "SSM Parameter Store, name prefixed AmazonCloudWatch-", "CloudWatchAgentServerPolicy", "Prefix matters — the policy scopes ssm:GetParameter to it"],
+              ["Author and upload config from a node", "Config wizard then put-parameter", "CloudWatchAgentAdminPolicy", "Admin policy is for the authoring node only, not the fleet"],
+              ["Push a config change to running nodes", "Run Command AmazonCloudWatch-ManageAgent or State Manager association", "ssm:SendCommand", "Editing the parameter alone changes nothing"],
+              ["Keep the agent configured after replacement", "State Manager association or user data in the launch template", "As above", "New ASG instances otherwise come up unconfigured"]
+            ]
+          },
+          "example": {
+            "scenario": "A team updates the CloudWatch agent configuration stored in SSM Parameter Store to add disk_used_percent. A day later the new metric still does not appear for any of the 200 instances, although mem_used_percent published before the change is still arriving.",
+            "answer": "Use Run Command with the AmazonCloudWatch-ManageAgent document (or re-run fetch-config) to make every node reload the updated configuration.",
+            "why": "The agent reads Parameter Store once at fetch-config time and then runs from its local copy, so a parameter edit has no effect until the agent is told to fetch again. The fact that existing metrics still flow proves IAM and the network path are fine, which rules out the permission and endpoint answers."
+          },
+          "gotchas": [
+            "CloudWatchAgentServerPolicy is for the monitored nodes; CloudWatchAgentAdminPolicy is only for a node that writes config into Parameter Store.",
+            "The parameter name prefix AmazonCloudWatch- is load-bearing — a differently named parameter fails ssm:GetParameter under the managed policy.",
+            "The agent needs outbound 443 to monitoring.<region>.amazonaws.com and logs.<region>.amazonaws.com; private subnets need a NAT gateway or interface VPC endpoints for both.",
+            "On Windows the memory metric is 'Memory % Committed Bytes In Use' and free disk is 'LogicalDisk % Free Space' — the Linux names do not exist.",
+            "Agent metrics are billed as custom metrics, and a per-device disk config on many mount points multiplies that cost fast.",
+            "Agent troubleshooting log lives at /opt/aws/amazon-cloudwatch-agent/logs/amazon-cloudwatch-agent.log — check it before blaming IAM."
+          ]
+        },
+        {
+          "name": "Log collection, StatsD, and collectd",
+          "explain": "The logs section of the agent config maps a file path to a log group and log stream, with optional timestamp_format and multi_line_start_pattern for stack traces. Use {instance_id} or {hostname} in log_stream_name so streams do not collide across a fleet. The agent creates the log group if it does not exist, but only if the role allows logs:CreateLogGroup, and a log group created that way defaults to Never expire retention, which is how log bills quietly grow.\nThe same agent doubles as a metrics receiver. StatsD listens on UDP 8125 by default and accepts the standard counter, gauge, and timer protocol, which is the fastest way to get application metrics into CloudWatch without SDK code. collectd listens on UDP 25826 and is the path for existing Linux system-metric plugins. Both land in whatever namespace the config declares. Prefer StatsD for custom application counters, and prefer embedded metric format (EMF) in logs when you want one write that produces both a log event and a metric.",
+          "exam_tests": "Stems mention 'application logs must be centralised', 'existing collectd plugins', or 'the developers already emit StatsD'. The discriminating fact is that the CloudWatch agent, not a Lambda or a sidecar script, is the supported collector for all three, and that log streams must be uniquely named per instance.",
+          "example": {
+            "scenario": "After enabling agent log collection across an Auto Scaling group, engineers see interleaved and out-of-order events in a single log stream, making per-host troubleshooting impossible.",
+            "answer": "Set log_stream_name to a per-instance value such as {instance_id} so each node writes to its own log stream in the shared log group.",
+            "why": "All nodes were configured with a static stream name, so every agent appended to the same stream. Log groups are the unit of retention and querying; log streams are the unit of per-source ordering, and CloudWatch only guarantees ordering within a stream. Creating a separate log group per instance would work but destroys cross-fleet Logs Insights queries."
+          },
+          "gotchas": [
+            "A log group created by the agent has Never expire retention by default — set retention explicitly or pay forever.",
+            "Multi-line Java stack traces arrive as one event per line unless multi_line_start_pattern is configured.",
+            "StatsD is UDP — dropped packets are silent, so a missing metric is not necessarily an agent failure.",
+            "The agent can tail files but cannot read journald or Windows Event Log without the matching config block (windows_events for Windows).",
+            "Log events older than 14 days or more than 2 hours in the future are rejected by PutLogEvents.",
+            "Embedded metric format lets one structured log event create custom metrics without a separate PutMetricData call — cheaper and atomic."
+          ],
+          "numbers": [
+            "StatsD default UDP port 8125",
+            "collectd default UDP port 25826",
+            "PutLogEvents rejects events older than 14 days or more than 2 hours ahead"
+          ]
+        },
+        {
+          "name": "Containers: Container Insights, Managed Prometheus, and the not-reporting checklist",
+          "explain": "For ECS and EKS you do not tail files on a host. Container Insights collects cluster, node, pod, task, and service level metrics and puts them in the ContainerInsights namespace with curated dashboards. On EKS the supported install is the amazon-cloudwatch-observability add-on, which deploys the CloudWatch agent as a DaemonSet plus Fluent Bit for container logs, and it needs an IAM role for the service account (IRSA or EKS Pod Identity) carrying CloudWatchAgentServerPolicy. On ECS you enable Container Insights at the cluster level; task logs go to CloudWatch via the awslogs log driver in the task definition.\nWhen the team already speaks PromQL, the answer is Amazon Managed Service for Prometheus rather than reinventing dashboards. Scrape with the CloudWatch agent's Prometheus support or ADOT, remote-write into an AMP workspace over SigV4, and visualise with Amazon Managed Grafana. AMP is the ingestion and query engine; Managed Grafana is the visualisation layer — the exam pairs them.",
+          "exam_tests": "Look for 'existing Prometheus exporters', 'PromQL', 'Grafana dashboards' → Managed Service for Prometheus plus Managed Grafana. Look for 'pod-level CPU and memory with no code changes' → Container Insights. Look for 'the agent DaemonSet is running but no metrics appear' → IRSA / Pod Identity role missing CloudWatchAgentServerPolicy.",
+          "compare": {
+            "columns": ["Need", "Service", "How it collects", "Visualise with"],
+            "rows": [
+              ["Cluster, node, pod, task metrics with zero instrumentation", "CloudWatch Container Insights", "CloudWatch agent DaemonSet (EKS add-on) or cluster setting (ECS)", "Built-in CloudWatch dashboards"],
+              ["Container stdout/stderr logs", "CloudWatch Logs", "Fluent Bit (EKS) or awslogs driver (ECS)", "Logs Insights"],
+              ["Existing Prometheus exporters and PromQL queries", "Amazon Managed Service for Prometheus", "Prometheus/ADOT remote_write over SigV4", "Amazon Managed Grafana"],
+              ["Single pane over CloudWatch plus Prometheus plus other sources", "Amazon Managed Grafana", "Data source plugins", "Grafana"],
+              ["Request-level latency and dependency map inside the app", "X-Ray / Application Signals", "SDK or ADOT instrumentation", "Service map"]
+            ]
+          },
+          "example": {
+            "scenario": "An EKS cluster runs the amazon-cloudwatch-observability add-on. Node-level metrics appear but no pod metrics, and the agent pods log AccessDeniedException on PutMetricData.",
+            "answer": "Attach CloudWatchAgentServerPolicy to the IAM role bound to the agent's Kubernetes service account via IRSA or EKS Pod Identity.",
+            "why": "The pods authenticate as the service account role, not the node instance profile, so node-level permissions do not carry over. AccessDenied on PutMetricData is an IAM signal, not a networking one, which rules out the VPC endpoint and security group answers."
+          },
+          "gotchas": [
+            "Agent-not-reporting checklist, in order: process running, instance profile or IRSA role attached, config actually fetched, correct Region in config, outbound 443 to monitoring and logs endpoints, clock skew, disk full, then check the CWAgent namespace rather than AWS/EC2.",
+            "Container Insights is billed as custom metrics and can be expensive on large clusters — enhanced observability multiplies the metric count.",
+            "On ECS, Container Insights is a cluster setting; enabling it does not retroactively instrument already-running tasks in every case — redeploy the service.",
+            "AMP does not ship a UI — a question that ends at AMP alone with a 'dashboards' requirement is incomplete without Managed Grafana.",
+            "Fargate tasks have no host to run a DaemonSet on; use the awsfirelens or awslogs driver and Container Insights for Fargate.",
+            "AMP ingestion requires SigV4-signed remote_write; an unsigned Prometheus remote_write fails with 403."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "alarms",
+      "title": "Alarms: states, evaluation, actions, and why they stay silent",
+      "summary": "An alarm evaluates M of the last N datapoints against a threshold, and every 'it never fired' question is a missing-data, period, action, or SNS problem.",
+      "concepts": [
+        {
+          "name": "States, evaluation windows, and treat-missing-data",
+          "explain": "An alarm has exactly three states: OK, ALARM, and INSUFFICIENT_DATA. It re-evaluates each period and looks at the last N periods, firing when M of those N datapoints breach — that is 'Datapoints to alarm M out of N evaluation periods', and it exists to filter transient spikes without waiting N full periods. Setting M equal to N is the strict classic behaviour; setting M smaller makes the alarm more sensitive.\nThe subtle half is missing data. The default treatment is 'missing', which means CloudWatch simply ignores gaps and evaluates whichever datapoints exist; if all N are missing, the alarm goes to INSUFFICIENT_DATA and, crucially, does not fire the ALARM action. That is why an alarm on a metric that stops being published — a crashed agent, a terminated instance, a queue with no traffic — is silent exactly when you most need it. If absence of data means something is wrong, set treat missing data as 'breaching'. If absence is normal, set 'notBreaching'. If you want the alarm to hold whatever state it was in, set 'ignore'.",
+          "exam_tests": "Trigger phrases: 'the alarm remained in INSUFFICIENT_DATA', 'no notification was received when the application stopped', 'the alarm flaps during brief spikes'. The discriminating fact is the missing-data setting (default 'missing' never fires on absence) or the M-of-N configuration for flapping.",
+          "compare": {
+            "columns": ["Setting", "Missing datapoint treated as", "State when ALL datapoints missing", "Use when"],
+            "rows": [
+              ["missing (default)", "Ignored — evaluated on existing points only", "INSUFFICIENT_DATA (no action)", "Metric is continuous and gaps are meaningless"],
+              ["notBreaching", "Good / within threshold", "OK", "Sparse metrics where silence is normal, e.g. error counts"],
+              ["breaching", "Bad / breaching threshold", "ALARM", "Heartbeat monitoring — silence is the failure"],
+              ["ignore", "Alarm keeps its current state", "Previous state retained", "Avoid state churn on flaky publishing"]
+            ]
+          },
+          "example": {
+            "scenario": "A canary publishes a HeartbeatCount metric every minute. An alarm fires when Sum is less than 1 for 3 of 3 periods. When the canary host died completely, no notification was sent and the alarm showed INSUFFICIENT_DATA.",
+            "answer": "Set the alarm's treat-missing-data behaviour to 'breaching'.",
+            "why": "With the default 'missing' treatment CloudWatch ignores absent datapoints instead of scoring them against the threshold, so total silence produces INSUFFICIENT_DATA and no ALARM action. 'breaching' converts absence into a breach, which is exactly the semantics of a heartbeat. Lowering the threshold does nothing because there is no datapoint to compare."
+          },
+          "gotchas": [
+            "INSUFFICIENT_DATA does not trigger the ALARM action; it has its own separate action slot that people forget to configure.",
+            "An alarm period shorter than the metric's publishing interval guarantees gaps — a 60 s alarm on a 5-minute basic-monitoring metric.",
+            "Only high-resolution metrics support 10 s and 30 s alarm periods.",
+            "Alarm history is retained 14 days — beyond that, use CloudTrail or Logs to reconstruct.",
+            "Changing an alarm's configuration resets it to INSUFFICIENT_DATA until enough new datapoints arrive.",
+            "Percentile-based alarms have their own 'evaluate low sample count' setting that can suppress firing on thin traffic."
+          ],
+          "mnemonic": "Default is 'missing', and missing means mute."
+        },
+        {
+          "name": "Alarm actions and composite alarms",
+          "explain": "An alarm can drive four kinds of action: publish to an SNS topic, execute an Auto Scaling scaling policy, take an EC2 action (stop, terminate, reboot, recover), or create a Systems Manager OpsItem or an Incident Manager incident. Lambda is not a direct alarm action — you get to Lambda either by subscribing the function to the SNS topic or, more idiomatically, with an EventBridge rule matching the CloudWatch Alarm State Change event, which also gives you filtering, input transformation, and a DLQ.\nComposite alarms combine child alarms with an expression such as ALARM(cpu-high) AND ALARM(latency-high), and their job is noise reduction: page once for a real incident instead of once per symptom. They also support a suppressor alarm, so a maintenance-window alarm can silence a whole tree. Composite alarms notify through SNS or SSM only — they cannot take EC2 or Auto Scaling actions, because those need a per-instance metric dimension the composite does not have.",
+          "exam_tests": "Stems say 'operators receive dozens of notifications for a single incident' → composite alarm. 'Run custom remediation code when the alarm fires' → EventBridge rule on the alarm state change targeting Lambda, or SNS to Lambda. 'The alarm changed to ALARM but nothing happened' → alarm actions were disabled, or the action is an EC2 action on a non-per-instance alarm.",
+          "compare": {
+            "columns": ["Action type", "Target", "Works on composite alarm?", "Typical use"],
+            "rows": [
+              ["SNS notification", "SNS topic (same Region)", "Yes", "Paging, email, chat, fan-out to Lambda/SQS"],
+              ["Auto Scaling action", "Scaling policy", "No", "Step or simple scaling on CPU/queue depth"],
+              ["EC2 action", "stop / terminate / reboot / recover", "No", "Status-check remediation on a single instance"],
+              ["Systems Manager action", "OpsItem or Incident Manager incident", "Yes", "Ticketed operations, attached runbooks"],
+              ["Custom code", "EventBridge rule on CloudWatch Alarm State Change → Lambda/SSM Automation/Step Functions", "Yes (as event source)", "Automated remediation with retries and DLQ"]
+            ]
+          },
+          "example": {
+            "scenario": "During a database incident, on-call received 14 separate pages from alarms on CPU, connections, replica lag, and five application error alarms. Leadership wants one page per incident without losing the individual alarms for diagnosis.",
+            "answer": "Create a composite alarm whose rule combines the child alarms, point SNS paging at the composite, and remove the SNS action from the children.",
+            "why": "Composite alarms exist precisely to collapse correlated symptoms into a single notification while the child alarms keep evaluating and remain visible for diagnosis. Deleting the child alarms would lose the diagnostic signal, and raising thresholds would just delay detection."
+          },
+          "gotchas": [
+            "The SNS topic must be in the same Region as the alarm; cross-Region notification needs a second topic or an EventBridge cross-Region rule.",
+            "Actions can be individually disabled per alarm (ActionsEnabled false) — a fired alarm with no action is often this.",
+            "EC2 actions require the alarm to use an EC2 per-instance metric and an appropriate service-linked role.",
+            "A composite alarm's children must be in the same account and Region; composite alarms cannot be nested more than a limited depth.",
+            "Auto Scaling actions are evaluated against the group's cooldown — the alarm can be in ALARM while scaling is suppressed.",
+            "Alarms on metric math expressions are supported, but alarms on a SEARCH expression that returns multiple series are not."
+          ]
+        },
+        {
+          "name": "Anomaly detection, and the notification-never-arrived checklist",
+          "explain": "Anomaly detection trains a model on up to two weeks of a metric's history, learns hourly, daily, and weekly seasonality, and produces a band. You then alarm on 'outside the band' with a band width in standard deviations — 2 is a sensible default, higher is quieter. It is the right answer whenever a static threshold cannot work because the normal value varies by time of day, such as request counts or a batch job's CPU. You can exclude known-abnormal periods (a load test, an outage) from training so the model does not learn the anomaly as normal.\nThe other half of this concept is the diagnostic runbook for 'the alarm fired but nobody was told'. Work the chain end to end: is the alarm actually in ALARM and are its actions enabled; is the SNS topic in the same Region; is the subscription in Confirmed rather than PendingConfirmation state; does the SNS topic access policy allow cloudwatch.amazonaws.com to Publish; if the topic is encrypted, does the KMS key policy allow the CloudWatch service principal to GenerateDataKey and Decrypt; is the email in spam or the endpoint returning errors so SNS disabled delivery.",
+          "exam_tests": "Anomaly detection appears as 'traffic varies predictably by time of day and static thresholds cause false alarms'. The notification chain appears as 'the alarm entered ALARM state but the team received no email' — the answer is almost always the unconfirmed subscription, the topic policy, or the KMS key policy on an encrypted topic.",
+          "compare": {
+            "columns": ["Symptom", "Most likely cause", "Where to check", "Fix"],
+            "rows": [
+              ["Alarm stuck INSUFFICIENT_DATA", "Period shorter than publishing interval, or metric stopped", "Metric graph, alarm period", "Match the period; set treat-missing-data breaching"],
+              ["ALARM state but no email", "Subscription never confirmed", "SNS subscription status = PendingConfirmation", "Resend confirmation and click the link"],
+              ["ALARM state, SNS shows no publish", "Alarm actions disabled, or topic in another Region", "Alarm ActionsEnabled, topic ARN Region", "Enable actions; create topic in the alarm's Region"],
+              ["SNS publish fails on an encrypted topic", "KMS key policy blocks the service principal", "CloudTrail KMS Decrypt/GenerateDataKey denials", "Allow cloudwatch.amazonaws.com in the key policy"],
+              ["Alarm fires constantly at night", "Static threshold on a seasonal metric", "Metric graph over 7 days", "Switch to anomaly detection band"],
+              ["Alarm flaps every few minutes", "Datapoints to alarm equals 1", "Alarm M-of-N config", "Raise M of N, or lengthen the period"]
+            ]
+          },
+          "example": {
+            "scenario": "A CloudOps engineer creates an alarm with an SNS action and tests it. The alarm goes to ALARM, CloudWatch alarm history shows the action succeeded, but no email arrives and SNS delivery metrics show zero notifications delivered.",
+            "answer": "Confirm the email subscription — it is still in PendingConfirmation state, so SNS drops messages for that endpoint.",
+            "why": "CloudWatch records the action as successful because it published to the topic; SNS then has no confirmed endpoint to deliver to. This is why alarm history showing success does not prove notification, and why re-creating the alarm or widening the threshold changes nothing."
+          },
+          "gotchas": [
+            "Anomaly detection needs history — a brand-new metric has no usable band for the first days.",
+            "The anomaly detection model is per metric and statistic; changing the statistic means a new model.",
+            "You can alarm on 'above the band only', which is what you want for latency and error metrics.",
+            "SNS email subscriptions expire from PendingConfirmation after 3 days and must be recreated.",
+            "A cross-account alarm action needs the topic policy to allow the alarm's account, not just the service principal.",
+            "SNS can disable a subscription after repeated delivery failures — check the subscription attributes before rebuilding the alarm."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "logs-audit",
+      "title": "Logs, audit trails, traces, and synthetic monitoring",
+      "summary": "Four different questions — what did the app print, who called the API, where did the latency go, what was the config — map to four different services, and the exam tests that mapping.",
+      "concepts": [
+        {
+          "name": "CloudWatch Logs: retention, metric filters, subscriptions, Insights",
+          "explain": "A log group is the unit of retention, access control, encryption, and querying; a log stream is one source within it. Retention defaults to Never expire, so the first ops action on any new log group is to set it — 1 day to 10 years. Metric filters turn a text pattern into a CloudWatch metric so you can alarm on log content, for example a filter on 'ERROR' or on a JSON field. Two facts get tested: metric filters only apply to events ingested after the filter is created, and you should set a default value of 0 so periods with no matches emit a datapoint instead of a gap that leaves the alarm in INSUFFICIENT_DATA.\nSubscription filters stream log events in near real time to Lambda, Amazon Data Firehose, Kinesis Data Streams, or OpenSearch — that is the mechanism for centralising logs into another account or into a data lake. Logs Insights is the ad-hoc query engine (fields, filter, stats, parse, sort, limit) over log groups, useful for interactive incident work, not for standing alarms. Cross-account observability lets a monitoring account view metrics, logs, traces, and Application Signals from linked source accounts through a sink, which is the low-overhead answer to 'centralise observability across the organization'.",
+          "exam_tests": "Stems: 'alarm when a specific error string appears in the logs' → metric filter plus alarm. 'Stream logs to a central account in near real time' → subscription filter to Firehose or a cross-account destination. 'Investigate an incident across many log groups' → Logs Insights. 'The metric filter alarm sits in INSUFFICIENT_DATA' → no default value of 0.",
+          "compare": {
+            "columns": ["Need", "Feature", "Real time?", "Cost model"],
+            "rows": [
+              ["Alarm on a string or JSON field in logs", "Metric filter → CloudWatch metric → alarm", "Near real time", "Custom metric + alarm"],
+              ["Ad-hoc investigation across log groups", "Logs Insights query", "Interactive", "Per GB of data scanned"],
+              ["Continuous export to a data lake or another account", "Subscription filter (Lambda / Firehose / KDS / OpenSearch)", "Near real time", "Per GB delivered + destination cost"],
+              ["One-off bulk export to S3", "CreateExportTask to S3", "Batch, hours", "S3 storage"],
+              ["Watch a log group live during an incident", "Live Tail", "Real time", "Per minute of tailing"],
+              ["View another account's logs from one console", "CloudWatch cross-account observability (sink + links)", "Real time", "No extra charge for linking"]
+            ]
+          },
+          "example": {
+            "scenario": "A team creates a metric filter for the pattern ERROR on an application log group and an alarm at threshold greater than 5 for 1 of 1 periods. During quiet periods the alarm shows INSUFFICIENT_DATA, and after a burst of errors two hours ago the alarm never fired for events that were already in the log group.",
+            "answer": "Set the metric filter's default value to 0 so quiet periods publish a datapoint, and accept that the filter cannot score events ingested before it existed.",
+            "why": "A metric filter only emits a datapoint when it matches, so a quiet period produces no data and the alarm has nothing to evaluate; a default value of 0 fixes that. Metric filters are applied at ingestion, so historical events in the log group are never re-scanned — use Logs Insights to analyse the past burst."
+          },
+          "gotchas": [
+            "New log groups default to Never expire — retention is an explicit ops step, and it is the cheapest cost win in the domain.",
+            "Metric filters are forward-only; they never backfill.",
+            "There is a small limit on subscription filters per log group, so a design that fans out to many consumers should subscribe once to Firehose or Kinesis and branch there.",
+            "Logs Insights bills on bytes scanned — narrow the time range and log groups before adding filters.",
+            "Deleting a log group deletes its data immediately and irreversibly; retention is not a recycle bin.",
+            "Encrypting a log group with a customer-managed KMS key requires the key policy to allow the logs service principal, or ingestion silently fails."
+          ]
+        },
+        {
+          "name": "CloudTrail: management, data, and Insights events; Lake and Athena",
+          "explain": "CloudTrail records API activity in three tiers. Management events are control-plane calls (RunInstances, CreateBucket, AssumeRole); one copy of read and write management events is free and visible in Event history for 90 days, but that view is not a trail and cannot be queried at scale or retained. Data events are the high-volume plane — S3 object-level GetObject/PutObject, Lambda Invoke, DynamoDB item-level — and they are off by default and billed, which is why 'who deleted the object' questions require enabling S3 data events first. Insights events detect unusual rates of write API calls or error rates and are enabled separately.\nDelivery goes to S3 (a new file typically within about 5 minutes, up to 15 minutes) and optionally to CloudWatch Logs, and only the CloudWatch Logs copy lets you build metric filters and alarms on API activity. An organization trail created in the management account captures every member account into one bucket, which is the standard 'centralised audit' answer. Log file validation produces hourly digest files hashed with SHA-256 and signed, so you can prove a log was not altered. CloudTrail Lake is the managed alternative: an event data store with long retention and SQL queries without building your own Athena setup, while plain Athena over the S3 trail bucket is the cheaper answer when the data already lands in S3 and you just need occasional SQL.",
+          "exam_tests": "Trigger words: 'who deleted / who changed' → CloudTrail. 'Object-level activity in a bucket' → S3 data events, not management events. 'Prove the logs were not tampered with' → log file integrity validation and digest files. 'Alert when a specific API call is made' → trail delivering to CloudWatch Logs, metric filter, alarm — or an EventBridge rule. 'Query years of API history with SQL and no infrastructure' → CloudTrail Lake.",
+          "compare": {
+            "columns": ["Event type", "On by default?", "Examples", "Cost", "Typical question"],
+            "rows": [
+              ["Management events", "Yes (one free copy, 90-day Event history)", "RunInstances, CreateUser, PutBucketPolicy", "First copy free per trail", "Who changed the security group?"],
+              ["Data events", "No", "S3 GetObject/PutObject/DeleteObject, Lambda Invoke, DynamoDB item ops", "Charged per event", "Who read or deleted this object?"],
+              ["Insights events", "No", "Unusual write-API rate, unusual error rate", "Charged separately", "Why did API calls spike overnight?"],
+              ["Network activity events", "No", "VPC endpoint API activity", "Charged", "What API calls traversed my endpoint?"]
+            ]
+          },
+          "example": {
+            "scenario": "Objects are disappearing from a versioned S3 bucket. CloudTrail is enabled with a trail capturing all management events, but a search of Event history and the trail's S3 bucket shows no DeleteObject calls at all.",
+            "answer": "Enable S3 data events for that bucket on the trail; object-level operations are data events and are not captured by management-event logging.",
+            "why": "Management events cover control-plane changes to the bucket itself, such as its policy or lifecycle configuration, never object-level reads and writes. Enabling data events starts capture going forward, so it identifies future deletions; the past deletions are not recoverable from CloudTrail. Log file validation would prove integrity but not add missing event types."
+          },
+          "gotchas": [
+            "Event history is 90 days, console-only, management events only — it is not a substitute for a trail.",
+            "Data events are the main driver of CloudTrail cost; scope them with advanced event selectors to specific prefixes or functions.",
+            "Only a trail delivering to CloudWatch Logs can drive metric filters and alarms; the S3 copy alone cannot.",
+            "An organization trail must be created in the management account or a delegated administrator, and member accounts cannot delete it.",
+            "Global service events (IAM, STS, CloudFront, Route 53) are recorded in us-east-1 — a Region-scoped trail elsewhere misses them.",
+            "Log file validation is opt-in at trail creation and produces digest files; validate with the CLI validate-logs command."
+          ],
+          "numbers": [
+            "Event history retention 90 days",
+            "Trail delivery to S3 typically within 5 minutes, up to 15",
+            "CloudTrail Lake event data store retention up to 3,653 days (10 years)"
+          ]
+        },
+        {
+          "name": "X-Ray, cross-account dashboards, Synthetics canaries, and which tool answers which question",
+          "explain": "X-Ray answers a question no log can: inside one request, where did the time go and which downstream call failed. It stitches segments and subsegments into traces and renders a service map with per-edge latency and error rates. Sampling keeps the cost sane — the default rule records the first request each second plus a small percentage of the rest, and you can add rules per service or URL. Annotations are indexed and filterable; metadata is not indexed and exists only for context. CloudWatch Application Signals sits on top for SLO tracking without hand-built dashboards.\nDashboards can pull widgets from other accounts and Regions once cross-account observability links are in place, which is how one operations dashboard covers an organization. Synthetics canaries are the other half of proactive monitoring: scripted Node.js or Python runs on a schedule from outside your application — heartbeat, API canary, broken link checker, GUI workflow, visual monitoring — publishing SuccessPercent and Duration metrics and screenshots to S3. Canaries catch 'the site is down for users' before any server-side metric moves, and they can run inside a VPC to test private endpoints.",
+          "exam_tests": "The classic four-way discrimination: application behaviour → CloudWatch Logs; who called the API → CloudTrail; where the latency is inside a distributed request → X-Ray; what the resource configuration was and whether it is compliant → AWS Config. Also 'detect an outage before customers report it, including during low traffic' → Synthetics canary, because with no traffic there are no server-side datapoints to alarm on.",
+          "compare": {
+            "columns": ["Question you are asking", "Service", "Unit of data", "Retention/scope note"],
+            "rows": [
+              ["What did my application print or throw?", "CloudWatch Logs", "Log event in a stream", "Retention you set, 1 day to 10 years"],
+              ["Who called which API, when, from where?", "CloudTrail", "API event", "Event history 90 days; trail to S3 indefinite; Lake up to 10 years"],
+              ["Where inside this request did latency or the error occur?", "X-Ray", "Trace / segment", "Traces retained 30 days"],
+              ["What was this resource's configuration, and did it drift or violate a rule?", "AWS Config", "Configuration item + compliance state", "Config history in S3; timeline per resource"],
+              ["Was traffic allowed or rejected on the network path?", "VPC Flow Logs", "Flow record", "To CloudWatch Logs or S3"],
+              ["Is the endpoint working right now for a user?", "CloudWatch Synthetics canary", "Canary run result", "Artifacts in S3, metrics in CloudWatch"]
+            ]
+          },
+          "example": {
+            "scenario": "A checkout API is intermittently slow. CloudWatch shows normal ALB target response time on average, application logs show no errors, and the team cannot tell which of six microservices is responsible.",
+            "answer": "Instrument the services with X-Ray and use the service map and trace analysis to find the slow downstream edge.",
+            "why": "Averaged latency metrics hide a slow dependency behind fast requests, and logs are per-service with no correlation ID tying one user request across six hops. X-Ray traces carry that correlation natively and the service map shows per-edge latency, which is the only one of these tools that localises latency inside a distributed request. CloudTrail would only show control-plane API calls, which are irrelevant to runtime latency."
+          },
+          "gotchas": [
+            "X-Ray traces are retained 30 days and cannot be extended — export or aggregate what you need to keep.",
+            "Increasing the X-Ray sampling rate raises cost and can itself add overhead; tune per-rule rather than globally.",
+            "Annotations are indexed and searchable; metadata is not — putting a request ID in metadata makes it unfindable.",
+            "A canary in a VPC needs subnets, a security group, and a NAT path or endpoints to reach CloudWatch and S3.",
+            "Canary artifacts accumulate in S3 — set a lifecycle rule or the bucket grows without bound.",
+            "Cross-account dashboards need the monitoring account sink and source-account links; simply sharing an IAM role is not enough for the modern cross-account observability experience."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "event-driven-remediation",
+      "title": "Event-driven detection and automated remediation",
+      "summary": "Detection publishes an event, EventBridge routes it, and Systems Manager Automation or Lambda fixes it — and the chain breaks at exactly one link.",
+      "concepts": [
+        {
+          "name": "EventBridge: rules, patterns, targets, DLQ, replay, Scheduler, Pipes",
+          "explain": "EventBridge is the routing layer. AWS services publish events to the default bus in the Region where the resource lives; your applications publish to a custom bus. A rule matches with an event pattern — a JSON subset that must match the event's structure exactly, key for key, with values expressed as arrays — or fires on a schedule. Content filters (prefix, suffix, anything-but, numeric, exists, wildcard, cidr) let one rule cover a range without Lambda-side filtering. A rule can have up to five targets, and an input transformer reshapes the event before delivery.\nOperationally, three features matter. A dead-letter queue on the target captures events EventBridge could not deliver after retries, so a failed remediation is not silently lost. Archive and replay let you re-drive events after fixing a bug — the ops equivalent of a redo log. EventBridge Scheduler is the modern replacement for cron-style rules: one-time or recurring schedules at very high scale, with flexible time windows and retry policy, targeting thousands of API actions directly. EventBridge Pipes is point-to-point: source, optional filter, optional enrichment, target, with no glue Lambda.",
+          "exam_tests": "The dominant stem is 'the rule does not trigger'. Work the checklist: right bus, right Region and account, pattern keys and case exactly matching including detail-type, rule enabled, target permission (resource policy on Lambda/SNS/SQS or an execution role for SSM, Step Functions, ECS), and for 'AWS API Call via CloudTrail' rules, that a trail actually logs those events. Also common: 'events are being lost' → configure a DLQ.",
+          "compare": {
+            "columns": ["Failure symptom", "Likely cause", "Check", "Fix"],
+            "rows": [
+              ["Rule never matches", "Pattern key, nesting, or case wrong", "Send a sample event through the sandbox / test event pattern", "Copy an actual event and prune it into a pattern"],
+              ["Rule matches, target does nothing", "Target lacks permission", "Lambda resource policy for events.amazonaws.com; role for SSM/Step Functions", "Add resource-based policy or invocation role"],
+              ["No events at all for API activity", "No CloudTrail trail logging those events", "Trail exists in that Region and event type", "Create/extend the trail (data events if object-level)"],
+              ["Works in one Region, not another", "Event emitted only in the resource's Region; global services in us-east-1", "Region of the resource", "Create the rule in the emitting Region or forward bus-to-bus"],
+              ["Intermittent lost remediations", "Delivery failures after retries", "Target invocation and FailedInvocations metric", "Attach an SQS DLQ and alarm on it"],
+              ["Need to re-run past events after a bug fix", "No archive configured", "Bus archive settings", "Enable archive; replay the time range"]
+            ]
+          },
+          "example": {
+            "scenario": "A rule is meant to invoke a Lambda function whenever an EC2 instance changes to the stopped state. The rule shows matched events in its metrics, but the function has zero invocations and no errors.",
+            "answer": "Add a resource-based policy on the Lambda function allowing events.amazonaws.com to invoke it, scoped to the rule ARN.",
+            "why": "MatchedEvents greater than zero with zero invocations proves the pattern is correct and the failure is on delivery, which for Lambda targets is the function's resource policy — the console adds it automatically but CLI, CloudFormation, or Terraform paths often do not. Editing the event pattern would break a rule that is already matching."
+          },
+          "gotchas": [
+            "Event patterns match a subset of the event: every key you write must exist with a matching value, and values are always arrays.",
+            "detail-type is an exact string — 'EC2 Instance State-change Notification' with the exact hyphenation and capitalisation.",
+            "Rules on 'AWS API Call via CloudTrail' need an actual trail in that Region; for S3 object events prefer S3 EventBridge notifications over data events for cost.",
+            "Global services (IAM, STS, CloudFront, Route 53) emit only in us-east-1.",
+            "A DLQ must be an SQS queue with a policy allowing EventBridge to send to it, otherwise failures are dropped anyway.",
+            "EventBridge Scheduler is the answer for 'millions of one-time schedules'; scheduled rules on the bus are the legacy path with lower limits."
+          ]
+        },
+        {
+          "name": "Systems Manager Automation runbooks, OpsCenter, and Health events",
+          "explain": "An Automation runbook is a Systems Manager document of type Automation that executes a sequence of steps against AWS APIs or against managed nodes. AWS ships hundreds of AWS-* runbooks — AWS-RestartEC2Instance, AWS-StopEC2Instance, AWS-CreateSnapshot, AWS-AttachEBSVolume, AWS-ResizeInstance, AWS-DisableIncomingSSHOnPort22, plus the AWSSupport-* diagnostic family — and the exam favours 'use the existing AWS runbook' over 'write a Lambda function' whenever the action is a standard AWS operation, because it is lower operational overhead and needs no code. Step types include aws:executeAwsApi, aws:runCommand, aws:invokeLambdaFunction, aws:branch, aws:approve, and aws:waitForAwsResourceProperty.\nFor fleets, Automation supports rate control: run against a target set defined by tags or a resource group, with concurrency (how many at once) and error threshold (stop after N failures), and multi-account multi-Region execution through Organizations. The aws:approve step pauses for a human via SNS, which is the answer for 'remediation must be approved before it runs'. OpsCenter aggregates operational issues as OpsItems from CloudWatch alarms, EventBridge, Config, and Security Hub, with runbooks attached so the fix is one click from the ticket. AWS Health events (scheduled maintenance, degradations, retirements) also flow to EventBridge, which is how you automate ahead of a scheduled instance retirement.",
+          "exam_tests": "Trigger phrases: 'least operational overhead' plus a standard AWS action → predefined SSM Automation runbook. 'Remediate across hundreds of accounts' → Automation with Organizations and rate control. 'A human must approve' → aws:approve step. 'The runbook failed with an access denied' → the AutomationAssumeRole, not the caller's permissions. 'Act before a scheduled instance retirement' → AWS Health event to EventBridge to Automation.",
+          "compare": {
+            "columns": ["Tool", "Best for", "Code required?", "Retries / error handling", "Scale mechanism"],
+            "rows": [
+              ["SSM Automation runbook", "Standard AWS operations and node commands", "No for AWS-* runbooks", "Per-step onFailure, retries, branching", "Rate control by tag/resource group, multi-account via Organizations"],
+              ["Lambda function", "Custom logic, third-party API calls, data transformation", "Yes", "Function retries plus EventBridge DLQ", "Concurrency scaling"],
+              ["Step Functions", "Long or stateful multi-service workflows with approvals", "Low-code state machine", "Built-in retry/catch per state", "Standard vs Express workflows"],
+              ["EventBridge Scheduler", "Time-based invocation of any of thousands of API actions", "No", "Retry policy and DLQ", "Millions of schedules"],
+              ["Config auto-remediation", "Bringing non-compliant resources back into compliance", "No — uses an SSM Automation document", "Retry count on the remediation action", "Per Config rule, org-wide via conformance packs"]
+            ]
+          },
+          "example": {
+            "scenario": "Security requires that any security group modified to allow 0.0.0.0/0 on port 22 is corrected automatically within minutes, with no custom code to maintain.",
+            "answer": "Use the AWS Config managed rule for restricted SSH with automatic remediation invoking the AWS-DisableIncomingSSHOnPort22 Automation runbook.",
+            "why": "Config detects the non-compliant configuration and its remediation action runs a predefined SSM Automation document, so there is no Lambda code to own. A Lambda triggered from EventBridge would work but adds code, permissions, and failure modes the question explicitly excludes by saying no custom code."
+          },
+          "gotchas": [
+            "Automation runs under the AutomationAssumeRole, which must trust ssm.amazonaws.com and hold the target permissions — most 'access denied' failures are this role, not the invoking user.",
+            "Runbook steps that use aws:runCommand need the target to be an SSM managed node (agent, instance profile with AmazonSSMManagedInstanceCore, network path to ssm, ssmmessages, ec2messages).",
+            "Rate control's error threshold stops the run — a fleet remediation that 'stopped halfway' usually hit maxErrors.",
+            "Config auto-remediation can be set to retry, but by default it does not re-run on repeated non-compliance unless you enable it.",
+            "OpsCenter OpsItems are Regional and per account unless you configure the organizational setup.",
+            "AWS DevOps Agent and Kiro are legitimate options for AI-assisted operational analysis and for generating IaC or scripts, but on this exam they are rarely the single discriminating fact — prefer the concrete AWS-* runbook or Config rule when the stem describes a standard remediation."
+          ]
+        },
+        {
+          "name": "The end-to-end remediation chain: alarm to EventBridge to Lambda or SSM",
+          "explain": "Most automated-remediation questions are the same pipeline with different pieces swapped in. Detection is a CloudWatch alarm, a Config rule, a GuardDuty or Security Hub finding, an AWS Health event, or a CloudTrail-sourced API call. That detection surfaces as an EventBridge event — CloudWatch Alarm State Change, Config Rules Compliance Change, GuardDuty Finding, and so on. EventBridge matches, optionally transforms, and delivers to an action: SSM Automation for standard AWS operations, Lambda for custom logic, Step Functions for multi-step workflows with approvals, SNS for humans.\nDesigning it well means three habits. Put the remediation behind an idempotency check so a repeated event does not double-act. Attach a DLQ so failures are visible rather than silent, and alarm on the DLQ depth. Log the remediation itself — the OpsItem or a structured log event — so the audit trail shows the system, not a human, made the change. When the question says 'without custom code', the chain ends in SSM Automation; when it says 'enrich the event with data from a third party' or 'apply business logic', it ends in Lambda.",
+          "exam_tests": "Look for the two forks. Fork one: notification only (SNS) versus action (EventBridge to Automation/Lambda). Fork two: standard AWS action with no code (SSM Automation) versus custom logic (Lambda). A third recurring trap: an alarm cannot invoke Lambda directly, so a correct answer either routes through SNS or through an EventBridge rule on the alarm state change.",
+          "example": {
+            "scenario": "When an EC2 instance's disk usage, reported by the CloudWatch agent, exceeds 90 percent, operations must automatically archive and truncate old log files on the instance and open a ticket. No new servers may be introduced.",
+            "answer": "Alarm on disk_used_percent, route the alarm state change through an EventBridge rule to an SSM Automation runbook that uses aws:runCommand to run the cleanup script, and have the runbook create an OpsItem.",
+            "why": "Running a command inside the instance requires Systems Manager, not Lambda, because Lambda has no path into the guest OS; Run Command inside an Automation runbook is the supported mechanism and needs no new servers. Adding the EC2 reboot alarm action would not clean disks, and an SNS-only answer notifies without remediating."
+          },
+          "gotchas": [
+            "CloudWatch alarms cannot target Lambda directly — SNS subscription or an EventBridge rule on CloudWatch Alarm State Change.",
+            "Remediation that acts on every ALARM event will re-fire on flapping; gate on state transition to ALARM and add idempotency.",
+            "Automation acting on nodes requires SSM managed-node prerequisites — the number one cause of 'the runbook ran but the instance did nothing'.",
+            "Alarm the DLQ. A remediation pipeline with a DLQ nobody watches is the same as no DLQ.",
+            "Cross-account remediation needs a role in the target account that the automation or Lambda can assume; EventBridge can also forward to a bus in the target account.",
+            "Prefer 'detect with Config, fix with Automation' for configuration drift and 'detect with CloudWatch, fix with Automation' for runtime symptoms."
+          ],
+          "mnemonic": "Detect, route, act, prove: alarm or rule, EventBridge, Automation or Lambda, OpsItem."
+        }
+      ]
+    },
+    {
+      "id": "compute-storage-perf",
+      "title": "Compute and storage performance",
+      "summary": "Every saturation question has one metric that proves it — credits, queue length, burst balance, IO limit — and the fix follows from that metric.",
+      "concepts": [
+        {
+          "name": "Right-sizing, T-family credits, placement groups, ENA and EFA",
+          "explain": "Compute Optimizer analyses CloudWatch metrics and returns findings of Under-provisioned, Over-provisioned, Optimized, or None for EC2 instances, Auto Scaling groups, EBS volumes, Lambda functions, ECS services on Fargate, and RDS. It needs at least 30 hours of metric data over the past 14 days before it will rate a resource, and by default it cannot see memory, so its EC2 recommendations improve materially once the CloudWatch agent publishes memory. Trusted Advisor's cost checks overlap but Compute Optimizer is the right-sizing engine.\nBurstable T instances earn CPU credits at a fixed rate per hour and spend them to run above their baseline. In standard mode, once CPUCreditBalance hits zero the instance is throttled to baseline — the classic 'the application was fine for weeks and is now permanently slow, but CPUUtilization looks flat and low' symptom. Unlimited mode (default on T3, T3a, T4g; T2 defaults to standard) lets it keep bursting and bills surplus credits. For latency and throughput between instances, cluster placement groups pack instances into one AZ on the same network segment; spread placement groups place them on distinct hardware, limited to seven running instances per AZ per group; partition placement groups give up to seven fault-isolated partitions per AZ for HDFS-style workloads. ENA gives high-bandwidth networking, and EFA adds OS-bypass for MPI and NCCL — EFA members must be in the same subnet and cluster placement group, and their security group must allow all traffic to and from itself.",
+          "exam_tests": "'Application became slow over time, CPU appears low' → CPUCreditBalance exhausted on a T instance. 'Tightly coupled HPC' → cluster placement group plus EFA. 'Critical instances must not share hardware' → spread placement group. 'Right-size with the least effort' → Compute Optimizer, and remember the 30-hours-in-14-days requirement and the memory blind spot.",
+          "compare": {
+            "columns": ["Placement group", "Placement", "Limit", "Optimises for", "Failure mode"],
+            "rows": [
+              ["Cluster", "Single AZ, same network segment", "Capacity-bound; launch all at once", "Lowest latency, highest per-flow throughput (HPC, EFA)", "InsufficientInstanceCapacity on later launches; whole AZ is one fault domain"],
+              ["Spread", "Distinct racks / hardware", "7 running instances per AZ per group", "Reducing correlated hardware failure", "Cannot pack many instances"],
+              ["Partition", "Groups of racks per partition", "Up to 7 partitions per AZ", "Large distributed stores (HDFS, Cassandra, Kafka)", "Not the lowest latency option"],
+              ["No group", "AWS chooses", "None", "General workloads", "No placement guarantees either way"]
+            ]
+          },
+          "example": {
+            "scenario": "A t3.medium web server ran well for six weeks and is now consistently sluggish. CloudWatch shows CPUUtilization pinned at about 20 percent with no spikes, and CPUCreditBalance at zero.",
+            "answer": "Switch the instance to unlimited mode, or move to a fixed-performance instance family such as M-family.",
+            "why": "CPUUtilization flat at the baseline with a zero credit balance is the signature of a throttled burstable instance — the hypervisor is capping it, so the metric looks calm while the application starves. Adding instances behind a load balancer treats the symptom; the discriminating fact is the credit balance, not the utilisation."
+          },
+          "gotchas": [
+            "Compute Optimizer needs 30 hours of data in the last 14 days; a recently launched instance shows finding 'None', which is not the same as 'Optimized'.",
+            "Without the CloudWatch agent, Compute Optimizer has no memory signal and can recommend a size that is CPU-adequate but memory-starved.",
+            "T2 defaults to standard mode; T3, T3a, and T4g default to unlimited — the default flips the failure mode.",
+            "Unlimited mode has no performance cliff but does have a cost cliff — surplus credits are billed per vCPU-hour.",
+            "Cluster placement groups cannot span AZs, so they trade availability for latency; launch all instances in one request to avoid capacity errors.",
+            "EFA requires the same subnet and cluster placement group plus a self-referencing security group rule allowing all traffic; missing that rule is the usual 'EFA does not work' cause."
+          ],
+          "numbers": [
+            "Compute Optimizer: at least 30 hours of metrics within the last 14 days",
+            "Spread placement group: 7 running instances per AZ per group",
+            "Partition placement group: up to 7 partitions per AZ"
+          ]
+        },
+        {
+          "name": "EBS: the metrics that prove saturation, volume types, and the modify rules",
+          "explain": "Diagnosing EBS starts with three metrics. VolumeQueueLength is the number of I/O requests waiting; sustained high queue length with rising latency means the volume is saturated. BurstBalance applies to gp2, st1, and sc1 and falling to zero means you have dropped to baseline performance — the storage equivalent of CPU credit exhaustion. VolumeThroughputPercentage and the read/write ops metrics tell you whether you are at the provisioned ceiling. Separately, the instance itself can be the bottleneck: EBSIOBalance% and EBSByteBalance% on the instance show you are hitting the instance's EBS bandwidth, in which case a bigger volume changes nothing and you need a larger or EBS-optimized instance type.\nOn volume types, gp3 is the default modern answer: baseline 3,000 IOPS and 125 MiB/s regardless of size, independently scalable to 16,000 IOPS and 1,000 MiB/s, and roughly 20 percent cheaper per GiB than gp2 — so 'gp2 volume keeps exhausting BurstBalance' is nearly always answered by migrating to gp3. io2 and io2 Block Express are for sustained high IOPS and 99.999 percent durability, with Multi-Attach for clustered workloads. st1 and sc1 are throughput HDDs for sequential big-block workloads and are terrible for small random I/O. Elastic Volumes let you change size, type, and IOPS with no downtime, but after a modification you must wait about six hours before modifying the same volume again, and growing a volume does not grow the file system — you still run growpart and resize2fs or xfs_growfs.",
+          "exam_tests": "'Performance degrades after a period of good performance' plus a gp2 volume → BurstBalance exhausted → gp3. 'Need consistent high IOPS with a size that does not justify gp2's 3 IOPS per GiB' → gp3 or io2. 'The volume was resized but the OS still shows the old capacity' → extend the partition and file system. 'Cannot modify the volume again' → the six-hour rule.",
+          "compare": {
+            "columns": ["Type", "Performance model", "Key metric to watch", "Sweet spot", "Trap"],
+            "rows": [
+              ["gp3", "Baseline 3,000 IOPS / 125 MiB/s, independent of size; up to 16,000 IOPS / 1,000 MiB/s", "VolumeQueueLength, VolumeThroughputPercentage", "Default for most workloads; cheaper than gp2", "No burst mechanism — you provision what you need"],
+              ["gp2", "3 IOPS per GiB, min 100, max 16,000; bursts to 3,000 on small volumes", "BurstBalance", "Legacy; migrate to gp3", "Small volumes silently rely on burst credits"],
+              ["io1 / io2 / io2 Block Express", "Provisioned IOPS, highest durability, Multi-Attach", "VolumeThroughputPercentage, VolumeQueueLength", "Databases needing sustained low-latency IOPS", "Expensive; IOPS:GiB ratio limits apply"],
+              ["st1", "Throughput HDD, baseline 40 MiB/s per TiB, burst 250 MiB/s per TiB", "BurstBalance, throughput", "Big sequential reads: logs, data warehouse, streaming", "Awful for small random I/O; not bootable"],
+              ["sc1", "Cold HDD, baseline 12 MiB/s per TiB, burst 80 MiB/s per TiB", "BurstBalance", "Infrequently accessed bulk data", "Lowest cost, lowest performance; not bootable"]
+            ]
+          },
+          "example": {
+            "scenario": "A reporting database on a 200 GiB gp2 volume performs well each morning and degrades sharply by mid-afternoon. VolumeQueueLength climbs and BurstBalance reaches zero around the same time each day.",
+            "answer": "Modify the volume to gp3 and provision the IOPS and throughput the workload needs.",
+            "why": "A 200 GiB gp2 volume has a baseline of only 600 IOPS and relies on burst credits for anything more, so the daily pattern of good-then-bad tracks the credit balance exactly. gp3 provides 3,000 IOPS baseline with no credit mechanism and independently provisionable IOPS, and the modification is online. Growing the gp2 volume would work by raising the baseline but costs more for the same result."
+          },
+          "gotchas": [
+            "After modifying a volume you must wait roughly six hours (or until the modification state completes) before modifying that volume again.",
+            "Increasing volume size never resizes the file system — growpart plus resize2fs or xfs_growfs is a separate, required step.",
+            "gp3 has no BurstBalance metric; if a runbook alarms on BurstBalance, the alarm goes INSUFFICIENT_DATA after migration.",
+            "Instance-level EBS bandwidth limits (EBSIOBalance%, EBSByteBalance%) cap throughput regardless of volume configuration.",
+            "st1 and sc1 cannot be boot volumes.",
+            "Instance store gives the highest raw IOPS but is ephemeral — data is lost on stop, hibernate, or host failure, though it survives a reboot."
+          ],
+          "numbers": [
+            "gp3 baseline 3,000 IOPS / 125 MiB/s; max 16,000 IOPS / 1,000 MiB/s",
+            "gp2: 3 IOPS/GiB, minimum 100, maximum 16,000",
+            "Volume modification cooldown: about 6 hours"
+          ]
+        },
+        {
+          "name": "Shared and object storage: EFS, FSx, and S3 performance",
+          "explain": "EFS performance has two dials. Throughput mode: Elastic scales up and down automatically and is the safe default for unpredictable workloads; Bursting scales throughput with stored data and accumulates BurstCreditBalance, so a small file system with heavy traffic will exhaust credits and crawl; Provisioned pins a fixed MiB/s independent of size. Performance mode: General Purpose gives the lowest latency and is right for almost everything, and PercentIOLimit approaching 100 percent is the signal you are hitting its per-file-system operations limit; Max I/O trades latency for higher aggregate operations and is now a legacy choice you avoid unless the workload genuinely needs it. EFS lifecycle management moves files to Infrequent Access and Archive after a configurable period without access, which is the standard cost answer.\nFor FSx, pick by protocol and ecosystem: Windows File Server for SMB and Active Directory-integrated Windows applications, Lustre for HPC and ML with an S3 data repository link, NetApp ONTAP when you need NFS and SMB and iSCSI together with snapshots and cloning, OpenZFS for low-latency NFS on Linux. S3 performance is about parallelism: roughly 3,500 write and 5,500 read requests per second per prefix, so spread keys across prefixes; use multipart upload for large objects (recommended above about 100 MB, required above 5 GB) and byte-range GETs to parallelise downloads; use Transfer Acceleration when uploading over long distances via edge locations; use DataSync for scheduled, validated bulk transfer from on-premises or between storage services; and use lifecycle policies for tiering rather than moving data by hand.",
+          "exam_tests": "'EFS throughput degraded over time on a small file system' → Bursting mode credits exhausted → Elastic or Provisioned. 'Windows applications need a shared file system with AD' → FSx for Windows File Server. 'ML training reading from S3 at scale' → FSx for Lustre. 'Uploads from Asia to a us-east-1 bucket are slow' → Transfer Acceleration or multipart, and DataSync when it is a scheduled bulk migration rather than an application upload path.",
+          "compare": {
+            "columns": ["EFS throughput mode", "How throughput is determined", "Metric to watch", "Use when", "Risk"],
+            "rows": [
+              ["Elastic", "Scales automatically with demand, pay per use", "MeteredIOBytes, throughput utilization", "Unpredictable or spiky workloads; modern default", "Cost on very heavy sustained traffic"],
+              ["Bursting", "Scales with stored data; credits accumulate when idle", "BurstCreditBalance", "Large file systems with bursty access", "Small file system + heavy access = credits hit zero, throughput collapses"],
+              ["Provisioned", "Fixed MiB/s you specify, independent of size", "Provisioned vs metered throughput", "Small data, high sustained throughput", "You pay for provisioned throughput whether used or not"]
+            ]
+          },
+          "example": {
+            "scenario": "A 60 GiB EFS file system in Bursting throughput mode serves a busy CMS. Performance is fine after quiet weekends and degrades each week by Wednesday. BurstCreditBalance trends to zero.",
+            "answer": "Switch the file system to Elastic throughput mode (or Provisioned if the required MiB/s is known and steady).",
+            "why": "Bursting throughput scales with stored data, and 60 GiB earns only a small baseline, so heavy weekday traffic drains credits accumulated over the weekend — a weekly sawtooth in BurstCreditBalance is the fingerprint. Elastic removes the credit model entirely. Switching performance mode to Max I/O addresses operations-per-second limits, not throughput credits, and adds latency."
+          },
+          "gotchas": [
+            "PercentIOLimit near 100 percent is an operations limit on General Purpose performance mode, a different problem from BurstCreditBalance.",
+            "EFS performance mode cannot be changed on an existing file system — you create a new one and migrate.",
+            "EFS lifecycle transitions are based on time since last access, and reads from IA incur a retrieval charge.",
+            "Multipart upload is required above 5 GB and leaves incomplete parts that keep billing — add a lifecycle rule to abort incomplete multipart uploads.",
+            "Transfer Acceleration uses a distinct accelerate endpoint and adds cost; it helps long-distance transfers, not same-Region ones.",
+            "DataSync is for scheduled, verified transfers with retries; it is not an application-path accelerator, which is what Transfer Acceleration is."
+          ],
+          "numbers": [
+            "S3: about 3,500 PUT/COPY/POST/DELETE and 5,500 GET/HEAD requests per second per prefix",
+            "Multipart: required above 5 GB, up to 10,000 parts, parts 5 MB to 5 GB, max object 5 TB",
+            "EFS lifecycle: transition to IA or Archive after a configured 1 to 365 days without access"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "database-perf",
+      "title": "Database performance operations",
+      "summary": "Three monitoring layers answer three different database questions, and the knobs that fix them are parameter groups, proxies, scaling, and caching.",
+      "concepts": [
+        {
+          "name": "Performance Insights vs Enhanced Monitoring vs CloudWatch RDS metrics",
+          "explain": "These three overlap in the console and never overlap in what they answer. CloudWatch RDS metrics are the outside view of the instance: CPUUtilization, FreeableMemory, FreeStorageSpace, DatabaseConnections, ReadIOPS and WriteIOPS, ReadLatency and WriteLatency, DiskQueueDepth, ReplicaLag, SwapUsage. They tell you the instance is unhealthy but not why. Enhanced Monitoring installs an agent on the DB host and delivers OS-level metrics at 1 to 60 second granularity into the RDSOSMetrics log group in CloudWatch Logs, including per-process CPU and memory — that is the only way to see which process is consuming resources, and it needs an IAM role.\nPerformance Insights answers the database question: what is the database actually doing. It plots DB load in Average Active Sessions against the instance's vCPU line, and breaks that load down by wait event, top SQL, top hosts, and top users. When AAS sits above the vCPU line the database is CPU-bound; when the load is dominated by a wait event like io/table/sql/file or lock waits, the fix is I/O or contention, not a bigger CPU. Performance Insights also surfaces proactive recommendations. The exam's discriminator: 'which query is causing this' is always Performance Insights; 'which OS process is consuming memory' is always Enhanced Monitoring.",
+          "exam_tests": "Trigger words: 'identify the SQL statement responsible' or 'top waits' → Performance Insights. 'Per-process OS metrics' or 'granularity finer than one minute at the OS level' → Enhanced Monitoring. 'Alarm on connections or free storage' → CloudWatch RDS metrics. A frequent trap is offering Enhanced Monitoring for a query-tuning question.",
+          "compare": {
+            "columns": ["Tool", "Layer it sees", "Granularity", "Answers", "Enable cost/requirement"],
+            "rows": [
+              ["CloudWatch RDS metrics", "Hypervisor / service view of the instance", "60 s (detailed available)", "Is it saturated? Is storage or memory running out? Is a replica lagging?", "On by default"],
+              ["Enhanced Monitoring", "Guest OS, per process", "1, 5, 10, 15, 30, or 60 seconds", "Which OS process consumes CPU or memory; real free memory", "Agent on the host + IAM role; delivered to RDSOSMetrics log group; charged as CloudWatch Logs"],
+              ["Performance Insights", "Database engine internals", "1 s samples of active sessions", "Which SQL, which wait event, which user is generating DB load", "Free tier 7 days of history; long-term retention paid"]
+            ]
+          },
+          "example": {
+            "scenario": "An RDS for PostgreSQL instance shows 95 percent CPUUtilization during business hours. The team must find which query is responsible before deciding to scale the instance.",
+            "answer": "Enable Performance Insights and use the DB load view to identify the top SQL by average active sessions.",
+            "why": "CloudWatch confirms saturation but attributes nothing; Enhanced Monitoring would show the postgres processes consuming CPU without naming a statement. Only Performance Insights decomposes load into SQL and wait events, which is what 'which query' requires. Scaling up before that analysis risks paying more for an unindexed query."
+          },
+          "gotchas": [
+            "CloudWatch CPUUtilization for RDS is the hypervisor view; Enhanced Monitoring's OS view can differ, which confuses side-by-side comparisons.",
+            "FreeableMemory is not free RAM in the Linux sense — a low value is normal because the engine uses buffer cache; watch SwapUsage together with it.",
+            "Enhanced Monitoring bills through CloudWatch Logs ingestion, and 1-second granularity across a fleet is expensive.",
+            "Performance Insights retains 7 days free; longer retention is a paid tier and must be enabled before you need the history.",
+            "Performance Insights can be enabled without a reboot on most engines, but check the engine and version before promising zero downtime.",
+            "ReplicaLag rising with normal CPU usually means the replica is I/O bound or single-threaded apply is behind, not that the replica is too small on CPU."
+          ]
+        },
+        {
+          "name": "RDS operational knobs: parameter groups, connections and RDS Proxy, storage autoscaling",
+          "explain": "Parameters live in a parameter group, and the default group is not editable — you create a custom group, associate it, and modify. Each parameter is static or dynamic. Dynamic parameters apply immediately (or at next connection); static parameters sit in pending-reboot status until you reboot the instance, which is the single most common 'I changed the setting and nothing happened' cause on this exam. Associating a different parameter group with an instance also requires a reboot to take effect.\nConnection exhaustion shows as DatabaseConnections at the max_connections ceiling and application errors about too many connections, typically from Lambda or containerised apps that each open their own pool. RDS Proxy fixes it by pooling and multiplexing connections, holds credentials in Secrets Manager, supports IAM authentication, is VPC-only, and also shortens failover impact because clients stay connected to the proxy. Storage autoscaling handles the other classic outage: FreeStorageSpace approaching zero. It grows storage automatically when free space is below about 10 percent of allocated, the condition persists at least five minutes, and at least six hours have passed since the last modification, up to a maximum you set.",
+          "exam_tests": "'The parameter change had no effect' → static parameter awaiting reboot. 'Too many connections from a serverless application' → RDS Proxy. 'Storage full outages recur' → enable storage autoscaling with a max threshold. Also watch for 'default parameter group' being offered as a thing you can edit — you cannot.",
+          "compare": {
+            "columns": ["Symptom", "Metric or signal", "Root cause", "Fix"],
+            "rows": [
+              ["Parameter change appears ignored", "Parameter group status pending-reboot", "Static parameter", "Reboot the instance during a maintenance window"],
+              ["Too many connections errors from Lambda", "DatabaseConnections at ceiling", "Each execution environment opens its own connections", "RDS Proxy for pooling; Secrets Manager for credentials"],
+              ["Instance enters storage-full state", "FreeStorageSpace approaching 0", "Growth outpaced allocated storage", "Storage autoscaling with max threshold; alarm on FreeStorageSpace"],
+              ["Long failover outage for clients", "Application errors past the failover window", "Clients cached the old DNS or hold dead connections", "RDS Proxy, and lower client-side DNS TTL caching"],
+              ["Read queries slow while writes are fine", "High ReadIOPS, high ReadLatency", "Read workload saturating one instance", "Read replicas and route reads to the replica endpoint"]
+            ]
+          },
+          "example": {
+            "scenario": "An engineer increases max_connections in a custom parameter group attached to an RDS for MySQL instance. Applications still fail with too many connections, and the parameter group shows pending-reboot.",
+            "answer": "Reboot the DB instance so the static parameter takes effect, and consider RDS Proxy to pool connections.",
+            "why": "max_connections is a static parameter, so it stays in pending-reboot until a reboot loads it — the change is saved but not active. Modifying the parameter again or creating a new parameter group does not skip the reboot requirement."
+          },
+          "gotchas": [
+            "The default parameter group and default option group cannot be modified — create custom ones.",
+            "Changing which parameter group is associated with an instance requires a reboot even if all the parameters are dynamic.",
+            "Storage autoscaling will not scale again within six hours of the previous storage modification.",
+            "RDS Proxy requires Secrets Manager for the database credentials and lives in the VPC — it is not reachable from the public internet.",
+            "Multi-AZ failover keeps the same endpoint; clients that cached DNS or hold dead sockets are the reason an app 'stays down after failover'.",
+            "Read replicas are asynchronous — routing reads to a replica trades consistency for throughput, and ReplicaLag is the metric that tells you how much."
+          ]
+        },
+        {
+          "name": "DynamoDB throttling, DAX, and ElastiCache metrics",
+          "explain": "DynamoDB throttling shows up as ProvisionedThroughputExceededException in the application and as ReadThrottleEvents, WriteThrottleEvents, and ThrottledRequests in CloudWatch, alongside ConsumedReadCapacityUnits and ConsumedWriteCapacityUnits. There are two distinct causes and the exam wants you to separate them. Insufficient capacity overall is fixed by raising provisioned capacity, enabling auto scaling, or switching to on-demand. A hot partition — where consumed capacity is well below the table total but one partition key is hammered — is not fixed by more capacity; it is fixed by redesigning the key with higher cardinality or write sharding. Check the GSI too, since a GSI's own throttling throttles the base table's writes.\nDAX is an in-memory cache in front of DynamoDB delivering microsecond reads for repeated read-heavy access, and it is the answer when reads dominate and the same items are read repeatedly. It does not help write throttling, and strongly consistent reads pass through to DynamoDB rather than being served from the cache. For ElastiCache, three metrics carry most questions: Evictions climbing means memory pressure, so scale up the node type, add nodes, or revisit the eviction policy and TTLs; EngineCPUUtilization is the meaningful CPU metric for Redis because the engine is effectively single-threaded, and overall CPUUtilization can look modest while one core is pinned; CurrConnections trending up toward the limit signals connection leaks or missing pooling. Cache hit ratio derived from CacheHits and CacheMisses tells you whether the cache is earning its keep.",
+          "exam_tests": "'Throttling despite consumed capacity well below provisioned' → hot partition key, not capacity. 'Microsecond read latency for a read-heavy DynamoDB workload' → DAX. 'Redis is slow but CPUUtilization is low' → EngineCPUUtilization. 'Cache keeps evicting items' → Evictions metric, scale memory or tune TTL and eviction policy.",
+          "compare": {
+            "columns": ["Symptom", "Metric", "Root cause", "Fix", "Wrong fix"],
+            "rows": [
+              ["DynamoDB throttling at low overall utilisation", "ReadThrottleEvents / WriteThrottleEvents with low ConsumedCapacity", "Hot partition key", "Higher-cardinality key or write sharding", "Increasing provisioned capacity"],
+              ["DynamoDB throttling at ceiling", "ConsumedCapacity at provisioned limit", "Genuinely under-provisioned", "Auto scaling or on-demand mode", "Adding DAX for a write-heavy table"],
+              ["Repeated reads of the same items are slow", "High ConsumedReadCapacityUnits, latency in ms", "No caching layer", "DAX", "Read replicas — DynamoDB has none"],
+              ["Redis latency high, CPU appears fine", "EngineCPUUtilization near 100 while CPUUtilization is low", "Single-threaded engine saturated on one core", "Scale up node type or shard the cluster", "Adding read replicas for a CPU-bound write workload"],
+              ["Cache misses rising over time", "Evictions increasing, DatabaseMemoryUsagePercentage high", "Memory pressure evicting hot keys", "Larger node type, more nodes, tune TTL/eviction policy", "Increasing application timeouts"],
+              ["Connection errors to the cache", "CurrConnections near the limit", "Connection leak or no pooling", "Client-side pooling and connection reuse", "Restarting the cluster repeatedly"]
+            ]
+          },
+          "example": {
+            "scenario": "A DynamoDB table provisioned at 2,000 WCUs shows consistent write throttling while ConsumedWriteCapacityUnits averages only about 700. All writes carry the same date value as the partition key.",
+            "answer": "Redesign the partition key for higher cardinality, for example by adding a shard suffix to the date, rather than raising provisioned capacity.",
+            "why": "Capacity is allocated across partitions, so a single hot partition key limits throughput regardless of the table-level provision — which is exactly why consumed capacity sits far below the ceiling while requests throttle. Raising WCUs or switching to on-demand redistributes nothing because the key still funnels every write to one partition."
+          },
+          "gotchas": [
+            "A throttled GSI throttles writes to the base table — always check index metrics, not just table metrics.",
+            "DAX caches item and query results but does not accelerate writes and does not serve strongly consistent reads from cache.",
+            "DAX sits in the VPC and requires the application to use the DAX client, so it is not a transparent drop-in for every SDK path.",
+            "For Redis, use EngineCPUUtilization, not CPUUtilization, on multi-core node types.",
+            "Evictions greater than zero is not automatically bad — it is bad when hit ratio falls with it.",
+            "ElastiCache Memcached scales horizontally with nodes and has no persistence or replication; Redis offers replication, failover, and persistence — the choice affects the fix you propose."
+          ],
+          "mnemonic": "Throttled but idle means hot key; throttled and full means more capacity."
+        }
+      ]
+    }
+  ],
+  "end_of_domain_checklist": [
+    "I can name the four metrics EC2 never emits without an agent and say which policy the instance profile needs to fix that.",
+    "I can state the minimum alarm period for basic monitoring, detailed monitoring, and a high-resolution custom metric.",
+    "I can tell system status check from instance status check and give the correct remediation for each, including when recover is not allowed.",
+    "I can explain why editing a CloudWatch agent config in Parameter Store changes nothing until Run Command re-runs fetch-config.",
+    "I can list the four treat-missing-data options and say which one makes a heartbeat alarm fire on total silence.",
+    "I can explain M-of-N datapoints-to-alarm and use it to stop a flapping alarm.",
+    "I can name every alarm action type and say why Lambda is not one of them.",
+    "I can walk the notification-never-arrived chain: actions enabled, topic Region, subscription confirmed, topic policy, KMS key policy.",
+    "I can say why a metric filter alarm sits in INSUFFICIENT_DATA and why it never scores historical log events.",
+    "I can distinguish CloudTrail management, data, and Insights events and say which one records S3 object deletions.",
+    "I can pick correctly between CloudWatch Logs, CloudTrail, X-Ray, AWS Config, and VPC Flow Logs for a given 'what happened' question.",
+    "I can run the EventBridge rule-not-matching checklist: bus, Region, pattern shape, rule enabled, target permission, CloudTrail dependency.",
+    "I can choose between an AWS-* SSM Automation runbook, Lambda, and EventBridge Scheduler based on the 'no custom code' and 'custom logic' cues.",
+    "I can explain why an Automation runbook that targets instances fails without the SSM managed-node prerequisites and the AutomationAssumeRole.",
+    "I can recognise a throttled T instance from flat CPUUtilization plus zero CPUCreditBalance and give both fixes.",
+    "I can state Compute Optimizer's 30-hours-in-14-days requirement and its memory blind spot.",
+    "I can name the EBS metric that proves saturation, the one that proves credit exhaustion, and the two instance-level metrics that prove the instance is the bottleneck.",
+    "I can justify gp2 to gp3 migration with numbers and recall the six-hour volume-modification rule and the file-system-extension step.",
+    "I can distinguish EFS Bursting, Elastic, and Provisioned throughput and say which metric proves each problem.",
+    "I can pick the right FSx variant from the protocol and workload described.",
+    "I can say which of Performance Insights, Enhanced Monitoring, and CloudWatch RDS metrics answers 'which query', 'which process', and 'is it saturated'.",
+    "I can explain the pending-reboot behaviour of static parameters and the three conditions for RDS storage autoscaling.",
+    "I can separate DynamoDB hot-partition throttling from genuine under-provisioning using consumed capacity versus throttle events."
+  ]
+}
