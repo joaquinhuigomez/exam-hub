@@ -8,7 +8,7 @@
       "difficulty": "easy",
       "tags": ["ec2-image-builder", "golden-ami", "multi-region"],
       "scenario": "A company builds a hardened golden AMI every month with an EC2 Image Builder pipeline in us-east-1. Workload teams in eu-west-1 and ap-southeast-2, running in two separate AWS accounts, report that the newest AMI is not available to them. Today an operator manually copies the AMI and manually adds launch permissions after each build, and the step is frequently forgotten.",
-      "stem": "What should the CloudOps engineer configure so that every pipeline run publishes the AMI to both Regions and both accounts automatically?",
+      "stem": "What should the CloudOps engineer configure so that every pipeline run publishes the AMI to both Regions and both accounts automatically, with the LEAST operational overhead?",
       "options": [
         {"letter": "A", "text": "Attach a distribution configuration to the image pipeline that lists eu-west-1 and ap-southeast-2, and specify the target account IDs as launch permissions in each Region's distribution settings.", "correct": true, "why": "The distribution configuration is the Image Builder construct that copies the output AMI to named Regions and grants launch permissions (or performs an account-level distribution) on every pipeline execution with no scripting."},
         {"letter": "B", "text": "Add a component to the image recipe that runs an aws ec2 copy-image command at the end of the build phase.", "correct": false, "why": "Components run inside the build/test instance on the image contents; distribution is a pipeline-level function, and the build instance role is not intended to perform cross-Region AMI publishing."},
@@ -66,7 +66,7 @@
       "options": [
         {"letter": "A", "text": "Enable an S3 Lifecycle rule on the bucket that backs the ECR repository to transition old layers to S3 Glacier Flexible Retrieval.", "correct": false, "why": "The storage behind ECR is service managed; customers cannot see or apply S3 Lifecycle rules to it."},
         {"letter": "B", "text": "Schedule an EventBridge rule that invokes a Lambda function to list and delete old images each night.", "correct": false, "why": "This achieves the outcome but requires custom code, permissions, and error handling that the native feature already provides."},
-        {"letter": "C", "text": "Turn on cross-Region replication so that older images are moved out of the primary Region.", "correct": false, "why": "Replication copies images to additional Registries, which increases storage cost rather than reducing it."},
+        {"letter": "C", "text": "Turn on cross-Region replication so that older images are moved out of the primary Region.", "correct": false, "why": "Replication copies images into additional registries and never deletes the source, so it increases total storage cost rather than reducing it."},
         {"letter": "D", "text": "Create an ECR lifecycle policy with one rule that expires untagged images older than 14 days and a second rule that keeps only the most recent 30 images matching the release tag prefix.", "correct": true, "why": "ECR lifecycle policies evaluate rules in priority order using tag status, image age (sinceImagePushed) and image count (imageCountMoreThan) and delete matching images automatically."}
       ],
       "knowledge_point": "ECR lifecycle policy rules select on tagStatus (tagged/untagged/any) and expire by countType sinceImagePushed or imageCountMoreThan; rules are evaluated in ascending rulePriority.",
@@ -131,7 +131,7 @@
       "type": "single_choice",
       "difficulty": "medium",
       "tags": ["cloudformation", "delete-failed", "s3"],
-      "scenario": "A team decommissions a test environment by deleting its CloudFormation stack. The stack enters DELETE_FAILED, and the events show a single failure on the S3 bucket resource with a message that the bucket is not empty. The bucket has versioning enabled and contains several thousand objects and delete markers that are no longer needed.",
+      "scenario": "A team decommissions a test environment by deleting its CloudFormation stack. The stack enters DELETE_FAILED, and the events show a single failure on the S3 bucket resource with a message that the bucket is not empty. The bucket has versioning enabled and contains several thousand objects and delete markers. The decommission plan requires that the bucket and all of its contents be removed.",
       "stem": "What should the CloudOps engineer do to complete the deletion?",
       "options": [
         {"letter": "A", "text": "Add a DeletionPolicy of Delete to the bucket resource and update the stack.", "correct": false, "why": "Delete is already the default DeletionPolicy, and a stack in DELETE_FAILED does not accept template updates."},
@@ -211,7 +211,7 @@
         {"letter": "D", "text": "Call cfn-signal with the exit status of the bootstrap script at the end of UserData, referencing the stack name, logical resource ID, and Region.", "correct": true, "why": "The CreationPolicy waits for signals that only the instance can send; cfn-signal from UserData reports success or failure once the bootstrap actually finishes."},
         {"letter": "E", "text": "Enable termination protection on the stack so the instances are not replaced while bootstrapping.", "correct": false, "why": "Termination protection prevents stack deletion; it has no effect on when the stack reports CREATE_COMPLETE."}
       ],
-      "knowledge_point": "CreationPolicy plus cfn-signal is the pair: the policy defines the wait (Count and Timeout), and cfn-signal from the instance ends it. WaitCondition with a WaitConditionHandle is the older equivalent for non-EC2 resources.",
+      "knowledge_point": "CreationPolicy plus cfn-signal is the pair: the policy defines the wait (Count and Timeout, default PT5M), and cfn-signal from the instance ends it. A bootstrap longer than five minutes must raise the timeout explicitly. WaitCondition with a WaitConditionHandle is the older equivalent for non-EC2 resources.",
       "trap_alert": "If cfn-signal never runs because the instance has no IAM permission or no route to the CloudFormation endpoint, the stack fails at the timeout with 'Received 0 conditions when expecting 1'.",
       "mnemonic": "Policy waits, signal releases.",
       "doc_refs": ["https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-attribute-creationpolicy.html"]
@@ -225,7 +225,7 @@
       "stem": "Which two template attributes should the CloudOps engineer add? (Choose two.)",
       "options": [
         {"letter": "A", "text": "A stack policy that denies Update:Delete on both resources.", "correct": false, "why": "Stack policies protect resources during stack updates only; they are ignored when the stack itself is deleted."},
-        {"letter": "B", "text": "DeletionPolicy: Snapshot on the DB instance resource.", "correct": true, "why": "Snapshot instructs CloudFormation to create a final snapshot before deleting the DB instance, which is supported for RDS, EBS volumes, ElastiCache, Redshift, and Neptune."},
+        {"letter": "B", "text": "DeletionPolicy: Snapshot on the DB instance resource.", "correct": true, "why": "Snapshot instructs CloudFormation to create a final snapshot before deleting the DB instance, which is supported only for EBS volumes, RDS, Redshift, ElastiCache, Neptune, and DocumentDB."},
         {"letter": "C", "text": "DeletionPolicy: Retain and UpdateReplacePolicy: Retain on the S3 bucket resource.", "correct": true, "why": "Retain leaves the bucket and its objects in the account when the stack is deleted, and UpdateReplacePolicy: Retain keeps the old bucket when an update would otherwise replace it."},
         {"letter": "D", "text": "Termination protection enabled on the stack.", "correct": false, "why": "Termination protection blocks an accidental stack deletion but does not protect resources during an intentional, approved deletion, which is the stated requirement."},
         {"letter": "E", "text": "Versioning and MFA Delete enabled on the S3 bucket.", "correct": false, "why": "These protect against object level deletion by users; CloudFormation would still attempt to delete the bucket itself when the stack is removed."}
@@ -292,16 +292,16 @@
       "type": "multiple_response",
       "difficulty": "medium",
       "tags": ["ecs", "deployment-strategies", "rolling-update"],
-      "scenario": "An Amazon ECS service on AWS Fargate runs 10 tasks behind an Application Load Balancer. During each rolling deployment, monitoring shows the running task count dropping to 5 and clients receive HTTP 503 responses for about two minutes. The service currently uses the default deployment configuration, and the cluster has ample capacity.",
+      "scenario": "An Amazon ECS service on AWS Fargate runs 10 tasks behind an Application Load Balancer. During each rolling deployment, monitoring shows the running task count dropping to 5 and clients receive HTTP 503 responses for about two minutes. The service was created with a deployment configuration of minimum healthy percent 50 and maximum percent 100, and the account has ample Fargate quota headroom.",
       "stem": "Which two changes should the CloudOps engineer make so the deployment never runs below full capacity? (Choose two.)",
       "options": [
-        {"letter": "A", "text": "Set the service's minimumHealthyPercent to 100.", "correct": true, "why": "The default of 50 percent permits ECS to stop half the tasks before starting replacements; 100 percent forbids dropping below the desired count during a deployment."},
+        {"letter": "A", "text": "Set the service's minimumHealthyPercent to 100.", "correct": true, "why": "A minimum healthy percent of 50 is what permits ECS to stop half the tasks before their replacements are running; 100 percent forbids the running count from dropping below the desired count during a deployment."},
         {"letter": "B", "text": "Set the service's minimumHealthyPercent to 0 so old tasks stop quickly.", "correct": false, "why": "Zero allows ECS to stop every task before new ones are healthy, which makes the outage worse."},
-        {"letter": "C", "text": "Set the service's maximumPercent to 200.", "correct": true, "why": "With minimum healthy at 100 percent, ECS needs headroom above the desired count to start replacement tasks; 200 percent lets it run new and old tasks side by side until the new ones pass health checks."},
+        {"letter": "C", "text": "Set the service's maximumPercent to 200.", "correct": true, "why": "A maximum of 100 percent leaves ECS no room above the desired count to start replacements; 200 percent lets new and old tasks run side by side until the new ones pass health checks and the old ones drain."},
         {"letter": "D", "text": "Reduce the target group deregistration delay to 0 seconds.", "correct": false, "why": "A shorter deregistration delay cuts connection draining and would sever in-flight requests rather than preserve capacity."},
         {"letter": "E", "text": "Change the service scheduling strategy to DAEMON.", "correct": false, "why": "DAEMON places exactly one task per container instance and is not supported for Fargate services behind a desired count."}
       ],
-      "knowledge_point": "ECS rolling deployments are bounded by minimumHealthyPercent (default 100 for a replica service created in the console, 50 in many API defaults) and maximumPercent (default 200). Blue/green with weighted target groups or Lambda alias weights is the alternative when instant rollback is required.",
+      "knowledge_point": "ECS rolling deployments are bounded by minimumHealthyPercent (default 100) and maximumPercent (default 200); any capacity dip during a deployment means the minimum was lowered below 100 or the maximum leaves no headroom. Blue/green with weighted target groups or a CodeDeploy-style shift is the alternative when instant rollback is required.",
       "trap_alert": "Setting minimumHealthyPercent to 100 without raising maximumPercent above 100 can deadlock a deployment because ECS has nowhere to place new tasks.",
       "mnemonic": "Min 100 keeps capacity, Max 200 makes room.",
       "doc_refs": ["https://docs.aws.amazon.com/AmazonECS/latest/developerguide/deployment-type-ecs.html"]
@@ -318,7 +318,7 @@
         {"letter": "B", "text": "Attach an IAM instance profile containing the AmazonSSMManagedInstanceCore managed policy to the instances.", "correct": true, "why": "The agent must have credentials to call the Systems Manager APIs; without an instance profile granting ssm, ssmmessages, and ec2messages actions the node can never register."},
         {"letter": "C", "text": "Install and configure the CloudWatch agent on each instance.", "correct": false, "why": "The CloudWatch agent collects metrics and logs and plays no part in Systems Manager node registration."},
         {"letter": "D", "text": "Open TCP 22 from the engineer's workstation CIDR to allow the agent to complete its handshake.", "correct": false, "why": "Session Manager and the agent do not use SSH, and opening port 22 does nothing for registration."},
-        {"letter": "E", "text": "Create interface VPC endpoints for com.amazonaws.region.ssm, ssmmessages, and ec2messages, with a security group allowing outbound HTTPS from the instances.", "correct": true, "why": "With no NAT or internet gateway, the only network path to the three Systems Manager endpoints is PrivateLink interface endpoints; without them the agent cannot reach the service."}
+        {"letter": "E", "text": "Create interface VPC endpoints for com.amazonaws.region.ssm, ssmmessages, and ec2messages, with an endpoint security group that allows inbound TCP 443 from the instances.", "correct": true, "why": "With no NAT or internet gateway, the only network path to the three Systems Manager endpoints is PrivateLink interface endpoints; without them the agent cannot reach the service."}
       ],
       "knowledge_point": "Managed node prerequisites are always the same three: SSM Agent installed and running, an instance profile with AmazonSSMManagedInstanceCore, and an outbound HTTPS path to ssm, ssmmessages, and ec2messages (NAT, internet gateway, or interface endpoints).",
       "trap_alert": "Missing nodes are almost never an agent bug. Check the instance profile first, then the network path, then the agent version.",
@@ -383,7 +383,7 @@
       "difficulty": "medium",
       "tags": ["patch-manager", "maintenance-windows", "patch-groups", "compliance"],
       "scenario": "A CloudOps engineer created a custom patch baseline for Amazon Linux 2023 with a seven-day approval delay, and created a maintenance window that runs every Sunday at 02:00. A week later the compliance report shows every instance as non-compliant and the maintenance window history shows no task executions at all. The instances are healthy managed nodes.",
-      "stem": "Which two actions are required to make patching run and report compliance? (Choose two.)",
+      "stem": "Which two actions are required so that the maintenance window runs and the instances are patched and reported against the custom baseline? (Choose two.)",
       "options": [
         {"letter": "A", "text": "Set the SSM Agent to auto-update on every instance.", "correct": false, "why": "Agent auto-update is good hygiene but is unrelated to a maintenance window that has no registered targets or tasks."},
         {"letter": "B", "text": "Run AWS-RunPatchBaseline manually with the Scan operation once per instance.", "correct": false, "why": "A manual scan would refresh compliance data once but does not make the scheduled window execute anything."},
