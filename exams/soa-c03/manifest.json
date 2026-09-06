@@ -1,0 +1,30 @@
+{
+  "exam": {
+    "code": "SOA-C03",
+    "name": "AWS Certified CloudOps Engineer – Associate",
+    "short": "CloudOps Engineer Associate",
+    "status": "live",
+    "passing_score": 720,
+    "scoring_scale": [100, 1000],
+    "scored_questions": 50,
+    "unscored_questions": 15,
+    "total_questions": 65,
+    "duration_minutes": 130,
+    "cost_usd": 150,
+    "formats": ["single_choice", "multiple_response"]
+  },
+  "domains": [
+    {"id": "D1", "title": "Monitoring, Logging, Analysis, Remediation, and Performance Optimization", "weight": 0.22, "questions_file": "quiz-d1-monitoring.json"},
+    {"id": "D2", "title": "Reliability and Business Continuity", "weight": 0.22, "questions_file": "quiz-d2-reliability.json"},
+    {"id": "D3", "title": "Deployment, Provisioning, and Automation", "weight": 0.22, "questions_file": "quiz-d3-deployment.json"},
+    {"id": "D4", "title": "Security and Compliance", "weight": 0.16, "questions_file": "quiz-d4-security.json"},
+    {"id": "D5", "title": "Networking and Content Delivery", "weight": 0.18, "questions_file": "quiz-d5-networking.json"}
+  ],
+  "files": {
+    "cheatsheets": "cheatsheets.json",
+    "traps": "traps-tips.json",
+    "rapid_recall": "rapid-recall.json"
+  },
+  "version": "1.0",
+  "generated": "2026-09-06"
+}

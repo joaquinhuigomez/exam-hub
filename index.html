@@ -40,42 +40,46 @@
 
   <h2>Live now</h2>
   <div class="grid">
-    <a class="card live" href="learn.html?exam=saa-c03">
-      <h3>📖 SAA-C03 Learn <span class="badge live">start here</span></h3>
-      <p>Per-domain lessons: mental model → how the exam tests it → worked example → comparison table → gotchas. Plus the one-page printable cheat sheet.</p>
-      <div class="meta"><span>D1 Secure · D2 Resilient · D3 Performance · D4 Cost · 📋 Cheat Sheet</span></div>
+    <a class="card live" href="learn.html?exam=soa-c03">
+      <h3>📖 SOA-C03 Learn <span class="badge live">start here</span></h3>
+      <p>AWS CloudOps Engineer – Associate. Ops mechanics per domain: symptom → cause → check → fix, with tested defaults, comparison tables, decide-then-reveal examples. Plus the printable cheat sheet.</p>
+      <div class="meta"><span id="soa-learn-stats">D1 Monitoring · D2 Reliability · D3 Deployment · D4 Security · D5 Networking · 📋 Cheat Sheet</span></div>
     </a>
-    <a class="card live" href="app.html?exam=saa-c03">
-      <h3>🎯 SAA-C03 Drill <span class="badge live">exam today</span></h3>
-      <p>AWS Solutions Architect – Associate · 65 Q · 130 min · pass 720</p>
-      <div class="meta"><span id="saa-stats">loading…</span></div>
-      <div class="links"><span style="font-size:.8rem;color:var(--text-dim)">🔥 Cram → ⚡ Recall → 📊 Tables → D1–D4 quizzes → 🎯 Timed Sim</span></div>
+    <a class="card live" href="app.html?exam=soa-c03">
+      <h3>🎯 SOA-C03 Drill <span class="badge live">next exam</span></h3>
+      <p>65 Q · 130 min · pass 720 · no labs in C03</p>
+      <div class="meta"><span id="soa-stats">loading…</span></div>
+      <div class="links"><span style="font-size:.8rem;color:var(--text-dim)">🔥 Cram → ⚡ Recall → 📊 Tables → D1–D5 quizzes → 🎯 Timed Sim</span></div>
     </a>
   </div>
   <div class="plan">
-    <strong>Today's cram sequence (≈4 h, cut from the bottom if short on time)</strong>
+    <strong>Study sequence (repeat daily until the exam; each pass gets faster)</strong>
     <ol>
-      <li><strong>Learn page, 60 min.</strong> Read D1 → D4 lessons. Decide each worked example before revealing. Tick "understood" only when you can say the discriminating fact aloud.</li>
-      <li><strong>Cram tab, 20 min.</strong> Read Tier-S cards + mnemonics once. Don't memorize yet.</li>
-      <li><strong>Recall tab (Pick mode), 40 min.</strong> Run all cards once. Missed cards return sooner automatically. Stop when "Mastered" &gt; 60%.</li>
-      <li><strong>Domain quizzes, 90 min.</strong> D1 → D2 → D3 → D4. Read every option's Why, even when right — wrong-option whys are where the discriminating facts live.</li>
-      <li><strong>Tables tab, 20 min.</strong> Storage picker, S3 classes, messaging picker, DR ladder, EC2 purchasing, connectivity. Skim trigger words.</li>
-      <li><strong>Exam Sim (Half, 30 Q), 60 min incl. review.</strong> Then Mistakes tab until empty.</li>
-      <li><strong>Last 15 min before leaving:</strong> Tier-S cards + Numbers + Traps only. Nothing new.</li>
+      <li><strong>Learn page.</strong> One domain per sitting. Decide each worked example before revealing. Tick "understood" only when you can say the discriminating fact aloud.</li>
+      <li><strong>Recall tab (Pick mode).</strong> Weak-only filter after the first full pass. Stop a session when Mastered climbs 10%.</li>
+      <li><strong>Domain quiz</strong> for the domain you just read. Read every option's Why — wrong-option whys carry the tested facts.</li>
+      <li><strong>Tables tab</strong> — troubleshooting flows (ALB 5xx, SSM missing nodes, CloudFormation stuck states, Flow Log REJECT), then the pickers.</li>
+      <li><strong>Exam Sim</strong> once all five domains are read. Mistakes tab until empty.</li>
+      <li><strong>Exam eve:</strong> Cheat Sheet + Numbers + Traps only. Nothing new.</li>
     </ol>
   </div>
 
-  <h2>Up next</h2>
+  <h2>Queued</h2>
   <div class="grid">
     <a class="card" href="app.html?exam=sap-c02">
-      <h3>SAP-C02 <span class="badge next">in ~2 weeks</span></h3>
+      <h3>SAP-C02 <span class="badge next">after SOA</span></h3>
       <p>AWS Solutions Architect – Professional · 75 Q · 180 min · pass 750</p>
-      <div class="meta"><span>Manifest + domains ready · content generation pending</span></div>
+      <div class="meta"><span>Manifest ready · content generation paused until CloudOps is done</span></div>
     </a>
   </div>
 
   <h2>Passed — archives stay drillable</h2>
   <div class="grid">
+    <a class="card" href="learn.html?exam=saa-c03">
+      <h3>SAA-C03 <span class="badge done">passed</span></h3>
+      <p>Solutions Architect – Associate · 124 Q · 84 learn concepts · 179 recall cards · cheat sheet. Reuse for SAP-C02 foundations.</p>
+      <div class="links"><a href="learn.html?exam=saa-c03">Learn</a><a href="app.html?exam=saa-c03">Drill</a></div>
+    </a>
     <a class="card" href="app.html?exam=aip-c01">
       <h3>AIP-C01 <span class="badge done">passed</span></h3>
       <p>AWS Generative AI Developer – Professional · 105 Q bank, cheat sheets, traps</p>
@@ -96,14 +100,15 @@
 <script>
 (async () => {
   try {
-    const m = await (await fetch('exams/saa-c03/manifest.json', {cache:'no-store'})).json();
-    const counts = await Promise.all(m.domains.map(async d => { try { const j = await (await fetch('exams/saa-c03/' + d.questions_file, {cache:'no-store'})).json(); return j.questions?.length || 0; } catch { return 0; } }));
-    let rr = 0; try { rr = (await (await fetch('exams/saa-c03/rapid-recall.json', {cache:'no-store'})).json()).cards?.length || 0; } catch {}
+    const EX = 'soa-c03';
+    const m = await (await fetch(`exams/${EX}/manifest.json`, {cache:'no-store'})).json();
+    const counts = await Promise.all(m.domains.map(async d => { try { const j = await (await fetch(`exams/${EX}/` + d.questions_file, {cache:'no-store'})).json(); return j.questions?.length || 0; } catch { return 0; } }));
+    let rr = 0; try { rr = (await (await fetch(`exams/${EX}/rapid-recall.json`, {cache:'no-store'})).json()).cards?.length || 0; } catch {}
     const total = counts.reduce((a,b)=>a+b,0);
-    const att = JSON.parse(localStorage.getItem('hub.saa-c03.attempts') || '{}');
+    const att = JSON.parse(localStorage.getItem(`hub.${EX}.attempts`) || '{}');
     const n = Object.keys(att).length, ok = Object.values(att).filter(a=>a.lastCorrect).length;
-    document.getElementById('saa-stats').textContent = `${total} questions (${counts.join('/')}) · ${rr} recall cards` + (n ? ` · you: ${n} attempted, ${Math.round(ok/n*100)}%` : '');
-  } catch { document.getElementById('saa-stats').textContent = 'content loading…'; }
+    document.getElementById('soa-stats').textContent = (total ? `${total} questions (${counts.join('/')}) · ${rr} recall cards` : 'content being generated — refresh in a few minutes') + (n ? ` · you: ${n} attempted, ${Math.round(ok/n*100)}%` : '');
+  } catch { document.getElementById('soa-stats').textContent = 'content loading…'; }
 })();
 </script>
 </body>
