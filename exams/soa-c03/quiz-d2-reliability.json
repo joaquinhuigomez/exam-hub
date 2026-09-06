@@ -1,0 +1,516 @@
+{
+  "domain": "D2",
+  "title": "Reliability and Business Continuity",
+  "questions": [
+    {
+      "id": "D2-Q001",
+      "type": "single_choice",
+      "difficulty": "easy",
+      "tags": ["auto-scaling", "launch-template", "launch-configuration", "task-2.1"],
+      "scenario": "An Amazon EC2 Auto Scaling group (ASG) that was built in 2021 still references a launch configuration. The team now needs the group to launch two different instance types, mix On-Demand and Spot capacity, and require IMDSv2. When the CloudOps engineer opens the launch configuration in the console, every field is read-only and there is no option to add a second instance type.",
+      "stem": "What should the CloudOps engineer do to meet the requirements with the LEAST operational overhead?",
+      "options": [
+        {"letter": "A", "text": "Edit the existing launch configuration in place and let the Auto Scaling group pick up the change on the next scale-out event.", "correct": false, "why": "Launch configurations are immutable — after creation no field can be modified, which is exactly why the console shows read-only fields."},
+        {"letter": "B", "text": "Copy the launch configuration, edit the copy to add the second instance type and Spot settings, and attach the copy to the Auto Scaling group.", "correct": false, "why": "A launch configuration specifies exactly one instance type and one purchase option; it cannot express a mixed instances policy no matter how it is copied."},
+        {"letter": "C", "text": "Create a launch template from the existing launch configuration, update the Auto Scaling group to use the launch template, and configure a mixed instances policy with the two instance types and an On-Demand/Spot allocation.", "correct": true, "why": "Launch templates are versioned, support IMDSv2 enforcement, and are the only construct an ASG can use with a mixed instances policy; AWS provides a direct copy-to-launch-template action."},
+        {"letter": "D", "text": "Create a new Auto Scaling group with a launch template, register it with the same target group, and delete the old Auto Scaling group.", "correct": false, "why": "Rebuilding the group works but is unnecessary churn — an existing ASG can be updated in place to point at a launch template."}
+      ],
+      "knowledge_point": "Launch configurations are immutable, single-instance-type, and cannot back a mixed instances policy; launch templates are versioned and are required for mixed instances, Spot allocation strategies, and newer EC2 features. AWS stopped allowing new launch configurations at the end of 2023 — the exam's default answer is always 'move to a launch template'.",
+      "trap_alert": "'Copy the launch configuration' feels like the low-overhead answer, but a copy is still a launch configuration and still supports only one instance type and one purchase option.",
+      "mnemonic": "Configuration = carved in stone. Template = has versions.",
+      "doc_refs": ["https://docs.aws.amazon.com/autoscaling/ec2/userguide/launch-templates.html", "https://docs.aws.amazon.com/autoscaling/ec2/userguide/ec2-auto-scaling-mixed-instances-groups.html"]
+    },
+    {
+      "id": "D2-Q002",
+      "type": "single_choice",
+      "difficulty": "easy",
+      "tags": ["auto-scaling", "health-check-grace-period", "elb-health-check", "troubleshooting", "task-2.1"],
+      "scenario": "A CloudOps engineer changed an Auto Scaling group's health check type from EC2 to ELB after deploying a new application version. The ASG now launches instances, marks them unhealthy about five minutes later, terminates them, and launches replacements — continuously. The application performs a large cache warm-up and does not answer on its health check path until roughly eight minutes after boot. Instances that are tested manually before the ASG kills them are functioning normally.",
+      "stem": "What should the engineer change to stop the launch-and-terminate loop?",
+      "options": [
+        {"letter": "A", "text": "Increase the Auto Scaling group's health check grace period so it exceeds the application's start-up time.", "correct": true, "why": "The grace period (default 300 seconds) is the window after launch during which the ASG ignores ELB and EC2 health check results; an 8-minute warm-up needs a grace period longer than 480 seconds."},
+        {"letter": "B", "text": "Increase the Auto Scaling group's default cooldown from 300 seconds to 900 seconds.", "correct": false, "why": "Cooldown throttles consecutive simple scaling activities; it has no effect on how health check results are evaluated or when an unhealthy instance is replaced."},
+        {"letter": "C", "text": "Suspend the ReplaceUnhealthy process on the Auto Scaling group.", "correct": false, "why": "Suspending ReplaceUnhealthy stops the terminations but leaves genuinely failed instances in service forever — it masks the symptom instead of fixing the timing mismatch."},
+        {"letter": "D", "text": "Increase the target group deregistration delay to 900 seconds.", "correct": false, "why": "Deregistration delay controls how long a target that is being removed keeps draining in-flight requests; it plays no part in whether a newly launched instance is declared unhealthy."}
+      ],
+      "knowledge_point": "With health check type ELB, an ASG replaces any instance the load balancer reports unhealthy — but only after the health check grace period (default 300 s) elapses. Slow-booting applications must have a grace period longer than their full start-up time or the group will churn instances forever.",
+      "trap_alert": "Cooldown and grace period are both 300-second ASG timers, and the exam relies on you confusing them. Cooldown = scaling activity spacing. Grace period = health check silence after launch.",
+      "mnemonic": "Grace covers the birth; cooldown paces the growth.",
+      "doc_refs": ["https://docs.aws.amazon.com/autoscaling/ec2/userguide/health-check-grace-period.html", "https://docs.aws.amazon.com/autoscaling/ec2/userguide/ec2-auto-scaling-health-checks.html"]
+    },
+    {
+      "id": "D2-Q003",
+      "type": "multiple_response",
+      "difficulty": "medium",
+      "tags": ["auto-scaling", "scaling-policies", "scheduled-scaling", "target-tracking", "task-2.1"],
+      "scenario": "A web tier behind an Application Load Balancer has two traffic patterns: a sharp, reliable jump in load every weekday at 08:00 when offices open, and unpredictable bursts during the day driven by marketing emails. Today the group has a fixed desired capacity, so mornings are slow for users and afternoons are over-provisioned. The team wants the group to handle both patterns automatically.",
+      "stem": "Which two actions should the CloudOps engineer take? (Choose two.)",
+      "options": [
+        {"letter": "A", "text": "Create a scheduled scaling action that raises the Auto Scaling group's minimum capacity shortly before 08:00 on weekdays and lowers it later in the morning.", "correct": true, "why": "Scheduled scaling is designed for load changes that occur at known times; raising minimum capacity ahead of the 08:00 jump means capacity is already in service when users arrive."},
+        {"letter": "B", "text": "Create a simple scaling policy that adds four instances when average CPU exceeds 70%, relying on the default 300-second cooldown between scaling activities.", "correct": false, "why": "Simple scaling performs one adjustment and then waits out the cooldown before it will react again, so it responds too slowly and too coarsely to unpredictable bursts."},
+        {"letter": "C", "text": "Create a target tracking scaling policy on the ASGAverageCPUUtilization predefined metric with a target value of 50%.", "correct": true, "why": "Target tracking continuously adds and removes capacity to hold the metric at the target and does not block on cooldown the way simple scaling does, which suits unpredictable intraday bursts."},
+        {"letter": "D", "text": "Run a cron job on a bastion host that calls set-desired-capacity each morning and evening.", "correct": false, "why": "This reproduces scheduled scaling with a single point of failure and extra operational overhead, and it still does nothing for the unpredictable bursts."},
+        {"letter": "E", "text": "Set the instance warm-up value to 0 seconds so newly launched instances are counted in the group's metrics immediately.", "correct": false, "why": "A zero warm-up lets metrics from instances that are still booting drag the aggregate up, causing the policy to over-scale and then thrash."}
+      ],
+      "knowledge_point": "Match the policy to the pattern: scheduled scaling for known clock-driven changes, target tracking for continuous unpredictable demand, step scaling when you need graduated responses to alarm breach size, predictive scaling for cyclical patterns learned from at least 24 hours of history. Simple scaling is the legacy option that AWS no longer recommends.",
+      "trap_alert": "Simple scaling looks fine until you remember it is blocked by cooldown after every single adjustment — that is precisely why AWS recommends step or target tracking instead.",
+      "mnemonic": "Clock → scheduled. Curve → target tracking. Cyclical history → predictive.",
+      "doc_refs": ["https://docs.aws.amazon.com/autoscaling/ec2/userguide/scale-your-group.html", "https://docs.aws.amazon.com/autoscaling/ec2/userguide/as-scaling-target-tracking.html"]
+    },
+    {
+      "id": "D2-Q004",
+      "type": "single_choice",
+      "difficulty": "hard",
+      "tags": ["auto-scaling", "suspend-resume", "az-rebalance", "task-2.1"],
+      "scenario": "A batch-processing Auto Scaling group spans three Availability Zones. Individual jobs run for up to two hours on a single instance. After capacity in one AZ recovered from an earlier constraint, the ASG began launching instances in that AZ and terminating instances in the other two to even out the distribution, killing in-flight jobs. The team needs to stop this behaviour during the nightly batch window while keeping scaling policies and unhealthy-instance replacement fully active.",
+      "stem": "What should the CloudOps engineer do?",
+      "options": [
+        {"letter": "A", "text": "Suspend the Launch and Terminate processes for the duration of the batch window.", "correct": false, "why": "Suspending Launch and Terminate disables all scaling activity and blocks the group from replacing failed instances, which the team explicitly wants to keep."},
+        {"letter": "B", "text": "Suspend the HealthCheck process for the duration of the batch window.", "correct": false, "why": "HealthCheck only controls whether the group marks instances unhealthy from EC2 or ELB status; rebalancing is a separate process and would continue unchanged."},
+        {"letter": "C", "text": "Change the Auto Scaling group's termination policy to OldestInstance.", "correct": false, "why": "Termination policies decide which instance is chosen once a termination is required; they do not stop the group from deciding to rebalance across Availability Zones."},
+        {"letter": "D", "text": "Suspend the AZRebalance process before the batch window starts and resume it after the batch completes.", "correct": true, "why": "AZRebalance is the specific process that launches in an under-used AZ and then terminates elsewhere; suspending only that process leaves Launch, Terminate, HealthCheck, and ReplaceUnhealthy operating normally."}
+      ],
+      "knowledge_point": "ASG processes can be suspended individually: Launch, Terminate, HealthCheck, ReplaceUnhealthy, AZRebalance, AlarmNotification, ScheduledActions, AddToLoadBalancer, InstanceRefresh. AZRebalance always launches before it terminates and can briefly exceed desired capacity — suspend it (or use instance scale-in protection) when work in flight must not be interrupted.",
+      "trap_alert": "Suspending Terminate does not stop AZRebalance from launching — it stops the cleanup, so the group can sit above desired capacity indefinitely. Suspend the rebalance itself, not its side effects.",
+      "mnemonic": "AZRebalance = launch first, kill second. Suspend the cause, not the consequence.",
+      "doc_refs": ["https://docs.aws.amazon.com/autoscaling/ec2/userguide/as-suspend-resume-processes.html"]
+    },
+    {
+      "id": "D2-Q005",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["auto-scaling", "lifecycle-hooks", "eventbridge", "systems-manager", "task-2.1"],
+      "scenario": "Instances in an Auto Scaling group write detailed application logs to a local volume and ship them to Amazon S3 only on a 15-minute timer. When the group scales in, whatever has not yet been shipped is lost, and support cannot reconstruct customer issues. The team needs every terminating instance to flush its remaining logs to S3 before the instance disappears.",
+      "stem": "What should the CloudOps engineer implement?",
+      "options": [
+        {"letter": "A", "text": "Increase the target group deregistration delay to 3,600 seconds so the instance stays alive long enough for the timer to fire.", "correct": false, "why": "Deregistration delay only keeps the load balancer draining connections; it does not pause the Auto Scaling group's termination workflow and does not run any log-shipping action."},
+        {"letter": "B", "text": "Add a lifecycle hook for the autoscaling:EC2_INSTANCE_TERMINATING transition, route the lifecycle event through EventBridge to an AWS Systems Manager Automation runbook that copies the logs to Amazon S3, and have the runbook call CompleteLifecycleAction.", "correct": true, "why": "A terminating lifecycle hook puts the instance in Terminating:Wait and holds it there (default 3,600 s heartbeat) until the action completes or the timeout expires, which is exactly the pause needed to flush logs."},
+        {"letter": "C", "text": "Enable instance scale-in protection on every instance in the group.", "correct": false, "why": "Scale-in protection prevents the group from terminating those instances at all, so the group can never scale in — it blocks the workflow rather than adding a pre-termination step."},
+        {"letter": "D", "text": "Create a CloudWatch alarm on the GroupTerminatingInstances metric that invokes an AWS Lambda function to copy the logs.", "correct": false, "why": "The metric is reported after the fact on a delay and the alarm cannot hold the instance in a wait state, so the instance is usually gone before the function runs."}
+      ],
+      "knowledge_point": "Lifecycle hooks pause an instance in Pending:Wait (launch) or Terminating:Wait (termination) so custom work can run. The instance stays in the wait state for the heartbeat timeout (default 3,600 s, max 7,200 s) unless CompleteLifecycleAction is called; RecordLifecycleActionHeartbeat extends it. Default result on timeout is CONTINUE for launch and ABANDON-to-terminate behaviour must be chosen deliberately.",
+      "trap_alert": "Deregistration delay and lifecycle hooks both 'keep the instance around longer', but only the lifecycle hook gives you a hook point to run code and an explicit completion call.",
+      "mnemonic": "Hook it before you cook it — Terminating:Wait is your only pre-death window.",
+      "doc_refs": ["https://docs.aws.amazon.com/autoscaling/ec2/userguide/lifecycle-hooks.html", "https://docs.aws.amazon.com/autoscaling/ec2/userguide/lifecycle-hooks-eventbridge.html"]
+    },
+    {
+      "id": "D2-Q006",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["auto-scaling", "warm-pools", "predictive-scaling", "task-2.1"],
+      "scenario": "An application loads a 40 GB reference dataset into memory during start-up and takes roughly 12 minutes before it can serve traffic. Load spikes are driven by third-party integrations and are not predictable from historical patterns. During spikes the Auto Scaling group scales out correctly, but users see errors for the first 12 minutes because new capacity is not ready. Keeping the entire fleet permanently sized for peak is too expensive.",
+      "stem": "What should the CloudOps engineer do to reduce the time to serve traffic after a scale-out with the LEAST operational overhead?",
+      "options": [
+        {"letter": "A", "text": "Configure a warm pool for the Auto Scaling group that keeps pre-initialized instances in the Stopped state, so scale-out draws from the warm pool instead of launching from scratch.", "correct": true, "why": "Warm pool instances have already completed initialization; bringing a stopped instance into service takes a fraction of the 12-minute cold start and costs only EBS storage while stopped."},
+        {"letter": "B", "text": "Increase the Auto Scaling group's health check grace period to 900 seconds.", "correct": false, "why": "A longer grace period only stops the group from killing instances that are still initializing — it does nothing to make capacity available sooner."},
+        {"letter": "C", "text": "Replace the target tracking policy with a step scaling policy that adds larger batches of instances per alarm breach.", "correct": false, "why": "Launching more instances at once does not shorten the 12-minute initialization of any of them, so the error window is unchanged."},
+        {"letter": "D", "text": "Enable predictive scaling so capacity is provisioned in advance of demand.", "correct": false, "why": "Predictive scaling forecasts from at least 24 hours of cyclical history; it cannot anticipate spikes that are driven by unpredictable third-party events."}
+      ],
+      "knowledge_point": "Warm pools solve long instance start-up times: instances are pre-initialized and held in Stopped (cheapest, EBS charges only), Running, or Hibernated state, then moved into service on scale-out. Predictive scaling solves a different problem — it needs cyclical history and provisions ahead of a forecast, not ahead of a surprise.",
+      "trap_alert": "Grace period, warm-up, and warm pool all contain 'warm' or 'grace' and all relate to slow boots. Only the warm pool actually makes ready capacity available faster.",
+      "mnemonic": "Warm pool = instances already cooked, kept on a low heat.",
+      "doc_refs": ["https://docs.aws.amazon.com/autoscaling/ec2/userguide/ec2-auto-scaling-warm-pools.html", "https://docs.aws.amazon.com/autoscaling/ec2/userguide/ec2-auto-scaling-predictive-scaling.html"]
+    },
+    {
+      "id": "D2-Q007",
+      "type": "single_choice",
+      "difficulty": "hard",
+      "tags": ["auto-scaling", "termination-policy", "task-2.1"],
+      "scenario": "An Auto Scaling group uses the Default termination policy. It currently runs four instances in us-east-1a and two instances in us-east-1b. All six were launched from a mixture of two launch template versions. A scale-in event reduces desired capacity from six to five, and the team wants to predict which instance will be chosen so they can plan a maintenance activity.",
+      "stem": "Which instance will the Auto Scaling group terminate?",
+      "options": [
+        {"letter": "A", "text": "The instance closest to the next billing hour, evaluated across both Availability Zones.", "correct": false, "why": "Proximity to the next billing hour is only the final tiebreaker, and it is applied after the AZ and launch template criteria have narrowed the candidates."},
+        {"letter": "B", "text": "An instance in us-east-1a, selected as the one using the oldest launch template version; if several tie, the one closest to the next billing hour, and then at random.", "correct": true, "why": "The Default policy first picks the AZ with the most instances (us-east-1a), then within that AZ prefers the oldest launch template or launch configuration, then the instance closest to the next billing hour, then random."},
+        {"letter": "C", "text": "The oldest instance in the group, regardless of Availability Zone.", "correct": false, "why": "OldestInstance is a separate, explicitly selected termination policy; the Default policy balances Availability Zones before considering instance age."},
+        {"letter": "D", "text": "An instance chosen at random from either Availability Zone.", "correct": false, "why": "Random selection is the last resort after AZ balance, launch template age, and billing-hour proximity have all failed to discriminate."}
+      ],
+      "knowledge_point": "Default termination policy order: (1) the Availability Zone with the most instances (that also has at least one instance not protected from scale-in), (2) within that AZ, allocation-strategy alignment for mixed groups, (3) the oldest launch template or launch configuration, (4) the instance closest to the next billing hour, (5) random. Alternatives you can set explicitly: OldestInstance, NewestInstance, OldestLaunchConfiguration, OldestLaunchTemplate, ClosestToNextInstanceHour, AllocationStrategy, and custom Lambda-backed policies.",
+      "trap_alert": "'Default' does not mean 'oldest instance'. AZ balance always comes first — an instance in the busier AZ will be terminated even if a much older instance exists in the other AZ.",
+      "mnemonic": "AZ → old template → billing hour → coin flip.",
+      "doc_refs": ["https://docs.aws.amazon.com/autoscaling/ec2/userguide/ec2-auto-scaling-termination-policies.html"]
+    },
+    {
+      "id": "D2-Q008",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["dynamodb", "auto-scaling", "throttling", "on-demand", "task-2.1"],
+      "scenario": "A DynamoDB table uses provisioned capacity with application auto scaling set to a 70% target utilization. The workload is normally light but receives sudden 20x write bursts lasting about 90 seconds whenever an upstream partner pushes a file. The application logs ProvisionedThroughputExceededException during those bursts, and CloudWatch shows ConsumedWriteCapacityUnits well below ProvisionedWriteCapacityUnits when averaged over five minutes. Write keys are well distributed.",
+      "stem": "What should the CloudOps engineer do to eliminate the throttling?",
+      "options": [
+        {"letter": "A", "text": "Raise the auto scaling target utilization from 70% to 90%.", "correct": false, "why": "A higher target leaves less headroom above the current consumption, so bursts hit the provisioned ceiling sooner — this makes throttling more likely, not less."},
+        {"letter": "B", "text": "Add a global secondary index so writes are spread across more partitions.", "correct": false, "why": "A GSI has its own provisioned capacity and receives a copy of every write; it adds cost and another throttling surface rather than relieving base-table throttling."},
+        {"letter": "C", "text": "Switch the table to on-demand capacity mode so it absorbs sudden traffic changes without waiting for a scaling action.", "correct": true, "why": "On-demand accommodates sudden bursts immediately (up to the table's peak-based limits) with no capacity planning, which suits short, spiky, hard-to-forecast traffic."},
+        {"letter": "D", "text": "Put DynamoDB Accelerator (DAX) in front of the table.", "correct": false, "why": "DAX is a read-through/write-through cache that accelerates eventually consistent reads; it does not increase write throughput and write-throughs still consume table capacity."}
+      ],
+      "knowledge_point": "DynamoDB application auto scaling reacts to CloudWatch alarms and takes minutes, so it cannot protect a table from sub-minute bursts. Five-minute average metrics also hide second-level throttling. For spiky, unpredictable traffic choose on-demand; for steady predictable traffic keep provisioned with auto scaling around a 70% target.",
+      "trap_alert": "'Average consumed is below provisioned' is the classic misdirection — DynamoDB meters per second, so a 90-second burst throttles even while the 5-minute average looks calm.",
+      "mnemonic": "Auto scaling is a thermostat, not a fire extinguisher.",
+      "doc_refs": ["https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/AutoScaling.html", "https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.ReadWriteCapacityMode.html"]
+    },
+    {
+      "id": "D2-Q009",
+      "type": "single_choice",
+      "difficulty": "hard",
+      "tags": ["aurora", "read-replicas", "aurora-auto-scaling", "task-2.1"],
+      "scenario": "An Amazon Aurora MySQL cluster has one writer and one Aurora Replica. Every weekday between 17:00 and 20:00 the analytics team runs reports against the reader endpoint. During that window reader CPU reaches 95%, AuroraReplicaLag climbs, and reports time out. Writer CPU stays below 30%. The reporting load varies from day to day, so a fixed schedule is not a good fit.",
+      "stem": "What should the CloudOps engineer do to keep report performance acceptable with the LEAST operational overhead?",
+      "options": [
+        {"letter": "A", "text": "Enable RDS storage autoscaling on the cluster.", "correct": false, "why": "Aurora storage already grows automatically in 10 GB increments up to 128 TiB, and storage capacity has nothing to do with reader CPU saturation."},
+        {"letter": "B", "text": "Create a cross-Region Aurora read replica and direct the reporting queries to it.", "correct": false, "why": "A cross-Region replica adds replication lag, data transfer cost, and management overhead while still providing a single fixed reader that can saturate."},
+        {"letter": "C", "text": "Scale the writer instance up to a larger instance class.", "correct": false, "why": "The writer is running below 30% CPU; enlarging it adds cost without adding read capacity, since the reports are served by the reader endpoint."},
+        {"letter": "D", "text": "Configure Aurora Auto Scaling with a target tracking policy on average CPU utilization of the Aurora Replicas, setting minimum and maximum replica counts.", "correct": true, "why": "Aurora Auto Scaling adds and removes Aurora Replicas automatically against a target metric (average CPU or average connections), and new replicas are automatically included in the reader endpoint."}
+      ],
+      "knowledge_point": "Aurora Auto Scaling scales the number of Aurora Replicas (1–15) using target tracking on RDSReaderAverageCPUUtilization or RDSReaderAverageDatabaseConnections; added replicas join the reader endpoint automatically. Aurora Serverless v2 solves the adjacent problem — it scales a single instance's capacity in 0.5-ACU increments between a configured minimum and maximum, which suits variable per-instance load rather than variable concurrency.",
+      "trap_alert": "Aurora Auto Scaling changes how MANY readers exist. Aurora Serverless v2 ACU scaling changes how BIG an instance is. The exam swaps these two freely.",
+      "mnemonic": "Replicas scale out (count). ACUs scale up (size).",
+      "doc_refs": ["https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/Aurora.Integrating.AutoScaling.html", "https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-serverless-v2.html"]
+    },
+    {
+      "id": "D2-Q010",
+      "type": "multiple_response",
+      "difficulty": "medium",
+      "tags": ["elasticache", "redis", "memcached", "rds-read-replica", "caching", "task-2.1"],
+      "scenario": "A read-heavy product catalog API runs on EC2 behind an Application Load Balancer and queries an Amazon RDS for MySQL Multi-AZ instance. RDS CPU and ReadIOPS are consistently high, and Performance Insights shows that about 80% of database load comes from identical repeated lookups by product ID. The team wants to cut read pressure on the database, and any cache they add must survive the loss of a single node without losing the entire cached dataset.",
+      "stem": "Which two actions should the CloudOps engineer take? (Choose two.)",
+      "options": [
+        {"letter": "A", "text": "Deploy Amazon ElastiCache for Memcached with several nodes and use client-side consistent hashing.", "correct": false, "why": "Memcached has no replication and no automatic failover, so losing a node loses that node's shard of the cache — it fails the node-loss requirement."},
+        {"letter": "B", "text": "Deploy Amazon ElastiCache for Redis (cluster mode enabled) with a replica in a second Availability Zone per shard and Multi-AZ automatic failover turned on.", "correct": true, "why": "Redis supports replication, Multi-AZ automatic failover, and persistence, so a primary node failure promotes a replica and the cached dataset survives."},
+        {"letter": "C", "text": "Enable RDS storage autoscaling on the MySQL instance.", "correct": false, "why": "Storage autoscaling grows allocated storage when free space runs low; it does not add read throughput or reduce CPU pressure from repeated queries."},
+        {"letter": "D", "text": "Create an RDS read replica and route read-only catalog queries to the replica endpoint.", "correct": true, "why": "A read replica offloads read traffic from the primary and directly reduces its CPU and ReadIOPS while writes continue against the Multi-AZ primary."},
+        {"letter": "E", "text": "Put DynamoDB Accelerator (DAX) in front of the RDS instance.", "correct": false, "why": "DAX is an in-memory cache exclusively for Amazon DynamoDB and cannot front an RDS for MySQL database."}
+      ],
+      "knowledge_point": "ElastiCache engine choice: Memcached is simple, multi-threaded, horizontally sharded, with no replication or failover; Redis (and Valkey) adds replication, Multi-AZ automatic failover, persistence, snapshots, and rich data types. DAX caches DynamoDB only. Read replicas offload reads for RDS; Multi-AZ standby does not serve reads in the classic single-standby deployment.",
+      "trap_alert": "'Multi-AZ RDS' does not give you a readable second copy in the classic deployment — the standby serves failover only. If a question needs read offload, it needs a read replica or a cache.",
+      "mnemonic": "Memcached = memory only. Redis = resilience, replication, restore.",
+      "doc_refs": ["https://docs.aws.amazon.com/AmazonElastiCache/latest/dg/SelectEngine.html", "https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_ReadRepl.html"]
+    },
+    {
+      "id": "D2-Q011",
+      "type": "single_choice",
+      "difficulty": "easy",
+      "tags": ["alb", "http-503", "troubleshooting", "task-2.2"],
+      "scenario": "After a maintenance window, every request to an Application Load Balancer returns HTTP 503 within milliseconds. The ALB's access logs show the target status field as '-' and the target processing time as -1. The target group's monitoring tab shows zero healthy hosts.",
+      "stem": "What is the MOST likely cause of the HTTP 503 responses?",
+      "options": [
+        {"letter": "A", "text": "The target group has no healthy registered targets for the rule that matched the request.", "correct": true, "why": "An ALB returns 503 Service Unavailable when the target group it routes to contains no healthy targets, and the access log shows no target was ever contacted."},
+        {"letter": "B", "text": "The targets are closing the connection or returning a malformed response to the load balancer.", "correct": false, "why": "That behaviour produces HTTP 502 Bad Gateway, and the access log would show a target IP and a target processing time."},
+        {"letter": "C", "text": "The targets did not respond within the load balancer's 60-second idle timeout.", "correct": false, "why": "A target that accepts the connection but does not respond in time produces HTTP 504 Gateway Timeout, with a target processing time near the idle timeout value."},
+        {"letter": "D", "text": "Clients are sending malformed HTTP requests that the load balancer rejects.", "correct": false, "why": "Malformed client requests produce HTTP 400 Bad Request, generated by the load balancer before any routing decision is made."}
+      ],
+      "knowledge_point": "ELB status code decode: 400 = malformed client request; 460 = client closed the connection before the target responded; 502 = target reset the connection, returned a malformed response, or a Lambda target errored; 503 = no healthy or no registered targets; 504 = target did not respond within the idle timeout (default 60 s for ALB).",
+      "trap_alert": "502 and 503 both feel like 'the backend is broken'. 503 means the ALB never had anywhere to send the request; 502 means it sent the request and got garbage back.",
+      "mnemonic": "503 = 'Zero' targets. 502 = 'bad' answer. 504 = 'no' answer in time.",
+      "doc_refs": ["https://docs.aws.amazon.com/elasticloadbalancing/latest/application/load-balancer-troubleshooting.html"]
+    },
+    {
+      "id": "D2-Q012",
+      "type": "single_choice",
+      "difficulty": "easy",
+      "tags": ["alb", "target-health-check", "security-groups", "troubleshooting", "task-2.2"],
+      "scenario": "A CloudOps engineer registers three EC2 instances in an Application Load Balancer target group. The application listens on TCP 8080 and the target group health check is configured for HTTP on port 8080 with path /health. All three targets stay in the unhealthy state with the reason 'Health checks failed with these codes: [Request timed out]'. From a bastion host in the same subnet, curl http://<instance-ip>:8080/health returns HTTP 200 for all three instances.",
+      "stem": "What should the engineer do to make the targets healthy?",
+      "options": [
+        {"letter": "A", "text": "Change the health check success matcher from 200 to 200-499.", "correct": false, "why": "The matcher only decides which returned status codes count as healthy; a timeout means no response arrived at all, so no matcher value can help."},
+        {"letter": "B", "text": "Increase the healthy threshold from 2 consecutive checks to 5.", "correct": false, "why": "Raising the threshold requires more consecutive successes before a target is considered healthy, which makes recovery slower and cannot turn timeouts into successes."},
+        {"letter": "C", "text": "Add an inbound rule to the instances' security group that allows TCP 8080 from the load balancer's security group.", "correct": true, "why": "ALB health checks originate from the load balancer's ENIs; if the target security group does not allow the health check port from the ALB security group the probes are dropped and time out, while traffic from the bastion still succeeds."},
+        {"letter": "D", "text": "Enable cross-zone load balancing on the load balancer.", "correct": false, "why": "Cross-zone load balancing changes how requests are distributed across Availability Zones and has no bearing on whether health check packets reach a target."}
+      ],
+      "knowledge_point": "For ALB and NLB targets, the target's security group must allow the health check port (and the traffic port) from the load balancer — referencing the ALB's security group is the standard pattern. 'Request timed out' means no network path; 'unhealthy: unexpected code' means the path works but the response does not match the matcher.",
+      "trap_alert": "A successful curl from another instance proves the app works — it proves nothing about the ALB's path, because that traffic is governed by a different security group rule.",
+      "mnemonic": "Timeout = network. Wrong code = application.",
+      "doc_refs": ["https://docs.aws.amazon.com/elasticloadbalancing/latest/application/target-group-health-checks.html", "https://docs.aws.amazon.com/elasticloadbalancing/latest/application/load-balancer-update-security-groups.html"]
+    },
+    {
+      "id": "D2-Q013",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["alb", "deregistration-delay", "connection-draining", "task-2.2"],
+      "scenario": "To speed up rolling deployments, a team lowered the target group deregistration delay from the default to 5 seconds. Since then, users report dropped connections and truncated downloads during every deployment. Some report-generation requests stream data continuously for up to 120 seconds, so they never sit idle long enough to hit the load balancer idle timeout.",
+      "stem": "What should the CloudOps engineer do to stop the dropped connections during deployments?",
+      "options": [
+        {"letter": "A", "text": "Enable sticky sessions on the target group so each client stays on one target.", "correct": false, "why": "Stickiness pins a client to a target while that target is in service; it does not extend the drain window when the target is deregistered."},
+        {"letter": "B", "text": "Increase the target group deregistration delay to at least 120 seconds so in-flight requests can complete before the target is removed.", "correct": true, "why": "Deregistration delay (connection draining) keeps a deregistering target in the draining state, finishing in-flight requests, for up to 3,600 seconds; it must exceed the longest legitimate request."},
+        {"letter": "C", "text": "Increase the load balancer idle timeout from 60 seconds to 180 seconds.", "correct": false, "why": "Idle timeout closes connections with no data flowing; these requests stream continuously, so the idle timeout is never reached and raising it changes nothing."},
+        {"letter": "D", "text": "Reduce the health check interval from 30 seconds to 10 seconds.", "correct": false, "why": "A faster health check interval detects failures sooner but does not affect how long a deregistering target is allowed to drain."}
+      ],
+      "knowledge_point": "Deregistration delay defaults to 300 seconds, ranges 0–3,600 seconds, and governs the draining state of a target being removed. Set it to at least the longest expected request duration. It is a separate control from the ALB idle timeout (default 60 seconds), which applies to connections with no data in flight.",
+      "trap_alert": "Shortening deregistration delay is a real and common 'optimization' that quietly breaks long requests. The exam presents it as a deployment-speed win and expects you to spot the cost.",
+      "mnemonic": "Drain longer than your longest request.",
+      "doc_refs": ["https://docs.aws.amazon.com/elasticloadbalancing/latest/application/edit-target-group-attributes.html"]
+    },
+    {
+      "id": "D2-Q014",
+      "type": "multiple_response",
+      "difficulty": "medium",
+      "tags": ["nlb", "cross-zone-load-balancing", "task-2.2"],
+      "scenario": "A Network Load Balancer fronts an application in three Availability Zones. Because of an earlier capacity constraint, us-east-1a now holds eight targets while us-east-1b and us-east-1c hold one target each. Monitoring shows the single targets in 1b and 1c are running near 100% CPU while the eight targets in 1a are barely used. Clients resolve the NLB's DNS name normally and connections are spread evenly across the three zonal IP addresses.",
+      "stem": "Which two statements or actions correctly explain and address this behaviour? (Choose two.)",
+      "options": [
+        {"letter": "A", "text": "Cross-zone load balancing is disabled by default on Application Load Balancers and must be enabled explicitly.", "correct": false, "why": "It is the reverse: ALB has cross-zone load balancing enabled by default at the load balancer level (it can be turned off per target group)."},
+        {"letter": "B", "text": "Enable sticky sessions on the target group to even out the distribution.", "correct": false, "why": "Stickiness keeps a client pinned to whichever target it first reached, which concentrates load further rather than balancing it."},
+        {"letter": "C", "text": "Cross-zone load balancing is disabled by default on Network Load Balancers, so each zonal load balancer node distributes traffic only to targets in its own Availability Zone.", "correct": true, "why": "With cross-zone off, DNS spreads client connections roughly evenly across zonal nodes, and each node then splits its share among only the targets in its own AZ — so one target in 1b receives the same share as eight targets in 1a combined."},
+        {"letter": "D", "text": "Configure Route 53 latency-based routing in front of the Network Load Balancer.", "correct": false, "why": "Route 53 routing policies influence which endpoint a client resolves; they cannot change how an individual load balancer node distributes traffic among its registered targets."},
+        {"letter": "E", "text": "Enable cross-zone load balancing on the Network Load Balancer, or register an equal number of targets in every enabled Availability Zone.", "correct": true, "why": "Cross-zone load balancing lets every node reach every target so load is spread by target rather than by zone; keeping target counts equal per AZ achieves the same evenness without cross-AZ data transfer charges."}
+      ],
+      "knowledge_point": "Cross-zone load balancing defaults: ALB on (free), NLB off, GWLB off. With cross-zone disabled, traffic is split evenly per Availability Zone, not per target, so unequal target counts create hot zones. Enabling cross-zone on NLB or GWLB incurs inter-AZ data transfer charges.",
+      "trap_alert": "'Connections are spread evenly across zonal IPs' sounds like proof that balancing works — it is actually the evidence that traffic is being split by zone rather than by target.",
+      "mnemonic": "ALB = All zones by default. NLB = Node-local by default.",
+      "doc_refs": ["https://docs.aws.amazon.com/elasticloadbalancing/latest/userguide/how-elastic-load-balancing-works.html", "https://docs.aws.amazon.com/elasticloadbalancing/latest/network/network-load-balancer-getting-started.html"]
+    },
+    {
+      "id": "D2-Q015",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["route53", "health-checks", "private-endpoint", "cloudwatch-alarm", "task-2.2"],
+      "scenario": "An internal application is fronted by an internal Application Load Balancer in private subnets and is resolved through a Route 53 private hosted zone. A CloudOps engineer created a Route 53 endpoint health check that targets the internal ALB's DNS name so failover routing can be used. The health check has been in the Unhealthy state since creation, even though the application is confirmed working from inside the VPC.",
+      "stem": "What should the engineer do to make Route 53 failover work for this internal endpoint?",
+      "options": [
+        {"letter": "A", "text": "Reduce the health check request interval from 30 seconds to 10 seconds.", "correct": false, "why": "A faster interval only changes how often checks are attempted; the checkers still cannot reach a private endpoint, so every attempt still fails."},
+        {"letter": "B", "text": "Increase the failure threshold from 3 to 10 consecutive checks.", "correct": false, "why": "The failure threshold controls how many consecutive failures flip the status; with 100% of checks failing the status becomes Unhealthy regardless of the threshold."},
+        {"letter": "C", "text": "Add an inbound security group rule on the internal ALB that allows traffic from 0.0.0.0/0.", "correct": false, "why": "An internal ALB has only private IP addresses and no route from the internet, so opening the security group exposes nothing to the checkers while weakening security."},
+        {"letter": "D", "text": "Create a CloudWatch alarm on the internal ALB's HealthyHostCount metric and create a Route 53 health check of type 'CloudWatch alarm' that references it.", "correct": true, "why": "Route 53 health checkers run from public AWS locations and cannot reach private resources; a CloudWatch-alarm-based health check derives status from a metric instead of a network probe, which is the supported pattern for private endpoints."}
+      ],
+      "knowledge_point": "Route 53 has three health check types: endpoint (public IP or public DNS name only — checkers are on the internet), calculated (combines up to 256 child health checks with a threshold), and CloudWatch alarm (status derived from an alarm, and the only way to health-check private resources). Endpoint check defaults: 30-second interval (10 seconds for fast), failure threshold 3.",
+      "trap_alert": "Any Route 53 endpoint health check aimed at a private IP, an internal ALB, or an on-premises host behind a firewall is a trap — the fix is always a CloudWatch alarm-based health check.",
+      "mnemonic": "Public probe or private metric — never a public probe at a private target.",
+      "doc_refs": ["https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/dns-failover-types.html", "https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/health-checks-creating-values.html"]
+    },
+    {
+      "id": "D2-Q016",
+      "type": "single_choice",
+      "difficulty": "hard",
+      "tags": ["rds", "multi-az", "failover", "dns-caching", "task-2.2"],
+      "scenario": "An Amazon RDS for PostgreSQL Multi-AZ instance failed over during an AZ impairment. The RDS console reported the instance as Available roughly 90 seconds later, and a psql client on a bastion host connected successfully right away. However, the Java application on EC2 kept throwing connection errors for about 15 more minutes before recovering on its own, without any configuration change. The application uses the RDS writer endpoint DNS name in its connection string.",
+      "stem": "What is the MOST likely cause, and what should the CloudOps engineer change?",
+      "options": [
+        {"letter": "A", "text": "The JVM is caching the DNS resolution of the RDS endpoint indefinitely; set the JVM networkaddress.cache.ttl (and negative TTL) to a low value such as 5-10 seconds so the application re-resolves the endpoint to the promoted standby's IP address.", "correct": true, "why": "RDS failover keeps the same endpoint name and changes the underlying IP; a JVM with the default security-manager setting caches successful lookups forever, so the application keeps dialing the old, now-dead IP address."},
+        {"letter": "B", "text": "The writer endpoint changes during a Multi-AZ failover; update the application's connection string to the new endpoint and redeploy.", "correct": false, "why": "Multi-AZ failover preserves the DB instance endpoint name precisely so that connection strings never need to change — only the CNAME's target IP changes."},
+        {"letter": "C", "text": "Multi-AZ was not actually enabled on the instance; enable Multi-AZ so failover completes faster next time.", "correct": false, "why": "The scenario states a failover occurred and the instance returned to Available in about 90 seconds, which is the expected Multi-AZ behaviour."},
+        {"letter": "D", "text": "Create a read replica in another Availability Zone and point the application at the replica endpoint.", "correct": false, "why": "A read replica has its own endpoint and cannot accept writes; it does nothing about a client that is caching a stale IP address."}
+      ],
+      "knowledge_point": "RDS Multi-AZ failover keeps the same endpoint DNS name and repoints it at the standby, typically within 60-120 seconds. Client-side DNS caching is the usual reason an application lags behind the database. Set JVM networkaddress.cache.ttl to a short value, and check OS or connection-pool caching too. RDS Proxy is the low-overhead alternative that absorbs failovers on the application's behalf.",
+      "trap_alert": "'The endpoint changed' is the tempting answer and it is wrong for Multi-AZ failover. The endpoint changes when you do a point-in-time restore or a snapshot restore, because those create a NEW instance.",
+      "mnemonic": "Same name, new address — if the client won't re-resolve, the client stays broken.",
+      "doc_refs": ["https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.MultiAZ.html", "https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/CHAP_BestPractices.html"]
+    },
+    {
+      "id": "D2-Q017",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["aurora", "failover-priority", "promotion-tier", "task-2.2"],
+      "scenario": "An Aurora MySQL cluster has one db.r6g.8xlarge writer and three Aurora Replicas: one db.r6g.8xlarge and two db.r6g.large used for light internal dashboards. During an unplanned failover, Aurora promoted one of the db.r6g.large replicas, and the application ran severely degraded until the team manually failed over again. All four instances are currently in the same promotion tier.",
+      "stem": "What should the CloudOps engineer configure so that the large replica is promoted next time?",
+      "options": [
+        {"letter": "A", "text": "Enable Multi-AZ on the Aurora DB cluster.", "correct": false, "why": "Aurora achieves multi-AZ resilience through its distributed storage layer and by placing replicas in different AZs; there is no separate Multi-AZ toggle that selects a promotion target."},
+        {"letter": "B", "text": "Set the db.r6g.8xlarge replica's failover priority to tier-0 and set the two db.r6g.large replicas to a higher-numbered tier such as tier-14.", "correct": true, "why": "Aurora promotes the replica in the lowest-numbered promotion tier; when several replicas share the lowest tier it promotes the largest of them, so putting only the large replica in tier-0 makes the outcome deterministic."},
+        {"letter": "C", "text": "Point the application's write traffic at the cluster reader endpoint so it always reaches an available instance.", "correct": false, "why": "The reader endpoint load-balances read-only connections across replicas and rejects writes; it cannot be used as a write endpoint."},
+        {"letter": "D", "text": "Set one of the db.r6g.large replicas to tier-0 so a promotion target is always defined.", "correct": false, "why": "This guarantees the wrong outcome — tier-0 is the highest promotion priority, so the small replica would be promoted every time."}
+      ],
+      "knowledge_point": "Aurora failover priority uses promotion tiers 0-15, where 0 is the highest priority. Aurora promotes the reader in the lowest-numbered tier; ties are broken by the largest instance size. Failover to an existing Aurora Replica typically completes in about 30 seconds; with no replicas Aurora recreates the writer, which takes longer.",
+      "trap_alert": "Tier numbers are inverted relative to intuition: tier-0 is first in line, tier-15 is last. Reading '15' as 'most important' costs the point.",
+      "mnemonic": "Tier 0 goes first — like a race position, lowest number wins.",
+      "doc_refs": ["https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/Aurora.Managing.Backups.html", "https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/Concepts.AuroraHighAvailability.html"]
+    },
+    {
+      "id": "D2-Q018",
+      "type": "single_choice",
+      "difficulty": "hard",
+      "tags": ["application-recovery-controller", "zonal-shift", "gray-failure", "task-2.2"],
+      "scenario": "An application runs behind an Application Load Balancer with an Auto Scaling group spread across three Availability Zones. Targets in us-east-1c are passing their shallow /health checks but are returning elevated 5xx responses and p99 latency five times higher than the other zones. The AWS Health Dashboard reports degraded networking in that AZ. The team needs to take that Availability Zone out of service within minutes and put it back automatically once AWS reports recovery.",
+      "stem": "What should the CloudOps engineer do?",
+      "options": [
+        {"letter": "A", "text": "Modify the Application Load Balancer to remove the us-east-1c subnet from its enabled Availability Zones.", "correct": false, "why": "This works but is a manual configuration change to a shared resource, is easy to forget to revert, and does not expire on its own the way a zonal shift does."},
+        {"letter": "B", "text": "Set the Auto Scaling group's desired capacity to zero and then back to its original value.", "correct": false, "why": "This terminates the entire fleet in all three Availability Zones, causing a full outage instead of removing one impaired zone."},
+        {"letter": "C", "text": "Start a zonal shift in Amazon Application Recovery Controller for the load balancer to move traffic away from us-east-1c, or enable zonal autoshift so AWS performs the shift automatically.", "correct": true, "why": "A zonal shift instructs the load balancer to stop sending new requests to targets in the specified AZ within minutes, has an expiry so it cannot be forgotten, and zonal autoshift lets AWS trigger and revert it based on its own impairment signals."},
+        {"letter": "D", "text": "Enable cross-zone load balancing on the Application Load Balancer.", "correct": false, "why": "Cross-zone load balancing is already on by default for ALB, and spreading traffic more evenly would send more requests to the impaired zone's targets, not fewer."}
+      ],
+      "knowledge_point": "Amazon Application Recovery Controller zonal shift removes an Availability Zone from service for a supported resource (ALB, NLB, and other supported resources) without any configuration change, and every shift carries an expiry (up to three days, extendable). Zonal autoshift delegates the trigger to AWS. Readiness checks are the separate ARC feature that audits whether a recovery Region or zone is actually configured to take the load.",
+      "trap_alert": "Gray failures pass shallow health checks by design, so 'the health check says it's fine' is not evidence the AZ is fine. Zonal shift exists precisely because health checks miss these cases.",
+      "mnemonic": "Zonal shift = evacuate the AZ without touching the config, and it expires on its own.",
+      "doc_refs": ["https://docs.aws.amazon.com/r53recovery/latest/dg/arc-zonal-shift.html", "https://docs.aws.amazon.com/r53recovery/latest/dg/arc-zonal-autoshift.html"]
+    },
+    {
+      "id": "D2-Q019",
+      "type": "single_choice",
+      "difficulty": "easy",
+      "tags": ["aws-backup", "resource-assignment", "tags", "troubleshooting", "task-2.3"],
+      "scenario": "A company uses AWS Backup with a backup plan whose resource assignment selects all resources carrying the tag key Backup with value daily. A new Amazon EBS volume was attached to a production instance three weeks ago. During a recovery drill the team discovered the volume has no recovery points, although every other production volume does. The backup jobs for the plan all show status COMPLETED with no failures.",
+      "stem": "What is the MOST likely reason the volume was not backed up?",
+      "options": [
+        {"letter": "A", "text": "AWS Backup does not support tag-based assignment for Amazon EBS volumes; EBS volumes must be listed individually by ARN.", "correct": false, "why": "AWS Backup fully supports tag-based resource assignment for EBS volumes, so this is not a service limitation."},
+        {"letter": "B", "text": "The new volume does not carry the Backup=daily tag; tag-based resource selection is evaluated when each backup job runs, so an untagged resource is simply not included and the job still reports COMPLETED.", "correct": true, "why": "Resource assignment by tag is dynamic and silent — a resource without the matching tag key and value is never selected, which is why the jobs succeed while the volume is missing."},
+        {"letter": "C", "text": "The destination backup vault has AWS Backup Vault Lock enabled in compliance mode, which prevents new recovery points from being created.", "correct": false, "why": "Vault Lock enforces retention and blocks early deletion of recovery points; it does not prevent new backups from being written to the vault."},
+        {"letter": "D", "text": "The backup rule's lifecycle moves recovery points to cold storage, and Amazon EBS is excluded from cold storage transitions.", "correct": false, "why": "A lifecycle transition affects where an existing recovery point is stored after it is created; it never prevents the recovery point from being created in the first place."}
+      ],
+      "knowledge_point": "AWS Backup resource assignment happens by tag or by explicit resource ARN, and it is re-evaluated at each backup window. Untagged resources are skipped silently, so a job with status COMPLETED is not proof of coverage. Use AWS Backup Audit Manager (or an AWS Config rule) to detect resources that are not protected by any plan.",
+      "trap_alert": "'All backup jobs completed successfully' is deliberately reassuring. Success means everything selected was backed up — it says nothing about what was never selected.",
+      "mnemonic": "No tag, no job, no error, no backup.",
+      "doc_refs": ["https://docs.aws.amazon.com/aws-backup/latest/devguide/assigning-resources.html", "https://docs.aws.amazon.com/aws-backup/latest/devguide/aws-backup-audit-manager.html"]
+    },
+    {
+      "id": "D2-Q020",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["aws-backup", "vault-lock", "compliance", "task-2.3"],
+      "scenario": "A financial services regulator requires that backup recovery points for a set of production databases be retained for seven years and that no person in the organization — including a user with full administrative access or the account root user — be able to shorten the retention period or delete a recovery point before it expires. The company already stores these backups in a dedicated AWS Backup vault.",
+      "stem": "What should the CloudOps engineer do to meet the regulator's requirement?",
+      "options": [
+        {"letter": "A", "text": "Attach a backup vault access policy that denies backup:DeleteRecoveryPoint to all principals.", "correct": false, "why": "A resource policy can be edited or removed by any principal with sufficient permissions, so it does not provide the write-once guarantee the regulator requires."},
+        {"letter": "B", "text": "Enable AWS Backup Vault Lock in governance mode with a seven-year minimum retention.", "correct": false, "why": "Governance mode is designed so that users holding specific IAM permissions can still alter or remove the lock — it protects against mistakes, not against privileged deletion."},
+        {"letter": "C", "text": "Enable S3 Object Lock in compliance mode on the Amazon S3 bucket that backs the vault.", "correct": false, "why": "AWS Backup vault storage is managed by the service and is not exposed as a customer-owned S3 bucket, so Object Lock cannot be applied to it."},
+        {"letter": "D", "text": "Enable AWS Backup Vault Lock in compliance mode with a seven-year minimum retention and allow the cooling-off period to elapse.", "correct": true, "why": "Once the compliance-mode cooling-off period (3-365 days) expires, the lock is immutable — nobody, including the root user and AWS, can delete the lock, shorten retention, or delete recovery points before expiry."}
+      ],
+      "knowledge_point": "AWS Backup Vault Lock: governance mode can be removed or changed by principals with backup:DeleteBackupVaultLockConfiguration; compliance mode becomes immutable once the cooling-off period passes and cannot be undone by anyone, including root. Compliance mode is the answer whenever the requirement is WORM/regulatory immutability.",
+      "trap_alert": "Governance and compliance sound like a strictness ranking; they are actually a reversibility distinction. If the stem says 'including the root user' or 'cannot be undone', it is compliance mode.",
+      "mnemonic": "Governance = guardrail you can lift. Compliance = concrete you cannot.",
+      "doc_refs": ["https://docs.aws.amazon.com/aws-backup/latest/devguide/vault-lock.html"]
+    },
+    {
+      "id": "D2-Q021",
+      "type": "multiple_response",
+      "difficulty": "medium",
+      "tags": ["aws-backup", "cross-region-copy", "cross-account-copy", "kms", "task-2.3"],
+      "scenario": "A company must be able to recover its production workloads even if the production AWS account's credentials are compromised and an attacker deletes resources, and even if the primary Region becomes unavailable. All backups are encrypted with a customer managed AWS KMS key. The company already runs AWS Organizations with a separate, tightly restricted archive account.",
+      "stem": "Which two actions should the CloudOps engineer take? (Choose two.)",
+      "options": [
+        {"letter": "A", "text": "Add a copy action to the backup plan rule that copies each recovery point to a backup vault in a second AWS Region.", "correct": true, "why": "A cross-Region copy action produces an independent recovery point outside the primary Region, which is what satisfies the Region-outage requirement."},
+        {"letter": "B", "text": "Enable AWS Backup Vault Lock in governance mode on the source vault only.", "correct": false, "why": "Governance mode can be lifted by a sufficiently privileged principal, and a lock on the source vault alone does not survive the loss of the source account."},
+        {"letter": "C", "text": "Turn on S3 Cross-Region Replication for the backup vault's underlying bucket.", "correct": false, "why": "Backup vault storage is service-managed and is not a customer S3 bucket, so S3 replication cannot be configured against it."},
+        {"letter": "D", "text": "Add a copy action that copies recovery points to a logically air-gapped backup vault in the separate archive account, using a customer managed KMS key whose key policy grants the destination account access.", "correct": true, "why": "Cross-account copy places recovery points outside the blast radius of a compromised production account; because copies are re-encrypted at the destination, the KMS key policy must grant the destination account use of the key."},
+        {"letter": "E", "text": "Increase the retention period on the source vault's backup rule from 35 days to seven years.", "correct": false, "why": "Longer retention keeps recovery points around longer but leaves every one of them inside the account and Region that the scenario says may be lost."}
+      ],
+      "knowledge_point": "AWS Backup copy actions are configured inside a backup plan rule and can target another Region, another account, or both. Cross-account copy requires AWS Organizations with cross-account backup enabled, and encrypted copies require a customer managed KMS key shared with the destination — the AWS managed key cannot be used for cross-account copies. Logically air-gapped vaults add a separately owned, immutable copy that can be shared for restore.",
+      "trap_alert": "Retention and immutability protect against deletion within an account. Only a copy to a different account or Region protects against losing the account or Region itself.",
+      "mnemonic": "Different Region beats disaster; different account beats attacker.",
+      "doc_refs": ["https://docs.aws.amazon.com/aws-backup/latest/devguide/cross-region-backup.html", "https://docs.aws.amazon.com/aws-backup/latest/devguide/create-cross-account-backup.html"]
+    },
+    {
+      "id": "D2-Q022",
+      "type": "single_choice",
+      "difficulty": "easy",
+      "tags": ["rds", "point-in-time-recovery", "restore", "troubleshooting", "task-2.3"],
+      "scenario": "A bad migration script deleted rows from a production Amazon RDS for MySQL database. A CloudOps engineer performed a point-in-time restore to a timestamp five minutes before the script ran. The RDS console shows the restore finished and the new DB instance is Available. However, the application still returns the same missing-row errors, and the engineer confirms the deleted rows are present in the restored data.",
+      "stem": "Why is the application still failing, and what should the engineer do?",
+      "options": [
+        {"letter": "A", "text": "The restore silently failed to apply transaction logs; delete the restored instance and run the point-in-time restore again.", "correct": false, "why": "The engineer confirmed the restored data contains the missing rows, so the restore itself worked correctly."},
+        {"letter": "B", "text": "Point-in-time recovery restores only the most recent automated snapshot and does not replay transaction logs; restore from a manual snapshot instead.", "correct": false, "why": "PITR restores the latest system snapshot and then replays transaction logs up to the chosen second, which is exactly why the deleted rows are present."},
+        {"letter": "C", "text": "Point-in-time recovery always creates a NEW DB instance with a NEW endpoint; the application is still connected to the original instance. Repoint the application (or rename the instances) and verify the security groups, parameter group, and option group on the restored instance.", "correct": true, "why": "RDS never restores in place — PITR and snapshot restores both create a new instance with a new endpoint, and the restored instance also defaults to the default security group and parameter group unless specified."},
+        {"letter": "D", "text": "Automated backups were disabled on the source instance, so the restore used stale data; enable automated backups and repeat the restore.", "correct": false, "why": "Point-in-time recovery is only available when automated backups are enabled, so the restore could not have been performed at all if they were off."}
+      ],
+      "knowledge_point": "Every RDS restore — PITR or snapshot — produces a NEW DB instance with a NEW endpoint. The restored instance gets the default security group and default parameter group unless you specify otherwise, and Multi-AZ, deletion protection, and tags may not carry over. The cutover pattern is: restore, validate, reconfigure, then rename or repoint.",
+      "trap_alert": "'Restore succeeded but the app still fails' almost always means the app is talking to the old endpoint, not that the restore is broken. Look at the connection string before you look at the data.",
+      "mnemonic": "Restore = new instance, new endpoint, default groups.",
+      "doc_refs": ["https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_PIT.html", "https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_RestoreFromSnapshot.html"]
+    },
+    {
+      "id": "D2-Q023",
+      "type": "single_choice",
+      "difficulty": "hard",
+      "tags": ["rds", "automated-backups", "manual-snapshots", "cross-region", "retention", "task-2.3"],
+      "scenario": "A compliance policy requires that a restorable copy of an Amazon RDS for PostgreSQL database exist for the previous 90 days, and that a copy also be available in a second AWS Region for disaster recovery. The database currently has automated backups with a 7-day retention period and no other protection. The team wants a managed approach without writing custom scripts.",
+      "stem": "What should the CloudOps engineer implement?",
+      "options": [
+        {"letter": "A", "text": "Use AWS Backup to take scheduled snapshots of the DB instance with 90-day retention, and add a copy action in the backup rule that copies each recovery point to a vault in the second Region.", "correct": true, "why": "Automated backup retention caps at 35 days, so 90-day coverage requires snapshot-style recovery points; AWS Backup schedules them, enforces retention, and performs the cross-Region copy without custom code."},
+        {"letter": "B", "text": "Change the DB instance's automated backup retention period to 90 days.", "correct": false, "why": "RDS automated backup retention accepts 0-35 days; 90 is not a valid value."},
+        {"letter": "C", "text": "Enable cross-Region automated backup replication with a 90-day retention period in the destination Region.", "correct": false, "why": "Replicated automated backups are also limited to a maximum retention of 35 days, so this cannot satisfy a 90-day requirement even though it does solve the second-Region part."},
+        {"letter": "D", "text": "Create a cross-Region read replica of the DB instance and rely on it as the 90-day recovery copy.", "correct": false, "why": "A read replica continuously applies changes, so a bad write or deletion propagates to it — a replica is a availability and read-scaling mechanism, not a point-in-time backup."}
+      ],
+      "knowledge_point": "RDS automated backups: retention 0-35 days (0 disables backups and PITR), deleted with the instance unless you retain them, and they enable PITR to any second in the window. Manual snapshots persist until you delete them and have no retention cap. Cross-Region automated backup replication is also capped at 35 days. For retention beyond 35 days, use scheduled snapshots — ideally orchestrated by AWS Backup.",
+      "trap_alert": "35 is the number that decides this question. Any stem asking for retention longer than 35 days rules out automated backups entirely, including their cross-Region replicated form.",
+      "mnemonic": "35 is the automated ceiling; snapshots have no ceiling.",
+      "doc_refs": ["https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_WorkingWithAutomatedBackups.html", "https://docs.aws.amazon.com/aws-backup/latest/devguide/cross-region-backup.html"]
+    },
+    {
+      "id": "D2-Q024",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["ebs", "snapshots", "fast-snapshot-restore", "rto", "task-2.3"],
+      "scenario": "During a disaster recovery rehearsal, a team created 20 Amazon EBS volumes from snapshots and attached them to newly launched instances. The volumes were usable immediately, but the application was unacceptably slow for the first 30 minutes, and CloudWatch showed high VolumeQueueLength and low throughput during that period. Performance then returned to normal on its own. The documented RTO requires full performance within 10 minutes of the restore.",
+      "stem": "What should the CloudOps engineer do to meet the RTO?",
+      "options": [
+        {"letter": "A", "text": "Copy the snapshots to a second Region before restoring them.", "correct": false, "why": "A cross-Region copy changes where the snapshot lives; volumes created from the copy still load blocks lazily and behave exactly the same way."},
+        {"letter": "B", "text": "Enable fast snapshot restore (FSR) on the snapshots in the Availability Zones used for recovery, so volumes created from them are fully initialized at creation.", "correct": true, "why": "FSR pre-provisions the snapshot so volumes created from it deliver full provisioned performance immediately, eliminating the lazy-load penalty; it is enabled per snapshot per AZ and billed hourly."},
+        {"letter": "C", "text": "Change the restored volumes from gp3 to io2 after they are created.", "correct": false, "why": "The first-access penalty comes from loading blocks from Amazon S3 on demand, not from the volume type's baseline performance, so changing type does not remove it."},
+        {"letter": "D", "text": "Run a script after each restore that reads every block on the volume to force initialization.", "correct": false, "why": "Pre-warming with dd or fio does work, but it consumes the recovery window itself and adds scripting overhead — it is the manual workaround FSR replaced."}
+      ],
+      "knowledge_point": "EBS snapshots are incremental (only changed blocks are stored) and volumes restored from them load blocks lazily from S3 on first access, causing a temporary performance hit. Fast snapshot restore removes that hit and is configured per snapshot per Availability Zone, with an hourly charge and a limited number of concurrent FSR-enabled snapshots. Amazon Data Lifecycle Manager automates snapshot creation, retention, cross-Region copy, and can enable FSR on the policy's snapshots.",
+      "trap_alert": "Deleting an 'old' incremental snapshot never breaks later snapshots — AWS moves the referenced blocks forward. Do not pick answers that claim you must keep the first snapshot forever.",
+      "mnemonic": "Lazy load is the tax; FSR pays it in advance.",
+      "doc_refs": ["https://docs.aws.amazon.com/ebs/latest/userguide/ebs-fast-snapshot-restore.html", "https://docs.aws.amazon.com/ebs/latest/userguide/snapshot-lifecycle.html"]
+    },
+    {
+      "id": "D2-Q025",
+      "type": "multiple_response",
+      "difficulty": "medium",
+      "tags": ["s3", "versioning", "replication", "batch-replication", "mfa-delete", "task-2.3"],
+      "scenario": "A CloudOps engineer enabled versioning on a five-year-old Amazon S3 bucket containing 4 TB of objects, then created a live replication rule to a bucket in another Region. New uploads appear in the destination within minutes, but none of the 4 TB of pre-existing objects has replicated after 48 hours. Separately, the security team wants to make it much harder for anyone to permanently destroy an object version in the source bucket.",
+      "stem": "Which two actions should the CloudOps engineer take? (Choose two.)",
+      "options": [
+        {"letter": "A", "text": "Disable and re-enable versioning on the destination bucket to force a full resynchronization.", "correct": false, "why": "Versioning cannot be disabled once enabled (only suspended), and toggling it does not cause S3 to reprocess objects that predate the replication rule."},
+        {"letter": "B", "text": "Run an S3 Batch Replication job against the source bucket to replicate the existing objects.", "correct": true, "why": "Live replication rules apply only to objects written after the rule is created; S3 Batch Replication is the purpose-built job that back-fills pre-existing objects and objects that previously failed to replicate."},
+        {"letter": "C", "text": "Enable S3 Transfer Acceleration on the source bucket.", "correct": false, "why": "Transfer Acceleration speeds up uploads and downloads over the internet through CloudFront edge locations; it has no role in bucket-to-bucket replication."},
+        {"letter": "D", "text": "Enable Requester Pays on the source bucket.", "correct": false, "why": "Requester Pays shifts data transfer and request charges to the requester and does not affect replication behaviour or object durability."},
+        {"letter": "E", "text": "Enable MFA Delete on the source bucket so that permanently deleting an object version or suspending versioning requires an MFA code.", "correct": true, "why": "MFA Delete adds a second factor to the two most destructive operations on a versioned bucket; it can be configured only by the bucket owner's root user using the CLI or API."}
+      ],
+      "knowledge_point": "S3 replication (CRR/SRR) requires versioning on both buckets and only replicates objects created after the rule is enabled — existing objects need S3 Batch Replication. MFA Delete requires the root user and the CLI/API, and applies to permanently deleting versions and to suspending versioning. S3 Object Lock is the stronger WORM control (governance vs compliance retention plus legal holds) and must be enabled at bucket creation for new buckets.",
+      "trap_alert": "'New objects replicate, old objects don't' is not a broken rule — it is the documented behaviour. Reaching for IAM or bucket policy fixes here wastes the question.",
+      "mnemonic": "Rules apply forward; Batch Replication reaches backward.",
+      "doc_refs": ["https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-batch-replication-batch.html", "https://docs.aws.amazon.com/AmazonS3/latest/userguide/MultiFactorAuthenticationDelete.html"]
+    },
+    {
+      "id": "D2-Q026",
+      "type": "single_choice",
+      "difficulty": "easy",
+      "tags": ["dynamodb", "point-in-time-recovery", "restore", "task-2.3"],
+      "scenario": "Six days ago a faulty deployment wrote incorrect attribute values into millions of items in a production Amazon DynamoDB table. The problem was only noticed today. Point-in-time recovery has been enabled on the table since it was created, and DynamoDB Streams is not enabled. The team needs the table's contents as they were just before the faulty deployment so they can compare and correct the data.",
+      "stem": "What should the CloudOps engineer do?",
+      "options": [
+        {"letter": "A", "text": "Use point-in-time recovery to restore the existing table in place to the timestamp just before the deployment.", "correct": false, "why": "DynamoDB point-in-time recovery cannot overwrite an existing table; every restore creates a new table."},
+        {"letter": "B", "text": "Nothing can be done, because DynamoDB point-in-time recovery retains only the previous 24 hours of changes.", "correct": false, "why": "PITR provides continuous backups covering the previous 35 days, so a six-day-old point in time is well within range."},
+        {"letter": "C", "text": "Use point-in-time recovery to restore to a NEW table at the chosen timestamp within the last 35 days, then compare and migrate the corrected items or repoint the application at the new table.", "correct": true, "why": "PITR restores to any second in the retention window and always produces a new table, which the team can then use as the source of truth for comparison or cutover."},
+        {"letter": "D", "text": "Enable DynamoDB Streams and replay the stream records from six days ago in reverse to undo the changes.", "correct": false, "why": "Streams retain records for 24 hours and only capture changes after the stream is enabled, so there is nothing from six days ago to replay."}
+      ],
+      "knowledge_point": "DynamoDB PITR gives continuous backups for the previous 35 days with per-second granularity and always restores to a NEW table; on-demand backups are full snapshots that persist until deleted and also restore to a new table. Restored tables do not carry over auto scaling settings, TTL configuration, stream settings, IAM policies, CloudWatch alarms, or tags — reconfigure them after the restore.",
+      "trap_alert": "35 days for PITR, 24 hours for Streams, 24 hours for a Lambda event source's default. The exam mixes these retention windows in the same question set.",
+      "mnemonic": "PITR = 35 days, new table. Streams = 24 hours, forward only.",
+      "doc_refs": ["https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/PointInTimeRecovery.html", "https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Restore.Tutorial.html"]
+    },
+    {
+      "id": "D2-Q027",
+      "type": "single_choice",
+      "difficulty": "hard",
+      "tags": ["disaster-recovery", "rto-rpo", "warm-standby", "pilot-light", "task-2.3"],
+      "scenario": "A revenue-generating application runs in a single Region. The business has set an RTO of 10 minutes and an RPO of 1 minute for a full Region failure. Finance has rejected running two identical full-scale production environments because of cost, but accepts paying for meaningful standby capacity. The application is a stateless web and app tier plus an Aurora database.",
+      "stem": "Which disaster recovery strategy should the CloudOps engineer recommend?",
+      "options": [
+        {"letter": "A", "text": "Warm standby: run a scaled-down but fully functional copy of the stack in the second Region with an Aurora global database replicating continuously, and scale it up on failover.", "correct": true, "why": "A warm standby is always running and already serving health checks, so failover is a scale-up plus a DNS change that fits a 10-minute RTO, while continuous Aurora Global Database replication delivers sub-second to one-minute RPO at a fraction of active-active cost."},
+        {"letter": "B", "text": "Backup and restore: copy AWS Backup recovery points to the second Region and rebuild the environment from them when a failure occurs.", "correct": false, "why": "Backup and restore typically yields an RTO and RPO measured in hours, since infrastructure must be provisioned and data restored after the event."},
+        {"letter": "C", "text": "Pilot light: replicate the database to the second Region but keep all application and web servers stopped or undeployed until a disaster is declared.", "correct": false, "why": "Pilot light meets the RPO but its RTO is bounded by provisioning and starting the entire application tier from cold, which is not reliably achievable in 10 minutes."},
+        {"letter": "D", "text": "Multi-site active-active: run full production capacity in both Regions and route users to both continuously.", "correct": false, "why": "Active-active meets the objectives but is the most expensive option and is exactly the duplicated full-scale environment finance rejected."}
+      ],
+      "knowledge_point": "DR pattern ladder by RTO/RPO and cost: backup and restore (hours, cheapest), pilot light (tens of minutes; data live, compute off), warm standby (minutes; everything running but scaled down), multi-site active-active (near zero; most expensive). Pick the cheapest pattern that still meets the stated RTO and RPO — the exam always constrains cost as the tiebreaker.",
+      "trap_alert": "Pilot light and warm standby both keep data replicating. The discriminator is whether the application tier is RUNNING: off means pilot light, on-but-small means warm standby.",
+      "mnemonic": "Pilot light = data warm, servers cold. Warm standby = everything on, just small.",
+      "doc_refs": ["https://docs.aws.amazon.com/whitepapers/latest/disaster-recovery-workloads-on-aws/disaster-recovery-options-in-the-cloud.html", "https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-global-database.html"]
+    },
+    {
+      "id": "D2-Q028",
+      "type": "multiple_response",
+      "difficulty": "medium",
+      "tags": ["aws-backup", "restore-testing", "backup-audit-manager", "compliance", "task-2.3"],
+      "scenario": "Internal auditors have two findings against a company's backup program. First, there is no evidence that recovery points can actually be restored — the team has never restored anything outside an incident. Second, there is no report showing that every resource tagged env=prod is covered by a backup plan with at least 30-day retention. The team wants recurring, automated evidence for both findings.",
+      "stem": "Which two actions should the CloudOps engineer take? (Choose two.)",
+      "options": [
+        {"letter": "A", "text": "Enable AWS CloudTrail data events for the backup vaults and retain the logs for one year.", "correct": false, "why": "CloudTrail records which API calls were made against the vault; it proves neither that a recovery point is restorable nor that a given resource is covered by a plan."},
+        {"letter": "B", "text": "Have an engineer manually restore one resource each quarter and attach a screenshot to the audit folder.", "correct": false, "why": "A manual quarterly restore is high-overhead, easy to skip, and covers only a single resource — it is not the automated recurring evidence the auditors asked for."},
+        {"letter": "C", "text": "Create AWS Backup restore testing plans that periodically select recovery points, restore them automatically, run validation, and record the results.", "correct": true, "why": "Restore testing automates scheduled restores against a chosen resource selection, reports restore job status and validation outcome, and cleans up the restored resources — producing exactly the restorability evidence required."},
+        {"letter": "D", "text": "Deploy AWS Backup Audit Manager frameworks with controls that report resources not protected by a backup plan and recovery points that do not meet the minimum retention.", "correct": true, "why": "Backup Audit Manager evaluates controls such as 'resources are protected by a backup plan' and 'minimum retention established' and delivers scheduled reports to Amazon S3 as audit evidence."},
+        {"letter": "E", "text": "Enable AWS Backup Vault Lock in compliance mode on all vaults.", "correct": false, "why": "Vault Lock enforces immutability of recovery points; it says nothing about whether they restore successfully or whether every production resource is covered."}
+      ],
+      "knowledge_point": "AWS Backup has two distinct assurance features: restore testing plans prove recovery points actually restore (scheduled restores, validation window, automatic cleanup), and Backup Audit Manager frameworks prove policy compliance (coverage by plan, minimum retention, frequency, cross-Region copy, vault lock) with scheduled reports to S3. Vault Lock is an enforcement control, not an evidence control.",
+      "trap_alert": "Auditors asking for 'evidence' pulls people toward CloudTrail. CloudTrail proves who called what; it does not prove a restore works or that coverage is complete.",
+      "mnemonic": "Restore testing proves it works; Audit Manager proves it is covered.",
+      "doc_refs": ["https://docs.aws.amazon.com/aws-backup/latest/devguide/restore-testing.html", "https://docs.aws.amazon.com/aws-backup/latest/devguide/aws-backup-audit-manager.html"]
+    }
+  ]
+}

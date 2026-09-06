@@ -1,0 +1,505 @@
+{
+  "domain": "D3",
+  "title": "Deployment, Provisioning, and Automation",
+  "questions": [
+    {
+      "id": "D3-Q001",
+      "type": "single_choice",
+      "difficulty": "easy",
+      "tags": ["ec2-image-builder", "golden-ami", "multi-region"],
+      "scenario": "A company builds a hardened golden AMI every month with an EC2 Image Builder pipeline in us-east-1. Workload teams in eu-west-1 and ap-southeast-2, running in two separate AWS accounts, report that the newest AMI is not available to them. Today an operator manually copies the AMI and manually adds launch permissions after each build, and the step is frequently forgotten.",
+      "stem": "What should the CloudOps engineer configure so that every pipeline run publishes the AMI to both Regions and both accounts automatically?",
+      "options": [
+        {"letter": "A", "text": "Attach a distribution configuration to the image pipeline that lists eu-west-1 and ap-southeast-2, and specify the target account IDs as launch permissions in each Region's distribution settings.", "correct": true, "why": "The distribution configuration is the Image Builder construct that copies the output AMI to named Regions and grants launch permissions (or performs an account-level distribution) on every pipeline execution with no scripting."},
+        {"letter": "B", "text": "Add a component to the image recipe that runs an aws ec2 copy-image command at the end of the build phase.", "correct": false, "why": "Components run inside the build/test instance on the image contents; distribution is a pipeline-level function, and the build instance role is not intended to perform cross-Region AMI publishing."},
+        {"letter": "C", "text": "Deploy the AMI with a CloudFormation StackSet targeting both Regions and both accounts.", "correct": false, "why": "StackSets deploy stacks to accounts and Regions; they do not copy an AMI or its snapshots into another Region, so the AMI ID would still not exist there."},
+        {"letter": "D", "text": "Create an EventBridge rule on the Image Builder state change event that invokes a Lambda function to copy the AMI and modify launch permissions.", "correct": false, "why": "This works but adds custom code, IAM roles, and failure handling to maintain, which is more operational overhead than the built-in distribution configuration."}
+      ],
+      "knowledge_point": "EC2 Image Builder separates WHAT is baked (image recipe + components) from WHERE it lands (distribution configuration): Regions, target accounts, launch permissions, AMI tags, and container repositories.",
+      "trap_alert": "Do not confuse components (software installed and tested on the build instance) with distribution settings (where the finished image is published).",
+      "mnemonic": "Recipe = what's inside; Distribution = where it goes.",
+      "doc_refs": ["https://docs.aws.amazon.com/imagebuilder/latest/userguide/manage-distribution-settings.html"]
+    },
+    {
+      "id": "D3-Q002",
+      "type": "single_choice",
+      "difficulty": "hard",
+      "tags": ["ami-sharing", "kms", "ebs-encryption", "cross-account"],
+      "scenario": "A shared services account distributes a golden AMI whose EBS snapshots are encrypted with a customer managed KMS key. The engineer added launch permissions for two workload accounts, and the AMI is visible there, but every launch attempt fails immediately and the Auto Scaling activity history shows a client error stating the snapshot's KMS key is not accessible.",
+      "stem": "What should the CloudOps engineer do to allow the workload accounts to launch instances from the shared AMI?",
+      "options": [
+        {"letter": "A", "text": "Add the workload account IDs to the AMI launch permissions again and re-share the underlying snapshots with the same accounts.", "correct": false, "why": "Sharing the AMI and snapshots is necessary but not sufficient: without KMS permissions the consuming account still cannot decrypt the encrypted snapshot."},
+        {"letter": "B", "text": "Copy the AMI in the shared services account and re-encrypt it with the AWS managed key aws/ebs, then share the copy.", "correct": false, "why": "AWS managed keys such as aws/ebs cannot be shared across accounts and their key policies cannot be edited, so a snapshot encrypted with aws/ebs can never be shared."},
+        {"letter": "C", "text": "Update the customer managed key policy to grant the workload accounts kms:DescribeKey, kms:Decrypt, kms:ReEncrypt*, and kms:CreateGrant, and ensure the launching IAM roles in those accounts are allowed the same actions.", "correct": true, "why": "Cross-account KMS use requires both sides: the key policy in the owning account must grant the external principals, and IAM policies in the consuming account must allow the same KMS actions for the role that launches the instances."},
+        {"letter": "D", "text": "Make the AMI public so that the workload accounts can launch it without additional permissions.", "correct": false, "why": "An AMI backed by encrypted snapshots cannot be made public, and exposing a hardened internal image publicly would be a serious security defect."}
+      ],
+      "knowledge_point": "Sharing an encrypted AMI needs three things: AMI launch permission, snapshot sharing, and KMS key policy plus IAM grants on the customer managed key. AWS managed keys are never shareable.",
+      "trap_alert": "Candidates stop at launch permissions. The failure is a KMS authorization failure, not an EC2 permission failure.",
+      "mnemonic": "Encrypted share = AMI + snapshot + CMK key policy.",
+      "doc_refs": ["https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/sharingamis-explicit.html", "https://docs.aws.amazon.com/kms/latest/developerguide/key-policy-modifying-external-accounts.html"]
+    },
+    {
+      "id": "D3-Q003",
+      "type": "single_choice",
+      "difficulty": "easy",
+      "tags": ["ecr", "image-scanning", "vulnerability"],
+      "scenario": "A team pushes container images to a private Amazon ECR repository. Security asks for operating system package vulnerability findings on each image as it is pushed, at no additional charge. The engineer opens the repository and sees that no images have scan results, and the registry scanning configuration is currently set to basic scanning with scan on push disabled.",
+      "stem": "What should the CloudOps engineer do to meet the requirement?",
+      "options": [
+        {"letter": "A", "text": "Turn on Amazon GuardDuty Malware Protection for the ECR repository.", "correct": false, "why": "GuardDuty Malware Protection scans EBS volumes and S3 objects for malware; it does not produce CVE findings for container image packages in ECR."},
+        {"letter": "B", "text": "In the registry scanning configuration, keep basic scanning and enable scan on push, then push the images again.", "correct": true, "why": "Basic scanning is included at no additional cost and evaluates OS packages against the CVE database when scan on push is enabled; images already in the repository are only scanned when re-pushed or scanned manually."},
+        {"letter": "C", "text": "Switch the registry to enhanced scanning so Amazon Inspector scans images continuously.", "correct": false, "why": "Enhanced scanning does meet the technical need but is billed through Amazon Inspector, which violates the stated no-additional-charge constraint."},
+        {"letter": "D", "text": "Create a lifecycle policy that expires images that contain vulnerabilities.", "correct": false, "why": "Lifecycle policies act on image age and count only; they have no knowledge of scan findings."}
+      ],
+      "knowledge_point": "ECR basic scanning is free, triggered on push (or manually), and covers OS packages. Enhanced scanning is Amazon Inspector: continuous rescanning, OS plus language package CVEs, and it is a paid feature.",
+      "trap_alert": "An unscanned image usually means scan on push was off when it was pushed, not that scanning is broken. Existing images are not retroactively scanned by basic scanning.",
+      "mnemonic": "Basic = free, on push, OS only. Enhanced = Inspector, continuous, OS + code libraries.",
+      "doc_refs": ["https://docs.aws.amazon.com/AmazonECR/latest/userguide/image-scanning.html"]
+    },
+    {
+      "id": "D3-Q004",
+      "type": "single_choice",
+      "difficulty": "easy",
+      "tags": ["ecr", "lifecycle-policy", "cost"],
+      "scenario": "A CI pipeline pushes a container image on every commit. The ECR repository has grown to several terabytes, mostly untagged images produced by superseded builds. Storage charges have tripled in three months. The team wants untagged images removed automatically after 14 days while keeping the last 30 tagged release images.",
+      "stem": "What should the CloudOps engineer implement?",
+      "options": [
+        {"letter": "A", "text": "Enable an S3 Lifecycle rule on the bucket that backs the ECR repository to transition old layers to S3 Glacier Flexible Retrieval.", "correct": false, "why": "The storage behind ECR is service managed; customers cannot see or apply S3 Lifecycle rules to it."},
+        {"letter": "B", "text": "Schedule an EventBridge rule that invokes a Lambda function to list and delete old images each night.", "correct": false, "why": "This achieves the outcome but requires custom code, permissions, and error handling that the native feature already provides."},
+        {"letter": "C", "text": "Turn on cross-Region replication so that older images are moved out of the primary Region.", "correct": false, "why": "Replication copies images to additional Registries, which increases storage cost rather than reducing it."},
+        {"letter": "D", "text": "Create an ECR lifecycle policy with one rule that expires untagged images older than 14 days and a second rule that keeps only the most recent 30 images matching the release tag prefix.", "correct": true, "why": "ECR lifecycle policies evaluate rules in priority order using tag status, image age (sinceImagePushed) and image count (imageCountMoreThan) and delete matching images automatically."}
+      ],
+      "knowledge_point": "ECR lifecycle policy rules select on tagStatus (tagged/untagged/any) and expire by countType sinceImagePushed or imageCountMoreThan; rules are evaluated in ascending rulePriority.",
+      "trap_alert": "Lifecycle policies delete images permanently. Always dry run the policy preview before applying it to a production repository.",
+      "doc_refs": ["https://docs.aws.amazon.com/AmazonECR/latest/userguide/LifecyclePolicies.html"]
+    },
+    {
+      "id": "D3-Q005",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["ecr", "replication", "multi-region"],
+      "scenario": "To support a new eu-west-1 deployment, an engineer configured private registry replication in the us-east-1 account so that images replicate to eu-west-1. Twenty-four hours later the eu-west-1 registry still contains none of the repository's existing images, although one image that a developer pushed this morning did appear there.",
+      "stem": "What is the reason for the behavior, and what should the engineer do?",
+      "options": [
+        {"letter": "A", "text": "Registry replication only applies to images pushed after the replication configuration was created; the engineer must re-push or copy the existing images to trigger replication.", "correct": true, "why": "ECR replication is forward-looking. Images that already existed when the rule was created are not backfilled, which exactly matches the symptom that only the new push replicated."},
+        {"letter": "B", "text": "Replication requires a pull through cache rule for the destination Region; the engineer must create one in eu-west-1.", "correct": false, "why": "Pull through cache rules mirror images from an upstream public or private registry on demand; they are unrelated to cross-Region replication of your own images."},
+        {"letter": "C", "text": "The destination repository must be created manually before replication starts; the engineer must create matching repositories in eu-west-1.", "correct": false, "why": "ECR creates the destination repository automatically when it replicates the first image, so a missing repository is not the cause."},
+        {"letter": "D", "text": "The repository lifecycle policy deleted the images in the destination Region; the engineer must remove the policy.", "correct": false, "why": "Lifecycle policies are per repository in their own Region and would not prevent the initial replication of every existing image."}
+      ],
+      "knowledge_point": "ECR cross-Region and cross-account replication is configured on the private registry and applies only to images pushed after the rule exists. Backfilling requires re-pushing or copying the images.",
+      "trap_alert": "The single replicated image is the clue. If replication were misconfigured, nothing at all would arrive.",
+      "doc_refs": ["https://docs.aws.amazon.com/AmazonECR/latest/userguide/replication.html"]
+    },
+    {
+      "id": "D3-Q006",
+      "type": "single_choice",
+      "difficulty": "easy",
+      "tags": ["cloudformation", "stack-states", "rollback"],
+      "scenario": "A first-time deployment of a CloudFormation stack failed because a referenced IAM role name already existed. The stack is now in ROLLBACK_COMPLETE. The engineer fixed the template and tried an update-stack call, which was rejected with an error stating the stack is not in a state that allows updates.",
+      "stem": "What should the CloudOps engineer do next?",
+      "options": [
+        {"letter": "A", "text": "Run ContinueUpdateRollback on the stack, then retry the update.", "correct": false, "why": "ContinueUpdateRollback applies only to a stack in UPDATE_ROLLBACK_FAILED, not to a failed initial create."},
+        {"letter": "B", "text": "Create a change set against the existing stack and execute it.", "correct": false, "why": "A change set is still an update operation, and a stack in ROLLBACK_COMPLETE rejects updates for the same reason."},
+        {"letter": "C", "text": "Delete the stack, then create a new stack with the corrected template.", "correct": true, "why": "ROLLBACK_COMPLETE means the initial create failed and all resources were rolled back; the only supported action is to delete the stack and create it again."},
+        {"letter": "D", "text": "Disable rollback on the stack and resubmit the original template.", "correct": false, "why": "Disabling rollback is set at create time to preserve failed resources for troubleshooting; it cannot revive a stack already in ROLLBACK_COMPLETE."}
+      ],
+      "knowledge_point": "ROLLBACK_COMPLETE is terminal for a create: delete the stack and recreate it. Only UPDATE_ROLLBACK_FAILED is repaired with ContinueUpdateRollback.",
+      "trap_alert": "ROLLBACK_COMPLETE and UPDATE_ROLLBACK_COMPLETE look similar but the first cannot be updated while the second can.",
+      "mnemonic": "ROLLBACK_COMPLETE = dead on arrival. Delete it.",
+      "doc_refs": ["https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/troubleshooting.html"]
+    },
+    {
+      "id": "D3-Q007",
+      "type": "single_choice",
+      "difficulty": "hard",
+      "tags": ["cloudformation", "update-rollback-failed", "troubleshooting"],
+      "scenario": "An update to a production stack failed and the rollback also failed because a Lambda-backed custom resource never sent a response and its delete handler now errors. The stack has been sitting in UPDATE_ROLLBACK_FAILED for two hours, and no further updates are accepted. The custom resource is no longer needed and the team has already removed the orphaned resources manually.",
+      "stem": "What should the CloudOps engineer do to return the stack to a usable state?",
+      "options": [
+        {"letter": "A", "text": "Delete the stack and redeploy from the last known good template.", "correct": false, "why": "Deleting a production stack destroys the healthy resources as well and is far more disruptive than continuing the rollback."},
+        {"letter": "B", "text": "Call ContinueUpdateRollback and pass the logical ID of the failing custom resource in ResourcesToSkip.", "correct": true, "why": "ContinueUpdateRollback resumes the rollback, and ResourcesToSkip tells CloudFormation to ignore resources it cannot roll back, moving the stack to UPDATE_ROLLBACK_COMPLETE so updates are accepted again."},
+        {"letter": "C", "text": "Run drift detection and then execute a change set that removes the custom resource.", "correct": false, "why": "Drift detection is read only, and a stack in UPDATE_ROLLBACK_FAILED will not accept a change set execution."},
+        {"letter": "D", "text": "Enable termination protection and wait for the stack timeout to expire so the rollback completes.", "correct": false, "why": "There is no timeout that clears UPDATE_ROLLBACK_FAILED, and termination protection only blocks stack deletion."}
+      ],
+      "knowledge_point": "UPDATE_ROLLBACK_FAILED is fixed by correcting the underlying cause and calling ContinueUpdateRollback, optionally with ResourcesToSkip for resources CloudFormation cannot roll back. Skipped resources become unmanaged and must be reconciled manually.",
+      "trap_alert": "Skipping a resource does not delete or repair it. The stack template and reality diverge until you import or recreate the resource.",
+      "mnemonic": "Stuck rolling back? Continue, and skip what will not move.",
+      "doc_refs": ["https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/troubleshooting.html#troubleshooting-errors-update-rollback-failed"]
+    },
+    {
+      "id": "D3-Q008",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["cloudformation", "delete-failed", "s3"],
+      "scenario": "A team decommissions a test environment by deleting its CloudFormation stack. The stack enters DELETE_FAILED, and the events show a single failure on the S3 bucket resource with a message that the bucket is not empty. The bucket has versioning enabled and contains several thousand objects and delete markers that are no longer needed.",
+      "stem": "What should the CloudOps engineer do to complete the deletion?",
+      "options": [
+        {"letter": "A", "text": "Add a DeletionPolicy of Delete to the bucket resource and update the stack.", "correct": false, "why": "Delete is already the default DeletionPolicy, and a stack in DELETE_FAILED does not accept template updates."},
+        {"letter": "B", "text": "Retry the stack deletion and select the option to retain the bucket, which permanently removes the objects.", "correct": false, "why": "Retaining does the opposite: it leaves the bucket and its objects in place outside CloudFormation management rather than deleting the data."},
+        {"letter": "C", "text": "Detach the bucket from the stack with a resource import operation, then delete the stack.", "correct": false, "why": "Resource import brings existing resources into a stack; it is not a mechanism for removing a resource from a stack that is already in DELETE_FAILED."},
+        {"letter": "D", "text": "Empty the bucket, including all object versions and delete markers, then retry the stack deletion.", "correct": true, "why": "CloudFormation cannot delete a non-empty S3 bucket; once every version and delete marker is removed, retrying the delete succeeds."}
+      ],
+      "knowledge_point": "Common DELETE_FAILED causes: non-empty S3 bucket, a resource that another stack or resource still depends on, a retained or manually modified resource, and IAM permission gaps in the stack role.",
+      "trap_alert": "Versioned buckets are not empty just because the object list looks empty. Old versions and delete markers still block deletion.",
+      "doc_refs": ["https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/troubleshooting.html#troubleshooting-errors-delete-stack-does-not-work"]
+    },
+    {
+      "id": "D3-Q009",
+      "type": "single_choice",
+      "difficulty": "easy",
+      "tags": ["cloudformation", "iam", "capabilities"],
+      "scenario": "A pipeline runs aws cloudformation create-stack with a template that creates an IAM role with an explicit RoleName and an inline policy. The API call is rejected immediately with an InsufficientCapabilitiesException stating that the template requires capabilities: [CAPABILITY_NAMED_IAM]. The pipeline role already has full IAM permissions.",
+      "stem": "What should the CloudOps engineer do to make the deployment succeed?",
+      "options": [
+        {"letter": "A", "text": "Re-run the create-stack command with --capabilities CAPABILITY_NAMED_IAM.", "correct": true, "why": "Templates that create IAM resources with custom names require the caller to explicitly acknowledge CAPABILITY_NAMED_IAM; the error is an acknowledgement requirement, not a permissions problem."},
+        {"letter": "B", "text": "Attach the AdministratorAccess policy to the pipeline role.", "correct": false, "why": "The role already has IAM permissions, and no amount of extra permission removes the explicit capability acknowledgement requirement."},
+        {"letter": "C", "text": "Remove the RoleName property so CloudFormation generates a name, and pass --capabilities CAPABILITY_AUTO_EXPAND.", "correct": false, "why": "Dropping the explicit name would downgrade the requirement to CAPABILITY_IAM, not CAPABILITY_AUTO_EXPAND, which is for macros and nested transforms."},
+        {"letter": "D", "text": "Create the stack with a CloudFormation service role that has iam:CreateRole permissions.", "correct": false, "why": "A service role changes which identity performs the actions but the capability acknowledgement is still required on the API call."}
+      ],
+      "knowledge_point": "CAPABILITY_IAM acknowledges IAM resources; CAPABILITY_NAMED_IAM is required when those resources have explicit names; CAPABILITY_AUTO_EXPAND is required for macros, including AWS::Serverless and AWS::Include transforms.",
+      "trap_alert": "InsufficientCapabilitiesException reads like an IAM denial. It is an acknowledgement flag, not a policy problem.",
+      "mnemonic": "Named IAM resource, named capability.",
+      "doc_refs": ["https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/using-iam-template.html#capabilities"]
+    },
+    {
+      "id": "D3-Q010",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["cloudformation", "vpc", "subnet-sizing", "auto-scaling"],
+      "scenario": "An Auto Scaling group deployed by CloudFormation into a shared VPC must scale to 40 instances during a seasonal peak. The stack update fails and the scaling activities report that there are not enough free addresses in the subnets to satisfy the request. The workload uses two subnets, each a /28, and the VPC CIDR has no unused address space left.",
+      "stem": "What should the CloudOps engineer do to allow the group to reach its desired capacity?",
+      "options": [
+        {"letter": "A", "text": "Modify the CIDR block of each existing subnet from /28 to /24 and update the stack.", "correct": false, "why": "A subnet CIDR cannot be changed after creation; the subnet would have to be replaced."},
+        {"letter": "B", "text": "Release the five reserved IP addresses in each subnet so they can be used by instances.", "correct": false, "why": "The first four addresses and the last address of every subnet are permanently reserved by AWS and can never be reclaimed."},
+        {"letter": "C", "text": "Associate an additional CIDR block with the VPC, create larger subnets such as /24 in each Availability Zone, and add those subnets to the Auto Scaling group.", "correct": true, "why": "A secondary VPC CIDR provides address space for new, larger subnets, and adding them to the Auto Scaling group's VPC zone identifiers lets it launch the additional instances."},
+        {"letter": "D", "text": "Enable auto-assign IPv6 addressing on the subnets so instances no longer consume IPv4 addresses.", "correct": false, "why": "Every instance ENI in a dual-stack subnet still requires a private IPv4 address, so IPv6 does not relieve IPv4 exhaustion."}
+      ],
+      "knowledge_point": "Each subnet loses 5 addresses to AWS (network, VPC router, DNS, future use, broadcast). A /28 is the smallest allowed subnet and yields 11 usable IPs; /16 is the largest subnet. Subnet CIDRs are immutable.",
+      "trap_alert": "Two /28 subnets look like 32 addresses but provide only 22 usable, and ELB, ENIs, and interface endpoints consume some of them too.",
+      "mnemonic": "Five reserved, always: .0 .1 .2 .3 and the last.",
+      "doc_refs": ["https://docs.aws.amazon.com/vpc/latest/userguide/subnet-sizing.html"]
+    },
+    {
+      "id": "D3-Q011",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["cloudformation", "cross-stack", "exports", "intrinsic-functions"],
+      "scenario": "A networking stack exports a VPC ID and subnet IDs that several application stacks consume with Fn::ImportValue. The networking team must retire one exported subnet output. Every attempt to update the networking stack fails with an error stating that the export cannot be updated because it is in use by another stack.",
+      "stem": "What is the correct order of operations to remove the export?",
+      "options": [
+        {"letter": "A", "text": "Add a DependsOn attribute to the consuming stacks so CloudFormation deletes them before the export is removed, then update the networking stack.", "correct": false, "why": "DependsOn orders resources inside a single template; it has no effect on the relationship between separate stacks."},
+        {"letter": "B", "text": "Update each consuming stack first to stop using Fn::ImportValue for that output, then update the networking stack to remove the export.", "correct": true, "why": "An export is locked while any stack imports it, so the import must be removed from every consumer before the producing stack can delete or change the export."},
+        {"letter": "C", "text": "Convert the consuming stacks into nested stacks of the networking stack so the value is passed by parameter, then delete the export in the same update.", "correct": false, "why": "Refactoring to nested stacks is a valid long-term pattern, but the existing imports still block the export until they are removed, and this cannot be done in one update."},
+        {"letter": "D", "text": "Delete the export from the Outputs section and use the --disable-rollback option so the update is not reverted.", "correct": false, "why": "The update is rejected during validation because the export is in use; disabling rollback does not bypass that check."}
+      ],
+      "knowledge_point": "Cross-stack references are strongly coupled: an exported output cannot be modified or deleted while another stack imports it, and the exporting stack cannot be deleted either. Nested stacks pass values as parameters and avoid this lock.",
+      "trap_alert": "Order matters. Consumers are updated first, producer second. The reverse always fails.",
+      "mnemonic": "Consumers let go before the producer can.",
+      "doc_refs": ["https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/walkthrough-crossstackref.html"]
+    },
+    {
+      "id": "D3-Q012",
+      "type": "multiple_response",
+      "difficulty": "hard",
+      "tags": ["cloudformation", "creationpolicy", "cfn-signal", "bootstrap"],
+      "scenario": "A CloudFormation stack launches EC2 instances that run a 10-minute bootstrap script installing an application server. The stack reaches CREATE_COMPLETE about 90 seconds after launch, and the downstream pipeline stage immediately runs smoke tests that fail because the application is not yet listening. The team wants the stack to report success only after the application is actually ready.",
+      "stem": "Which two actions should the CloudOps engineer take? (Choose two.)",
+      "options": [
+        {"letter": "A", "text": "Add a CreationPolicy with a ResourceSignal Count and a Timeout of 15 minutes to the EC2 resource.", "correct": true, "why": "A CreationPolicy holds the resource in CREATE_IN_PROGRESS until the required number of success signals arrive or the timeout expires, which is exactly the desired gate."},
+        {"letter": "B", "text": "Add a DependsOn attribute from the EC2 instance to the application load balancer.", "correct": false, "why": "DependsOn controls resource creation order only; it says nothing about whether software inside an instance has finished installing."},
+        {"letter": "C", "text": "Add an UpdatePolicy with AutoScalingRollingUpdate to the EC2 resource.", "correct": false, "why": "UpdatePolicy governs how an Auto Scaling group is replaced during stack updates and has no role in initial creation signalling."},
+        {"letter": "D", "text": "Call cfn-signal with the exit status of the bootstrap script at the end of UserData, referencing the stack name, logical resource ID, and Region.", "correct": true, "why": "The CreationPolicy waits for signals that only the instance can send; cfn-signal from UserData reports success or failure once the bootstrap actually finishes."},
+        {"letter": "E", "text": "Enable termination protection on the stack so the instances are not replaced while bootstrapping.", "correct": false, "why": "Termination protection prevents stack deletion; it has no effect on when the stack reports CREATE_COMPLETE."}
+      ],
+      "knowledge_point": "CreationPolicy plus cfn-signal is the pair: the policy defines the wait (Count and Timeout), and cfn-signal from the instance ends it. WaitCondition with a WaitConditionHandle is the older equivalent for non-EC2 resources.",
+      "trap_alert": "If cfn-signal never runs because the instance has no IAM permission or no route to the CloudFormation endpoint, the stack fails at the timeout with 'Received 0 conditions when expecting 1'.",
+      "mnemonic": "Policy waits, signal releases.",
+      "doc_refs": ["https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-attribute-creationpolicy.html"]
+    },
+    {
+      "id": "D3-Q013",
+      "type": "multiple_response",
+      "difficulty": "medium",
+      "tags": ["cloudformation", "deletionpolicy", "updatereplacepolicy", "data-protection"],
+      "scenario": "A stack manages a production Amazon RDS DB instance and an S3 bucket holding audit logs. Governance requires that if the stack is ever deleted, the database is preserved as a final snapshot and the audit bucket and its objects survive intact. The team also wants the bucket preserved if a future template change would replace it.",
+      "stem": "Which two template attributes should the CloudOps engineer add? (Choose two.)",
+      "options": [
+        {"letter": "A", "text": "A stack policy that denies Update:Delete on both resources.", "correct": false, "why": "Stack policies protect resources during stack updates only; they are ignored when the stack itself is deleted."},
+        {"letter": "B", "text": "DeletionPolicy: Snapshot on the DB instance resource.", "correct": true, "why": "Snapshot instructs CloudFormation to create a final snapshot before deleting the DB instance, which is supported for RDS, EBS volumes, ElastiCache, Redshift, and Neptune."},
+        {"letter": "C", "text": "DeletionPolicy: Retain and UpdateReplacePolicy: Retain on the S3 bucket resource.", "correct": true, "why": "Retain leaves the bucket and its objects in the account when the stack is deleted, and UpdateReplacePolicy: Retain keeps the old bucket when an update would otherwise replace it."},
+        {"letter": "D", "text": "Termination protection enabled on the stack.", "correct": false, "why": "Termination protection blocks an accidental stack deletion but does not protect resources during an intentional, approved deletion, which is the stated requirement."},
+        {"letter": "E", "text": "Versioning and MFA Delete enabled on the S3 bucket.", "correct": false, "why": "These protect against object level deletion by users; CloudFormation would still attempt to delete the bucket itself when the stack is removed."}
+      ],
+      "knowledge_point": "DeletionPolicy applies on stack delete (Delete default, Retain, Snapshot where supported); UpdateReplacePolicy applies when an update replaces a resource. Set both when data must never be lost.",
+      "trap_alert": "S3 does not support DeletionPolicy: Snapshot, and Retain on a bucket still leaves a non-empty bucket that will later block a delete of another stack that manages it.",
+      "mnemonic": "Delete policy for teardown, UpdateReplace policy for swap.",
+      "doc_refs": ["https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-attribute-deletionpolicy.html"]
+    },
+    {
+      "id": "D3-Q014",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["cloudformation", "drift-detection", "change-sets"],
+      "scenario": "After an incident, an on-call engineer edited security group rules and an Auto Scaling group's desired capacity directly in the console. Those resources are managed by CloudFormation. The CloudOps team needs a report of every resource in the stack whose live configuration no longer matches the template, before the next scheduled deployment overwrites the manual changes.",
+      "stem": "What should the CloudOps engineer do?",
+      "options": [
+        {"letter": "A", "text": "Create a change set from the current template and review the proposed changes.", "correct": false, "why": "A change set compares the current template to a new template; it does not detect out-of-band console modifications to live resources."},
+        {"letter": "B", "text": "Apply a stack policy that denies updates to the affected resources.", "correct": false, "why": "A stack policy prevents future updates but produces no report of what has already diverged."},
+        {"letter": "C", "text": "Query AWS CloudTrail for ec2:AuthorizeSecurityGroupIngress and autoscaling:SetDesiredCapacity events.", "correct": false, "why": "CloudTrail shows who made the API calls but does not enumerate the current difference between the stack template and every managed resource."},
+        {"letter": "D", "text": "Run drift detection on the stack and review the resource drift status and property differences.", "correct": true, "why": "Drift detection compares each supported resource's actual configuration against the expected template values and reports MODIFIED, DELETED, or IN_SYNC with the exact differing properties."}
+      ],
+      "knowledge_point": "Drift detection answers 'what changed outside CloudFormation'. Change sets answer 'what will change if I deploy this template'. Stack policies answer 'what may not be changed by an update'.",
+      "trap_alert": "Drift detection is a point-in-time scan and does not cover every resource type or property; re-run it before each deployment and consider a Config rule for continuous checking.",
+      "doc_refs": ["https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/using-cfn-stack-drift.html"]
+    },
+    {
+      "id": "D3-Q015",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["stacksets", "organizations", "auto-deployment"],
+      "scenario": "A company uses AWS Organizations and deploys a baseline stack containing guardrail resources to every account in the Workloads OU with a CloudFormation StackSet. Two accounts were created and moved into the Workloads OU last week, and neither received the baseline stack. An operator currently adds each new account to the StackSet manually.",
+      "stem": "What should the CloudOps engineer configure so new accounts receive the baseline automatically?",
+      "options": [
+        {"letter": "A", "text": "Switch the StackSet to self-managed permissions and target the management account, then use a stack instance per account.", "correct": false, "why": "Self-managed permissions require manually created roles per target account and provide no automatic deployment when accounts join an OU."},
+        {"letter": "B", "text": "Create an EventBridge rule on the CreateAccountResult event that invokes a Lambda function to call CreateStackInstances.", "correct": false, "why": "This works but reimplements a native capability with custom code, and it misses accounts that are moved into the OU rather than created in it."},
+        {"letter": "C", "text": "Share the baseline template through AWS RAM with the Workloads OU.", "correct": false, "why": "AWS RAM shares resources such as subnets, Transit Gateways, Resolver rules, and IPAM pools; it does not share or deploy CloudFormation templates."},
+        {"letter": "D", "text": "Use a service-managed StackSet targeting the Workloads OU with automatic deployment enabled.", "correct": true, "why": "Service-managed StackSets integrate with Organizations, and automatic deployment creates stack instances when an account joins the target OU and removes them when it leaves."}
+      ],
+      "knowledge_point": "Service-managed StackSets target OUs and use automatic deployment (with retain-stacks-on-account-removal as an option). Self-managed StackSets target account IDs and require the administration and execution roles.",
+      "trap_alert": "Trusted access with Organizations must be enabled before service-managed StackSets can be created, and delegated administrator accounts need explicit registration.",
+      "doc_refs": ["https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/stacksets-orgs-enable-trusted-access.html"]
+    },
+    {
+      "id": "D3-Q016",
+      "type": "single_choice",
+      "difficulty": "hard",
+      "tags": ["stacksets", "iam", "self-managed", "troubleshooting"],
+      "scenario": "A company uses a self-managed StackSet from a central tooling account to deploy a logging stack. After onboarding a newly acquired account, the stack instance for that account immediately shows status OUTDATED with a failure reason indicating that the account is not authorized and that the administration role could not assume the execution role. All previously onboarded accounts continue to deploy successfully.",
+      "stem": "What should the CloudOps engineer do to resolve the failure?",
+      "options": [
+        {"letter": "A", "text": "In the new target account, create the AWSCloudFormationStackSetExecutionRole with a trust policy that allows the tooling account's administration role to assume it, and grant it the permissions the stack requires.", "correct": true, "why": "Self-managed StackSets require the execution role to exist in every target account with a trust relationship back to the administration account; a newly added account has no such role until it is created."},
+        {"letter": "B", "text": "Re-create the StackSet with the CAPABILITY_NAMED_IAM capability so it can create IAM resources in the new account.", "correct": false, "why": "Capabilities acknowledge IAM resources in the template; they do not create the cross-account trust needed to reach the account in the first place."},
+        {"letter": "C", "text": "Register the new account as a delegated administrator for CloudFormation StackSets.", "correct": false, "why": "Delegated administration applies to service-managed StackSets with Organizations and does not change self-managed role assumption."},
+        {"letter": "D", "text": "Add an SCP to the new account that allows cloudformation:CreateStack.", "correct": false, "why": "SCPs set permission ceilings and do not grant permissions; the failure is a missing role, not an SCP denial."}
+      ],
+      "knowledge_point": "Self-managed StackSets need two roles: AWSCloudFormationStackSetAdministrationRole in the administrator account and AWSCloudFormationStackSetExecutionRole in each target account trusting the administrator account.",
+      "trap_alert": "A brand-new or acquired account is the classic trigger. Existing accounts keep working because their execution role was created during earlier onboarding.",
+      "mnemonic": "Self-managed = you manage the roles, in every target account.",
+      "doc_refs": ["https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/stacksets-prereqs-self-managed.html"]
+    },
+    {
+      "id": "D3-Q017",
+      "type": "multiple_response",
+      "difficulty": "medium",
+      "tags": ["ecs", "deployment-strategies", "rolling-update"],
+      "scenario": "An Amazon ECS service on AWS Fargate runs 10 tasks behind an Application Load Balancer. During each rolling deployment, monitoring shows the running task count dropping to 5 and clients receive HTTP 503 responses for about two minutes. The service currently uses the default deployment configuration, and the cluster has ample capacity.",
+      "stem": "Which two changes should the CloudOps engineer make so the deployment never runs below full capacity? (Choose two.)",
+      "options": [
+        {"letter": "A", "text": "Set the service's minimumHealthyPercent to 100.", "correct": true, "why": "The default of 50 percent permits ECS to stop half the tasks before starting replacements; 100 percent forbids dropping below the desired count during a deployment."},
+        {"letter": "B", "text": "Set the service's minimumHealthyPercent to 0 so old tasks stop quickly.", "correct": false, "why": "Zero allows ECS to stop every task before new ones are healthy, which makes the outage worse."},
+        {"letter": "C", "text": "Set the service's maximumPercent to 200.", "correct": true, "why": "With minimum healthy at 100 percent, ECS needs headroom above the desired count to start replacement tasks; 200 percent lets it run new and old tasks side by side until the new ones pass health checks."},
+        {"letter": "D", "text": "Reduce the target group deregistration delay to 0 seconds.", "correct": false, "why": "A shorter deregistration delay cuts connection draining and would sever in-flight requests rather than preserve capacity."},
+        {"letter": "E", "text": "Change the service scheduling strategy to DAEMON.", "correct": false, "why": "DAEMON places exactly one task per container instance and is not supported for Fargate services behind a desired count."}
+      ],
+      "knowledge_point": "ECS rolling deployments are bounded by minimumHealthyPercent (default 100 for a replica service created in the console, 50 in many API defaults) and maximumPercent (default 200). Blue/green with weighted target groups or Lambda alias weights is the alternative when instant rollback is required.",
+      "trap_alert": "Setting minimumHealthyPercent to 100 without raising maximumPercent above 100 can deadlock a deployment because ECS has nowhere to place new tasks.",
+      "mnemonic": "Min 100 keeps capacity, Max 200 makes room.",
+      "doc_refs": ["https://docs.aws.amazon.com/AmazonECS/latest/developerguide/deployment-type-ecs.html"]
+    },
+    {
+      "id": "D3-Q018",
+      "type": "multiple_response",
+      "difficulty": "hard",
+      "tags": ["systems-manager", "fleet-manager", "managed-nodes", "vpc-endpoints"],
+      "scenario": "A CloudOps engineer needs to run patch operations on 40 EC2 instances in private subnets. The instances run a current Amazon Linux 2023 AMI with the SSM Agent preinstalled and running, but none of them appear as managed nodes in Fleet Manager. The private subnets route only to a VPC with no NAT gateway and no internet gateway, and the instances currently have no IAM instance profile attached.",
+      "stem": "Which two actions should the engineer take so the instances register as managed nodes? (Choose two.)",
+      "options": [
+        {"letter": "A", "text": "Add an inbound security group rule allowing TCP 443 from the Systems Manager service prefix list.", "correct": false, "why": "Systems Manager never initiates inbound connections; the agent polls outbound over 443, so no inbound rule is required."},
+        {"letter": "B", "text": "Attach an IAM instance profile containing the AmazonSSMManagedInstanceCore managed policy to the instances.", "correct": true, "why": "The agent must have credentials to call the Systems Manager APIs; without an instance profile granting ssm, ssmmessages, and ec2messages actions the node can never register."},
+        {"letter": "C", "text": "Install and configure the CloudWatch agent on each instance.", "correct": false, "why": "The CloudWatch agent collects metrics and logs and plays no part in Systems Manager node registration."},
+        {"letter": "D", "text": "Open TCP 22 from the engineer's workstation CIDR to allow the agent to complete its handshake.", "correct": false, "why": "Session Manager and the agent do not use SSH, and opening port 22 does nothing for registration."},
+        {"letter": "E", "text": "Create interface VPC endpoints for com.amazonaws.region.ssm, ssmmessages, and ec2messages, with a security group allowing outbound HTTPS from the instances.", "correct": true, "why": "With no NAT or internet gateway, the only network path to the three Systems Manager endpoints is PrivateLink interface endpoints; without them the agent cannot reach the service."}
+      ],
+      "knowledge_point": "Managed node prerequisites are always the same three: SSM Agent installed and running, an instance profile with AmazonSSMManagedInstanceCore, and an outbound HTTPS path to ssm, ssmmessages, and ec2messages (NAT, internet gateway, or interface endpoints).",
+      "trap_alert": "Missing nodes are almost never an agent bug. Check the instance profile first, then the network path, then the agent version.",
+      "mnemonic": "Agent + Role + Route. All three, or nothing shows.",
+      "doc_refs": ["https://docs.aws.amazon.com/systems-manager/latest/userguide/systems-manager-setting-up-messageAPIs.html"]
+    },
+    {
+      "id": "D3-Q019",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["systems-manager", "run-command", "rate-control"],
+      "scenario": "A CloudOps engineer must apply an urgent configuration change to 500 managed instances tagged Environment=Production. A previous attempt applied the change to all instances at once and briefly took the application offline when the script failed on a subset of hosts. The engineer wants the change rolled out gradually and stopped automatically if it starts failing.",
+      "stem": "What should the engineer do?",
+      "options": [
+        {"letter": "A", "text": "Run the command against each instance ID individually from a shell loop and monitor the output.", "correct": false, "why": "Manual looping provides no concurrency control or automatic stop condition and does not scale to 500 hosts."},
+        {"letter": "B", "text": "Use Run Command with a tag-based target of Environment=Production, set concurrency to 10 percent, and set an error threshold so the command stops after a small number of failures.", "correct": true, "why": "Run Command rate control combines targets (tag, resource group, or instance IDs) with max concurrency and max errors, which throttles the rollout and halts it automatically once the error threshold is reached."},
+        {"letter": "C", "text": "Create a State Manager association that applies the change on a 30-minute schedule.", "correct": false, "why": "State Manager enforces a desired state continuously; it is the wrong tool for a one-time controlled rollout and offers no urgent, staged execution."},
+        {"letter": "D", "text": "Create a maintenance window with the command as a task and register all 500 instances as targets.", "correct": false, "why": "Maintenance windows schedule work in an approved time slot, which conflicts with an urgent change, although they do support their own concurrency and error thresholds."}
+      ],
+      "knowledge_point": "Run Command rate control: max concurrency (a number or a percentage) limits how many targets execute at once, and max errors stops the whole command once that many targets fail.",
+      "trap_alert": "Max errors counts failed targets, not failed steps, and once it is exceeded any in-flight invocations still complete.",
+      "doc_refs": ["https://docs.aws.amazon.com/systems-manager/latest/userguide/running-commands-rate-controls.html"]
+    },
+    {
+      "id": "D3-Q020",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["systems-manager", "state-manager", "configuration-drift"],
+      "scenario": "Auditors found that on several EC2 instances the security agent service had been stopped and a required host configuration file had been edited by hand. The CloudOps team needs the desired configuration reapplied automatically at least every 30 minutes on all instances tagged Role=AppServer, including instances launched in the future, with compliance reported centrally.",
+      "stem": "What should the CloudOps engineer implement?",
+      "options": [
+        {"letter": "A", "text": "A Run Command execution scheduled through EventBridge Scheduler every 30 minutes against the instance IDs.", "correct": false, "why": "Run Command is one-time by nature, target lists would need maintenance, and it reports invocation results rather than association compliance."},
+        {"letter": "B", "text": "An AWS Config custom rule that evaluates the file contents on each instance.", "correct": false, "why": "Config evaluates AWS resource configuration, not in-guest file contents, and it does not remediate the drift by itself."},
+        {"letter": "C", "text": "A Patch Manager patch baseline with an approval rule for the security agent package.", "correct": false, "why": "Patch Manager installs and updates OS and application packages; it does not enforce service state or file contents."},
+        {"letter": "D", "text": "A State Manager association that targets the tag Role=AppServer, runs the configuration document on a 30-minute rate schedule, and reports association compliance.", "correct": true, "why": "State Manager associations bind a document to tag-based targets on a schedule, reapply the desired state automatically to new matching instances, and surface pass or fail as association compliance."}
+      ],
+      "knowledge_point": "State Manager = continuously enforced desired state on a schedule with compliance reporting. Run Command = one-time action. Patch Manager = package patching. Automation = multi-step runbooks.",
+      "trap_alert": "Tag-based association targets pick up newly launched instances automatically; instance ID targets do not.",
+      "doc_refs": ["https://docs.aws.amazon.com/systems-manager/latest/userguide/systems-manager-state.html"]
+    },
+    {
+      "id": "D3-Q021",
+      "type": "single_choice",
+      "difficulty": "hard",
+      "tags": ["parameter-store", "kms", "securestring", "troubleshooting"],
+      "scenario": "An application on EC2 reads a database password from the SSM parameter /prod/app/db/password, which is a SecureString encrypted with a customer managed KMS key. The application calls GetParameter with WithDecryption set to true and receives an AccessDeniedException. The instance role already allows ssm:GetParameter and ssm:GetParametersByPath on the /prod/app/* path, and the parameter exists.",
+      "stem": "What should the CloudOps engineer do to resolve the error?",
+      "options": [
+        {"letter": "A", "text": "Grant the instance role kms:Decrypt on the customer managed key and ensure the key policy permits that role to use the key.", "correct": true, "why": "WithDecryption makes Parameter Store call KMS on behalf of the caller, so the caller needs kms:Decrypt in its IAM policy and must be allowed by the key policy of the customer managed key."},
+        {"letter": "B", "text": "Convert the parameter from SecureString to String so decryption is no longer required.", "correct": false, "why": "This removes encryption of a production database password and is an unacceptable security regression."},
+        {"letter": "C", "text": "Change the parameter from the standard tier to the advanced tier.", "correct": false, "why": "Tiers control size (4 KB standard vs 8 KB advanced), parameter count, and policy support; they have no bearing on decryption permissions."},
+        {"letter": "D", "text": "Migrate the secret to AWS Secrets Manager and enable managed rotation.", "correct": false, "why": "Rotation is a good practice but does not address the error, and Secrets Manager also requires kms:Decrypt on the encrypting key."}
+      ],
+      "knowledge_point": "SecureString reads require both ssm:GetParameter* and kms:Decrypt. With the default aws/ssm key the account grant is implicit through IAM; with a customer managed key the key policy must also allow the principal.",
+      "trap_alert": "The error surfaces as an SSM AccessDeniedException even though the denial happens in KMS, which sends people to fix the wrong policy.",
+      "mnemonic": "SecureString read = SSM permission + KMS permission.",
+      "doc_refs": ["https://docs.aws.amazon.com/systems-manager/latest/userguide/sysman-paramstore-securestring.html"]
+    },
+    {
+      "id": "D3-Q022",
+      "type": "multiple_response",
+      "difficulty": "medium",
+      "tags": ["patch-manager", "maintenance-windows", "patch-groups", "compliance"],
+      "scenario": "A CloudOps engineer created a custom patch baseline for Amazon Linux 2023 with a seven-day approval delay, and created a maintenance window that runs every Sunday at 02:00. A week later the compliance report shows every instance as non-compliant and the maintenance window history shows no task executions at all. The instances are healthy managed nodes.",
+      "stem": "Which two actions are required to make patching run and report compliance? (Choose two.)",
+      "options": [
+        {"letter": "A", "text": "Set the SSM Agent to auto-update on every instance.", "correct": false, "why": "Agent auto-update is good hygiene but is unrelated to a maintenance window that has no registered targets or tasks."},
+        {"letter": "B", "text": "Run AWS-RunPatchBaseline manually with the Scan operation once per instance.", "correct": false, "why": "A manual scan would refresh compliance data once but does not make the scheduled window execute anything."},
+        {"letter": "C", "text": "Tag the instances with the key Patch Group and a value that is registered to the custom patch baseline.", "correct": true, "why": "Patch Manager maps instances to a non-default baseline through the Patch Group tag; without that mapping instances fall back to the default baseline and never use the custom rules."},
+        {"letter": "D", "text": "Register the instances as targets of the maintenance window and register AWS-RunPatchBaseline with the Install operation as a task in that window.", "correct": true, "why": "A maintenance window does nothing until both targets and tasks are registered, which explains the empty execution history."},
+        {"letter": "E", "text": "Enable Amazon Inspector enhanced scanning on the account so patch compliance is reported.", "correct": false, "why": "Inspector reports vulnerabilities; Patch Manager compliance comes from AWS-RunPatchBaseline scan or install results."}
+      ],
+      "knowledge_point": "Patch Manager needs four pieces: a patch baseline, a Patch Group tag mapping instances to that baseline, a maintenance window with registered targets and the AWS-RunPatchBaseline task, and Scan or Install to generate compliance data.",
+      "trap_alert": "The Patch Group tag key is exactly 'Patch Group' with a space; 'PatchGroup' silently does nothing.",
+      "mnemonic": "Baseline, Group tag, Window targets, Window task.",
+      "doc_refs": ["https://docs.aws.amazon.com/systems-manager/latest/userguide/patch-manager.html"]
+    },
+    {
+      "id": "D3-Q023",
+      "type": "single_choice",
+      "difficulty": "easy",
+      "tags": ["systems-manager", "inventory", "reporting"],
+      "scenario": "Compliance asks for a searchable report of every installed software package, OS version, and network configuration across roughly 900 managed EC2 instances in five accounts, refreshed daily. The CloudOps team wants to query the data with SQL and does not want to maintain agents beyond the SSM Agent already deployed.",
+      "stem": "What should the CloudOps engineer implement?",
+      "options": [
+        {"letter": "A", "text": "Enable AWS Config with the managed rule for approved AMIs and export the configuration history.", "correct": false, "why": "Config records AWS resource configuration such as the instance and its attributes, not the list of software packages installed inside the guest OS."},
+        {"letter": "B", "text": "Use Fleet Manager to open each instance and capture the installed applications list.", "correct": false, "why": "Fleet Manager is an interactive per-node tool and cannot produce a fleet-wide daily dataset."},
+        {"letter": "C", "text": "Configure Systems Manager Inventory with a State Manager association running AWS-GatherSoftwareInventory, then create a resource data sync to an S3 bucket and query it with Amazon Athena.", "correct": true, "why": "Inventory collects applications, OS details, network configuration, and more on a schedule, and a resource data sync aggregates multiple accounts and Regions into S3 for Athena queries."},
+        {"letter": "D", "text": "Install the CloudWatch agent and publish package data as custom metrics.", "correct": false, "why": "CloudWatch metrics are numeric time series and are a poor fit for inventory attributes, which are string metadata."}
+      ],
+      "knowledge_point": "SSM Inventory is implemented as a State Manager association (AWS-GatherSoftwareInventory); resource data sync centralizes inventory from many accounts and Regions into S3 for Athena and QuickSight.",
+      "trap_alert": "Inventory data for a single account is browsable in the console, but multi-account SQL reporting always needs a resource data sync.",
+      "doc_refs": ["https://docs.aws.amazon.com/systems-manager/latest/userguide/systems-manager-inventory.html"]
+    },
+    {
+      "id": "D3-Q024",
+      "type": "single_choice",
+      "difficulty": "easy",
+      "tags": ["session-manager", "security", "logging"],
+      "scenario": "A security review requires that administrators no longer keep a bastion host, that no EC2 security group have inbound port 22 open, and that every interactive shell session on production instances be recorded for audit. The instances are already registered as Systems Manager managed nodes.",
+      "stem": "What should the CloudOps engineer implement?",
+      "options": [
+        {"letter": "A", "text": "Replace the bastion host with EC2 Instance Connect and restrict port 22 to the EC2 Instance Connect service prefix list.", "correct": false, "why": "EC2 Instance Connect still uses SSH and therefore still requires an inbound rule on port 22, which the requirement forbids."},
+        {"letter": "B", "text": "Use Session Manager for shell access and configure session logging to an S3 bucket and a CloudWatch Logs group in the session preferences.", "correct": true, "why": "Session Manager connects outbound through the SSM Agent so no inbound port is needed and no bastion is required, and session preferences stream command output to S3 and CloudWatch Logs for audit."},
+        {"letter": "C", "text": "Deploy AWS Client VPN and allow SSH only from the VPN client CIDR.", "correct": false, "why": "This narrows the source of SSH traffic but still requires inbound port 22 and provides no session recording."},
+        {"letter": "D", "text": "Enable VPC Flow Logs on the production subnets and alert on port 22 traffic.", "correct": false, "why": "Flow logs record connection metadata only and cannot capture the contents of a shell session."}
+      ],
+      "knowledge_point": "Session Manager needs no inbound ports, no SSH keys, and no bastion; it logs session activity to S3 and CloudWatch Logs, and access is controlled with IAM and optional KMS encryption of session data.",
+      "trap_alert": "Session logging is off by default. Turning on Session Manager without configuring preferences produces no audit trail beyond CloudTrail StartSession events.",
+      "doc_refs": ["https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager.html"]
+    },
+    {
+      "id": "D3-Q025",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["ssm-automation", "runbooks", "approvals"],
+      "scenario": "A recurring production task resizes an EC2 instance: stop the instance, change the instance type, start it, and verify the status checks. Change policy requires that a named approver sign off between the stop step and the resize step, and that the whole sequence is auditable. The team wants to avoid writing and maintaining custom orchestration code.",
+      "stem": "What should the CloudOps engineer implement?",
+      "options": [
+        {"letter": "A", "text": "A Lambda function invoked by EventBridge that emails the approver and polls a DynamoDB table for the approval flag.", "correct": false, "why": "This is custom orchestration with state, retries, and IAM to maintain, which the requirement explicitly rules out."},
+        {"letter": "B", "text": "A Systems Manager Change Calendar entry that closes the calendar until the approver opens it.", "correct": false, "why": "Change Calendar controls whether actions are permitted during a time window; it is not a per-execution human approval step."},
+        {"letter": "C", "text": "A Systems Manager Automation runbook containing the stop, resize, start, and verify steps with an aws:approve step configured with the approver's IAM principal and an SNS topic.", "correct": true, "why": "The aws:approve action pauses the Automation execution, notifies the approvers through SNS, and resumes only after the required approvals, with the full execution recorded in Automation history and CloudTrail."},
+        {"letter": "D", "text": "A Step Functions state machine with a wait state that resumes after 30 minutes.", "correct": false, "why": "A timed wait is not an approval, and building this in Step Functions with a task token adds the custom orchestration the team wants to avoid."}
+      ],
+      "knowledge_point": "SSM Automation runbooks chain AWS API steps and support aws:approve for human gates, aws:branch for conditions, and rate control for fleet-wide execution; they can be triggered by EventBridge, State Manager, or maintenance windows.",
+      "trap_alert": "The aws:approve step requires the approver principal ARNs and an SNS topic; the execution stays in Waiting and eventually times out if neither is set correctly.",
+      "doc_refs": ["https://docs.aws.amazon.com/systems-manager/latest/userguide/automation-action-approve.html"]
+    },
+    {
+      "id": "D3-Q026",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["eventbridge", "s3", "event-driven", "lambda"],
+      "scenario": "An S3 bucket receives partner files under many overlapping key prefixes. Three separate consumers must react to each new object: a Lambda function, an SQS queue, and a Step Functions workflow. The team also wants to filter on object size and replay events for a failed consumer after an outage. The current S3 event notification configuration fails to save with an error about overlapping prefix configurations.",
+      "stem": "What should the CloudOps engineer do?",
+      "options": [
+        {"letter": "A", "text": "Turn on EventBridge notifications for the bucket and create EventBridge rules with content filtering that fan out to the Lambda function, the SQS queue, and the Step Functions workflow, with an archive for replay.", "correct": true, "why": "EventBridge supports many targets per rule, rich content-based filtering beyond prefix and suffix, overlapping rules, and archive and replay, which S3 event notifications do not."},
+        {"letter": "B", "text": "Create three separate S3 event notification configurations, one per destination, using the same event type and prefix.", "correct": false, "why": "S3 event notifications reject overlapping prefix and suffix configurations for the same event type, which is precisely the error being reported."},
+        {"letter": "C", "text": "Publish the S3 event notification to a single SNS topic and subscribe all three consumers, filtering with subscription filter policies.", "correct": false, "why": "SNS fan-out solves multiple destinations but offers no event archive or replay, and Step Functions is not a supported direct SNS subscriber."},
+        {"letter": "D", "text": "Enable CloudTrail S3 data events and have each consumer poll the CloudTrail log bucket for new records.", "correct": false, "why": "Polling CloudTrail logs adds minutes of latency, extra storage cost, and custom polling logic compared with native event delivery."}
+      ],
+      "knowledge_point": "Use S3 Event Notifications for a simple single-destination trigger; use EventBridge for S3 when you need multiple targets, richer filtering, cross-account or cross-Region routing, archive and replay, or a DLQ per target.",
+      "trap_alert": "EventBridge does not receive S3 events until EventBridge notifications are explicitly enabled on the bucket.",
+      "mnemonic": "One destination, notifications. Many destinations and replay, EventBridge.",
+      "doc_refs": ["https://docs.aws.amazon.com/AmazonS3/latest/userguide/EventBridge.html"]
+    },
+    {
+      "id": "D3-Q027",
+      "type": "multiple_response",
+      "difficulty": "hard",
+      "tags": ["eventbridge", "lambda", "resource-policy", "dlq"],
+      "scenario": "An EventBridge rule was created with the AWS CLI to invoke a Lambda function that starts a Systems Manager Automation runbook whenever an EC2 instance enters the stopped state. The rule's TriggeredRules metric increments as expected, but the FailedInvocations metric increments at the same rate and the Lambda function's Invocations metric stays at zero. The function works when tested manually.",
+      "stem": "Which two actions should the CloudOps engineer take to fix the delivery and capture any future delivery failures? (Choose two.)",
+      "options": [
+        {"letter": "A", "text": "Correct the rule's event pattern so it matches the EC2 Instance State-change Notification event.", "correct": false, "why": "TriggeredRules is incrementing, which proves the pattern already matches; the failure happens after matching, during delivery."},
+        {"letter": "B", "text": "Attach an execution role to the Lambda function that grants ssm:StartAutomationExecution.", "correct": false, "why": "A missing execution permission would produce failed Lambda invocations, not zero invocations, and the function already runs correctly when tested."},
+        {"letter": "C", "text": "Increase the Lambda function's reserved concurrency.", "correct": false, "why": "Throttling would appear as Throttles on the function with non-zero invocations, which is not the observed symptom."},
+        {"letter": "D", "text": "Add a resource-based policy to the Lambda function allowing events.amazonaws.com to call lambda:InvokeFunction with the rule ARN as the source ARN.", "correct": true, "why": "A rule created through the CLI does not add the invoke permission that the console adds automatically; without the function's resource policy EventBridge cannot invoke it and every delivery is counted as a failed invocation."},
+        {"letter": "E", "text": "Configure a dead-letter queue on the rule's target so undeliverable events are retained for investigation.", "correct": true, "why": "A target-level DLQ captures events EventBridge could not deliver after retries, giving the team the payloads and error context for future failures."}
+      ],
+      "knowledge_point": "EventBridge troubleshooting split: TriggeredRules at zero means the event pattern does not match; TriggeredRules with FailedInvocations means the target rejected the call, most often a missing resource-based policy on Lambda or SNS or a missing IAM role for API targets.",
+      "trap_alert": "The console silently adds the Lambda resource policy; CLI, SDK, and CloudFormation do not, so the AWS::Lambda::Permission resource must be declared explicitly.",
+      "mnemonic": "No trigger = pattern. Trigger but failed = permission.",
+      "doc_refs": ["https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-troubleshooting.html", "https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-rule-dlq.html"]
+    },
+    {
+      "id": "D3-Q028",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["quick-setup", "organizations", "systems-manager", "operations"],
+      "scenario": "A company with 60 accounts in AWS Organizations wants a consistent operational baseline in every account and Region: SSM Agent auto-update, a default host management configuration so EC2 instances become managed nodes without instance profiles being maintained by hand, inventory collection, and a scheduled patch policy. The CloudOps team of two wants the least ongoing maintenance and automatic coverage of new accounts.",
+      "stem": "What should the CloudOps engineer use?",
+      "options": [
+        {"letter": "A", "text": "A custom CloudFormation StackSet per account that creates instance profiles, associations, and maintenance windows.", "correct": false, "why": "This achieves the outcome but the team must author and maintain the templates, roles, and patch policies themselves, which is materially more overhead."},
+        {"letter": "B", "text": "An AWS Config conformance pack deployed to the organization with auto-remediation rules.", "correct": false, "why": "Config evaluates and remediates resource configuration; it does not deploy host management, inventory, or patch policies."},
+        {"letter": "C", "text": "Systems Manager Quick Setup with Organizations integration, targeting the organization and selecting the host management, inventory, and patch policy configuration types.", "correct": true, "why": "Quick Setup deploys and maintains these Systems Manager baselines across an entire organization or selected OUs and Regions, and automatically applies them to accounts added later."},
+        {"letter": "D", "text": "AWS Control Tower proactive controls applied to every OU.", "correct": false, "why": "Control Tower controls govern and detect non-compliant resource configuration; they do not configure Systems Manager operations such as patch policies and inventory."}
+      ],
+      "knowledge_point": "Quick Setup is the low-overhead way to roll out Systems Manager baselines (Default Host Management Configuration, agent updates, inventory, patch policy, Change Manager) across an Organization, OUs, and Regions, and it keeps the configuration in place as accounts are added.",
+      "trap_alert": "Default Host Management Configuration removes the need for per-instance IAM instance profiles, but it is a per-Region setting and requires SSM Agent 3.2.582.0 or later.",
+      "doc_refs": ["https://docs.aws.amazon.com/systems-manager/latest/userguide/systems-manager-quick-setup.html"]
+    }
+  ]
+}
