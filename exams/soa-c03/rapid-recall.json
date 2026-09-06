@@ -1,0 +1,1694 @@
+{
+  "cards": [
+    {
+      "id": "RR-001",
+      "domain": "D1",
+      "kind": "pick_service",
+      "cue": "An EC2 fleet must report memory utilization and root-volume disk space into CloudWatch. Which capability delivers this?",
+      "answer": "The CloudWatch agent (unified agent), configured on each instance with an instance profile carrying CloudWatchAgentServerPolicy",
+      "why": "Default EC2 metrics are collected at the hypervisor and never include guest-OS memory or disk-space usage. Only an in-guest agent can publish those as custom metrics.",
+      "distractors": [
+        "Enable EC2 detailed monitoring on the instances",
+        "Enable CloudWatch metric streams to Amazon Data Firehose",
+        "Enable enhanced infrastructure metrics in AWS Compute Optimizer"
+      ]
+    },
+    {
+      "id": "RR-002",
+      "domain": "D1",
+      "kind": "pick_service",
+      "cue": "A CloudOps engineer needs OS-level process, swap, and filesystem metrics from an RDS DB instance at 1-second granularity.",
+      "answer": "RDS Enhanced Monitoring",
+      "why": "Enhanced Monitoring runs an agent on the DB host and streams OS-level metrics to CloudWatch Logs at granularities down to 1 second. It is the only RDS feature that exposes per-process host data.",
+      "distractors": [
+        "RDS Performance Insights",
+        "CloudWatch detailed monitoring for the DB instance",
+        "Install the CloudWatch agent on the RDS DB instance"
+      ]
+    },
+    {
+      "id": "RR-003",
+      "domain": "D1",
+      "kind": "pick_service",
+      "cue": "Which feature identifies the specific SQL statements responsible for a spike in database load measured as average active sessions?",
+      "answer": "RDS Performance Insights",
+      "why": "Performance Insights charts DB load in average active sessions and breaks it down by top SQL, wait event, host, and user. Average active sessions is its native unit.",
+      "distractors": [
+        "RDS Enhanced Monitoring",
+        "CloudWatch Logs Insights over the slow query log",
+        "AWS Compute Optimizer database recommendations"
+      ]
+    },
+    {
+      "id": "RR-004",
+      "domain": "D1",
+      "kind": "pick_service",
+      "cue": "Leadership wants machine-generated right-sizing recommendations for EC2 instances, EBS volumes, Lambda functions, and Auto Scaling groups.",
+      "answer": "AWS Compute Optimizer",
+      "why": "Compute Optimizer analyses CloudWatch utilization history with machine learning and returns instance-family, volume, Lambda memory, and ASG recommendations. It is the purpose-built right-sizing service.",
+      "distractors": [
+        "The Trusted Advisor low-utilization EC2 instances check",
+        "The Cost Explorer resource optimization report",
+        "CloudWatch Contributor Insights"
+      ]
+    },
+    {
+      "id": "RR-005",
+      "domain": "D1",
+      "kind": "pick_service",
+      "cue": "An engineer must run ad hoc aggregation queries across several CloudWatch log groups during an incident with no data movement.",
+      "answer": "CloudWatch Logs Insights",
+      "why": "Logs Insights queries log group data in place with a purpose-built query language and returns results in seconds. No export, ETL, or table definition is required.",
+      "distractors": [
+        "Export the log groups to S3 and query them with Amazon Athena",
+        "Create a CloudWatch Contributor Insights rule",
+        "Create metric filters on each log group and graph the metrics"
+      ]
+    },
+    {
+      "id": "RR-006",
+      "domain": "D1",
+      "kind": "pick_service",
+      "cue": "Application logs in a CloudWatch log group must reach a third-party SIEM in near real time and continuously.",
+      "answer": "A CloudWatch Logs subscription filter delivering to Amazon Data Firehose",
+      "why": "Subscription filters stream matching log events continuously to Firehose, Lambda, or OpenSearch within seconds. Export tasks are batch, manual, and capped at one active task.",
+      "distractors": [
+        "A CloudWatch Logs export task to an S3 bucket on a schedule",
+        "A metric filter with an SNS notification action",
+        "CloudTrail Lake with a federated query"
+      ]
+    },
+    {
+      "id": "RR-007",
+      "domain": "D1",
+      "kind": "pick_service",
+      "cue": "Paging should occur only when CPU is high AND the ALB healthy host count is low at the same time, to suppress noise.",
+      "answer": "A CloudWatch composite alarm whose rule ANDs the two child alarms",
+      "why": "Composite alarms combine child alarm states with AND/OR/NOT expressions and fire a single action. They are the documented way to cut alarm noise from correlated conditions.",
+      "distractors": [
+        "A metric math alarm expression over the two metrics",
+        "A CloudWatch anomaly detection alarm on CPU utilization",
+        "A single alarm with datapoints to alarm set to 2 out of 3"
+      ]
+    },
+    {
+      "id": "RR-008",
+      "domain": "D1",
+      "kind": "pick_service",
+      "cue": "The team wants an outside-in check every minute that a public login flow still returns the expected page, with screenshots on failure.",
+      "answer": "A CloudWatch Synthetics canary",
+      "why": "Canaries are scripted Puppeteer or Selenium runs on a schedule that capture screenshots, HAR files, and latency, and publish SuccessPercent metrics. Health checks only probe reachability.",
+      "distractors": [
+        "A Route 53 endpoint health check with string matching",
+        "CloudWatch Internet Monitor",
+        "AWS X-Ray tracing on the front-end service"
+      ]
+    },
+    {
+      "id": "RR-009",
+      "domain": "D1",
+      "kind": "pick_service",
+      "cue": "When a CloudWatch alarm reports an unresponsive instance, the instance must be restarted automatically with no custom code.",
+      "answer": "An EventBridge rule on the alarm state change that targets the AWS-RestartEC2Instance Systems Manager Automation runbook",
+      "why": "AWS-owned Automation runbooks perform common remediations without any code to maintain. EventBridge routes the alarm state change straight to the runbook.",
+      "distractors": [
+        "A Lambda function subscribed to an SNS topic that calls the EC2 API",
+        "An Auto Scaling lifecycle hook on the instance",
+        "A State Manager association that runs every 30 minutes"
+      ]
+    },
+    {
+      "id": "RR-010",
+      "domain": "D1",
+      "kind": "number",
+      "cue": "With basic monitoring, at what interval does EC2 publish metrics to CloudWatch?",
+      "answer": "Every 5 minutes",
+      "why": "Basic monitoring is free and publishes at 5-minute periods. An alarm with a 1-minute period on a basic-monitoring instance will sit in INSUFFICIENT_DATA.",
+      "distractors": [
+        "Every 1 minute",
+        "Every 10 minutes",
+        "Every 15 minutes"
+      ]
+    },
+    {
+      "id": "RR-011",
+      "domain": "D1",
+      "kind": "number",
+      "cue": "What metric period does EC2 detailed monitoring provide, and is it chargeable?",
+      "answer": "1-minute periods, and it is chargeable",
+      "why": "Detailed monitoring must be enabled per instance or in the launch template and costs extra. It is the prerequisite for 1-minute alarms and faster Auto Scaling reactions.",
+      "distractors": [
+        "1-second periods, and it is chargeable",
+        "1-minute periods, and it is included at no cost",
+        "30-second periods, and it is chargeable"
+      ]
+    },
+    {
+      "id": "RR-012",
+      "domain": "D1",
+      "kind": "number",
+      "cue": "What resolution does a high-resolution custom metric support, and which alarm periods does it allow?",
+      "answer": "1-second resolution, with alarm evaluation periods of 10 or 30 seconds (or any multiple of 60)",
+      "why": "Standard-resolution custom metrics are 1-minute; high-resolution are 1-second and unlock the 10-second and 30-second high-resolution alarms, which are billed at a higher rate.",
+      "distractors": [
+        "1-second resolution, with alarm periods of 1 or 5 seconds",
+        "5-second resolution, with alarm periods of 10 or 30 seconds",
+        "1-second resolution, with a minimum alarm period of 60 seconds"
+      ]
+    },
+    {
+      "id": "RR-013",
+      "domain": "D1",
+      "kind": "number",
+      "cue": "How much metric history must an instance have before Compute Optimizer will produce a recommendation?",
+      "answer": "At least 30 hours of metrics within the last 14 days",
+      "why": "Instances below that threshold are reported as having insufficient data rather than as optimized. Newly launched or intermittently running instances are the usual cause.",
+      "distractors": [
+        "At least 14 hours of metrics within the last 30 days",
+        "At least 7 days of continuous metrics",
+        "At least 24 hours of metrics within the last 7 days"
+      ]
+    },
+    {
+      "id": "RR-014",
+      "domain": "D1",
+      "kind": "number",
+      "cue": "What is the default retention setting for a newly created CloudWatch log group?",
+      "answer": "Never expire, so events are retained indefinitely and billed indefinitely",
+      "why": "Retention is a per-log-group setting that defaults to never expire; cost-control questions expect you to set an explicit retention period. Retention values are fixed choices from 1 day to 10 years.",
+      "distractors": [
+        "30 days",
+        "90 days",
+        "365 days"
+      ]
+    },
+    {
+      "id": "RR-015",
+      "domain": "D1",
+      "kind": "number",
+      "cue": "How far back can CloudTrail Event history be searched in the console without any trail configured?",
+      "answer": "90 days of management events, viewable and downloadable per Region",
+      "why": "Event history is free and covers the last 90 days of management events only. Longer retention or data events require a trail delivering to S3, or CloudTrail Lake.",
+      "distractors": [
+        "30 days",
+        "7 days",
+        "180 days"
+      ]
+    },
+    {
+      "id": "RR-016",
+      "domain": "D1",
+      "kind": "number",
+      "cue": "How long does CloudWatch retain metric data at each aggregation granularity?",
+      "answer": "1-minute data for 15 days, 5-minute data for 63 days, and 1-hour data for 455 days (15 months)",
+      "why": "Sub-minute data points are kept for 3 hours before rollup. Long-term trend requirements beyond 15 months need export to S3 or a metric stream.",
+      "distractors": [
+        "1-minute data for 30 days, 5-minute data for 90 days, 1-hour data for 365 days",
+        "1-minute data for 7 days, 5-minute data for 30 days, 1-hour data for 180 days",
+        "All resolutions are retained for 15 months"
+      ]
+    },
+    {
+      "id": "RR-017",
+      "domain": "D1",
+      "kind": "contrast",
+      "cue": "Performance Insights versus Enhanced Monitoring on RDS: which layer does each see?",
+      "answer": "Performance Insights shows database engine internals (DB load, top SQL, wait events); Enhanced Monitoring shows host OS internals (per-process CPU, memory, swap, filesystem)",
+      "why": "Slow queries and lock waits are a Performance Insights question; a noisy OS process or exhausted swap is an Enhanced Monitoring question. They answer different halves of the same incident.",
+      "distractors": [
+        "Performance Insights shows OS internals; Enhanced Monitoring shows engine internals",
+        "Both show engine internals, but Enhanced Monitoring adds a longer retention window",
+        "Performance Insights is for Aurora only; Enhanced Monitoring is for RDS only"
+      ]
+    },
+    {
+      "id": "RR-018",
+      "domain": "D1",
+      "kind": "contrast",
+      "cue": "Metric filter versus subscription filter on a CloudWatch log group.",
+      "answer": "A metric filter turns matching log events into a CloudWatch metric you can alarm on; a subscription filter streams the matching raw events to Lambda, Firehose, or OpenSearch",
+      "why": "Alarm on a log pattern means metric filter. Deliver or process the log content elsewhere means subscription filter. Metric filters are not retroactive over existing events.",
+      "distractors": [
+        "A metric filter streams raw events to a destination; a subscription filter creates a metric",
+        "Both create metrics, but subscription filters support cross-account delivery",
+        "A metric filter is evaluated at query time; a subscription filter is evaluated at ingest"
+      ]
+    },
+    {
+      "id": "RR-019",
+      "domain": "D1",
+      "kind": "contrast",
+      "cue": "EC2 system status check versus instance status check.",
+      "answer": "System status check failures are AWS-side (host hardware, host network, power) and are fixed by stop/start or auto-recovery; instance status check failures are guest-side (kernel panic, exhausted memory, corrupt filesystem, bad network config) and need OS work",
+      "why": "Stop/start migrates the instance to new underlying hardware, which fixes system checks but not a broken OS. There is also a third, attached-EBS status check for impaired volumes.",
+      "distractors": [
+        "System checks are guest-side; instance checks are AWS-side",
+        "System checks cover the OS boot process; instance checks cover the hypervisor",
+        "System checks run every 5 minutes; instance checks run only on launch"
+      ]
+    },
+    {
+      "id": "RR-020",
+      "domain": "D1",
+      "kind": "contrast",
+      "cue": "CloudTrail management events versus data events.",
+      "answer": "Management events record control-plane operations (RunInstances, CreateBucket) and are logged by default; data events record data-plane operations (S3 GetObject, Lambda Invoke, DynamoDB item activity), are high volume, cost extra, and are off by default",
+      "why": "Who deleted the bucket is a management event; who read the object is a data event. Insights events are a separate opt-in that detects unusual API call-rate or error-rate patterns.",
+      "distractors": [
+        "Management events are opt-in and chargeable; data events are logged by default",
+        "Management events cover IAM only; data events cover every other service",
+        "Data events are retained for 90 days in Event history; management events are not"
+      ]
+    },
+    {
+      "id": "RR-021",
+      "domain": "D1",
+      "kind": "contrast",
+      "cue": "gp2 versus gp3 EBS volumes for a latency-sensitive workload.",
+      "answer": "gp2 IOPS scale with size (3 IOPS per GiB) and rely on burst credits; gp3 provides a 3,000 IOPS and 125 MiB/s baseline at any size with IOPS and throughput provisioned independently of capacity, at lower cost",
+      "why": "gp3 removes the burst-credit failure mode entirely and is the standard answer for a small volume that keeps exhausting BurstBalance. Migration is an in-place modify with no downtime.",
+      "distractors": [
+        "gp3 IOPS scale with size; gp2 lets you provision IOPS independently",
+        "gp2 supports Multi-Attach; gp3 does not",
+        "gp3 is HDD-backed and optimized for throughput; gp2 is SSD-backed"
+      ]
+    },
+    {
+      "id": "RR-022",
+      "domain": "D1",
+      "kind": "spot_the_trap",
+      "cue": "An alarm sits permanently in INSUFFICIENT_DATA. The team concludes the alarm threshold is wrong.",
+      "answer": "The trap is the threshold; INSUFFICIENT_DATA means no datapoints are arriving at all - wrong namespace or dimensions, the agent is not publishing, or the metric only exists when the event occurs",
+      "why": "A threshold problem produces a wrong state, never a missing state. Check the metric exists with the exact dimensions and that the alarm period matches the publishing interval.",
+      "distractors": [
+        "The threshold is set above the metric maximum, so no datapoint can breach it",
+        "The alarm has too many datapoints to alarm configured",
+        "The alarm action target has been deleted, so the state cannot update"
+      ]
+    },
+    {
+      "id": "RR-023",
+      "domain": "D1",
+      "kind": "spot_the_trap",
+      "cue": "A team adds an EC2 recover alarm action expecting it to fix any failed status check.",
+      "answer": "The trap is scope; the recover action addresses system status check and attached-EBS impairments only - it does nothing for an instance status check failure caused by the guest OS, and it is unsupported for instance store-backed instances",
+      "why": "Recovery restarts the same instance on new hardware, preserving instance ID, private IP, and EBS volumes. A kernel panic will simply recur.",
+      "distractors": [
+        "The recover action works only when detailed monitoring is enabled",
+        "The recover action requires the instance to be in an Auto Scaling group",
+        "The recover action changes the instance ID and private IP address"
+      ]
+    },
+    {
+      "id": "RR-024",
+      "domain": "D1",
+      "kind": "spot_the_trap",
+      "cue": "The CloudWatch agent is installed and the config file is valid, but no custom metrics appear.",
+      "answer": "The trap is assuming installation is enough; the instance profile must grant CloudWatchAgentServerPolicy (plus SSM permissions if the config is stored in Parameter Store) before the agent can call PutMetricData",
+      "why": "The agent fails silently to the local agent log when it lacks permissions. Missing instance profile is the single most common cause of a quiet agent.",
+      "distractors": [
+        "Detailed monitoring must be enabled on the instance first",
+        "The metrics only appear after the CloudWatch agent is restarted twice",
+        "Custom metrics require a dedicated custom namespace to be pre-created"
+      ]
+    },
+    {
+      "id": "RR-025",
+      "domain": "D1",
+      "kind": "symptom_to_fix",
+      "cue": "CPU visibly spikes to 100 percent for about 90 seconds several times an hour, but the alarm never enters ALARM.",
+      "answer": "Averaging is hiding the spike - shorten the period, switch the statistic from Average to Maximum, and reconsider the M-of-N datapoints to alarm setting; enable detailed monitoring if the period must go below 5 minutes",
+      "why": "A short spike averaged over a 5-minute period barely moves the value. Statistic and period choice, not the threshold, is the usual defect.",
+      "distractors": [
+        "Recreate the alarm with a composite alarm rule",
+        "Change the alarm to treat missing data as breaching",
+        "Add a second SNS topic as an additional alarm action"
+      ]
+    },
+    {
+      "id": "RR-026",
+      "domain": "D1",
+      "kind": "symptom_to_fix",
+      "cue": "A batch job alarm flips to INSUFFICIENT_DATA every night and pages on-call, because the metric is only emitted while the job runs.",
+      "answer": "Set the alarm missing data treatment to notBreaching (or missing) so gaps do not change the alarm state",
+      "why": "Missing data treatment has four options - notBreaching, breaching, ignore, and missing - and defaults to missing, which surfaces INSUFFICIENT_DATA. This is a configuration change, not a code change.",
+      "distractors": [
+        "Set the alarm missing data treatment to breaching",
+        "Increase the alarm evaluation period to 24 hours",
+        "Publish a zero-value datapoint from a scheduled Lambda function"
+      ]
+    },
+    {
+      "id": "RR-027",
+      "domain": "D1",
+      "kind": "symptom_to_fix",
+      "cue": "An instance shows 1 out of 2 status checks passed, and the failing one is the system status check.",
+      "answer": "Stop and start the instance to move it to healthy underlying hardware (an EBS-backed instance keeps its volumes and instance ID), or let a CloudWatch recover action do it automatically",
+      "why": "A reboot keeps the instance on the same impaired host and does not help. Stop/start relocates it; the public IPv4 address changes unless an Elastic IP is attached.",
+      "distractors": [
+        "Reboot the instance from the console",
+        "Reinstall the operating system kernel through Run Command",
+        "Detach and reattach the root EBS volume"
+      ]
+    },
+    {
+      "id": "RR-028",
+      "domain": "D1",
+      "kind": "symptom_to_fix",
+      "cue": "Disk latency on a 100 GiB gp2 volume climbs, VolumeQueueLength stays high, and BurstBalance has reached 0 percent.",
+      "answer": "Burst credits are exhausted at the 300 IOPS baseline - modify the volume to gp3 and provision the required IOPS and throughput, or move to io2 for sustained high IOPS",
+      "why": "gp2 baseline is 3 IOPS per GiB, so a 100 GiB volume floors at 300 IOPS once credits run out. gp3 has a 3,000 IOPS baseline independent of size.",
+      "distractors": [
+        "Enable EBS-optimized on the instance and restart it",
+        "Convert the volume to st1 to gain throughput burst credits",
+        "Take a snapshot and restore it with Fast Snapshot Restore enabled"
+      ]
+    },
+    {
+      "id": "RR-029",
+      "domain": "D1",
+      "kind": "symptom_to_fix",
+      "cue": "An EFS file system slows sharply after a data load, and BurstCreditBalance has fallen to zero.",
+      "answer": "Switch the file system throughput mode to Elastic (or Provisioned) so throughput no longer depends on stored size and accumulated burst credits",
+      "why": "In Bursting mode, baseline throughput scales with the amount of data stored, so a small file system with heavy I/O drains credits. Elastic throughput scales automatically and is the low-overhead fix.",
+      "distractors": [
+        "Move the file system from General Purpose to Max I/O performance mode",
+        "Enable EFS lifecycle management to move files to Infrequent Access",
+        "Add a second mount target in another Availability Zone"
+      ]
+    },
+    {
+      "id": "RR-030",
+      "domain": "D1",
+      "kind": "symptom_to_fix",
+      "cue": "CloudTrail shows the trail as logging, but no new objects arrive in the destination S3 bucket.",
+      "answer": "Check the S3 bucket policy still grants cloudtrail.amazonaws.com s3:PutObject with bucket-owner-full-control, and that the SSE-KMS key policy allows CloudTrail to generate a data key",
+      "why": "Delivery failures are almost always a bucket policy or KMS key policy denial after someone tightened permissions. The trail status page reports the last delivery error.",
+      "distractors": [
+        "Recreate the trail as an organization trail",
+        "Enable log file validation on the trail",
+        "Increase the CloudWatch Logs retention on the trail log group"
+      ]
+    },
+    {
+      "id": "RR-031",
+      "domain": "D2",
+      "kind": "pick_service",
+      "cue": "A company needs one policy-driven backup plan covering EBS, RDS, DynamoDB, EFS, and FSx, with resources selected by tag.",
+      "answer": "AWS Backup with a backup plan and tag-based resource assignment",
+      "why": "AWS Backup centralizes plans, schedules, lifecycle to cold storage, retention, and cross-Region and cross-account copy across supported services. Tag-based assignment picks up new resources automatically.",
+      "distractors": [
+        "Amazon Data Lifecycle Manager policies for each service",
+        "A Systems Manager State Manager association calling each service snapshot API",
+        "An EventBridge Scheduler rule invoking a Lambda function per service"
+      ]
+    },
+    {
+      "id": "RR-032",
+      "domain": "D2",
+      "kind": "pick_service",
+      "cue": "Regulators require that backups cannot be deleted or shortened by anyone, including the account root user, for the full retention period.",
+      "answer": "AWS Backup Vault Lock in compliance mode",
+      "why": "Compliance mode is immutable once the cooling-off period elapses and cannot be disabled or deleted by any principal. Governance mode is reversible by principals with explicit permissions.",
+      "distractors": [
+        "AWS Backup Vault Lock in governance mode",
+        "An S3 Object Lock retention policy on the backup bucket",
+        "A service control policy denying the DeleteRecoveryPoint action"
+      ]
+    },
+    {
+      "id": "RR-033",
+      "domain": "D2",
+      "kind": "pick_service",
+      "cue": "Only EBS snapshots and EBS-backed AMIs need automated creation, retention, and cross-Region copy, with no other services in scope.",
+      "answer": "Amazon Data Lifecycle Manager (DLM) policies",
+      "why": "DLM is the EBS-native scheduler for snapshot and AMI lifecycle, including Fast Snapshot Restore and cross-Region copy rules. AWS Backup is the broader multi-service alternative.",
+      "distractors": [
+        "AWS Backup with a continuous backup rule",
+        "AWS Systems Manager Maintenance Windows running a snapshot document",
+        "Amazon EventBridge Scheduler invoking CreateSnapshot"
+      ]
+    },
+    {
+      "id": "RR-034",
+      "domain": "D2",
+      "kind": "pick_service",
+      "cue": "Reporting queries are saturating the primary RDS instance. Writes are unaffected and reports may be a few seconds stale.",
+      "answer": "Create an RDS read replica and point the reporting workload at the replica endpoint",
+      "why": "Read replicas use asynchronous replication and provide a separate readable endpoint that offloads reads. Multi-AZ standbys are not readable in the classic Multi-AZ instance deployment.",
+      "distractors": [
+        "Convert the instance to a Multi-AZ deployment and read from the standby",
+        "Put RDS Proxy in front of the primary instance",
+        "Enable storage autoscaling on the primary instance"
+      ]
+    },
+    {
+      "id": "RR-035",
+      "domain": "D2",
+      "kind": "pick_service",
+      "cue": "A DynamoDB-backed API needs microsecond read latency for a hot key set, with no application-side cache invalidation logic.",
+      "answer": "Amazon DynamoDB Accelerator (DAX)",
+      "why": "DAX is a write-through, DynamoDB API-compatible in-memory cache that turns millisecond eventually consistent reads into microsecond reads. It requires almost no application change beyond the client.",
+      "distractors": [
+        "ElastiCache for Redis fronting the table",
+        "A DynamoDB global secondary index over the hot attributes",
+        "DynamoDB Streams with a Lambda consumer writing to S3"
+      ]
+    },
+    {
+      "id": "RR-036",
+      "domain": "D2",
+      "kind": "pick_service",
+      "cue": "One Availability Zone is degraded and the team wants to pull traffic away from it within minutes without a code deploy or DNS change.",
+      "answer": "Application Recovery Controller zonal shift (or zonal autoshift) on the load balancer",
+      "why": "Zonal shift removes an AZ from the load balancer rotation for a set expiry window with a single API call. Zonal autoshift lets AWS perform the same move automatically on detected AZ impairment.",
+      "distractors": [
+        "Detach the subnet for that AZ from the Auto Scaling group",
+        "Create a Route 53 failover record set for each AZ",
+        "Suspend the AZRebalance process on the Auto Scaling group"
+      ]
+    },
+    {
+      "id": "RR-037",
+      "domain": "D2",
+      "kind": "pick_service",
+      "cue": "Users are logged out whenever the Auto Scaling group replaces an instance, because session state lives on local disk.",
+      "answer": "Move session state to Amazon ElastiCache (Redis or Valkey) so all instances share it",
+      "why": "Externalizing session state makes instances stateless, which is the prerequisite for elastic scaling and instance refresh. Sticky sessions only postpone the failure.",
+      "distractors": [
+        "Enable sticky sessions on the target group",
+        "Increase the Auto Scaling health check grace period",
+        "Store sessions on a shared EBS volume with Multi-Attach"
+      ]
+    },
+    {
+      "id": "RR-038",
+      "domain": "D2",
+      "kind": "pick_service",
+      "cue": "Traffic must move to a standby Region automatically when the primary Region endpoint stops responding.",
+      "answer": "Route 53 failover routing with a health check on the primary endpoint and a secondary record for the standby",
+      "why": "Failover routing returns the secondary record only while the primary health check is unhealthy. Client-side TTL caching determines how quickly clients follow the change.",
+      "distractors": [
+        "Route 53 weighted routing with weights of 100 and 0",
+        "Route 53 latency-based routing across the two Regions",
+        "Route 53 multivalue answer routing with both endpoints"
+      ]
+    },
+    {
+      "id": "RR-039",
+      "domain": "D2",
+      "kind": "number",
+      "cue": "What is the default cooldown period for an EC2 Auto Scaling group using simple scaling?",
+      "answer": "300 seconds (5 minutes)",
+      "why": "During cooldown the group pauses further simple scaling activity so new instances can start carrying load. Target tracking and step scaling use instance warm-up rather than cooldown.",
+      "distractors": [
+        "60 seconds",
+        "600 seconds",
+        "900 seconds"
+      ]
+    },
+    {
+      "id": "RR-040",
+      "domain": "D2",
+      "kind": "number",
+      "cue": "What is the default connection idle timeout on an Application Load Balancer?",
+      "answer": "60 seconds",
+      "why": "If the target takes longer than the idle timeout to respond, the ALB returns HTTP 504. Keep-alive on the target should exceed the ALB idle timeout to avoid mid-request resets.",
+      "distractors": [
+        "30 seconds",
+        "120 seconds",
+        "350 seconds"
+      ]
+    },
+    {
+      "id": "RR-041",
+      "domain": "D2",
+      "kind": "number",
+      "cue": "What is the default deregistration delay (connection draining) on an ELB target group?",
+      "answer": "300 seconds (5 minutes)",
+      "why": "Scale-in and deployments appear slow because targets sit in draining for the full delay. Lower it for short-lived requests; raise it for long-running connections.",
+      "distractors": [
+        "60 seconds",
+        "30 seconds",
+        "900 seconds"
+      ]
+    },
+    {
+      "id": "RR-042",
+      "domain": "D2",
+      "kind": "number",
+      "cue": "What range can the RDS automated backup retention period be set to, and what disables automated backups?",
+      "answer": "0 to 35 days; setting it to 0 disables automated backups and therefore disables point-in-time recovery",
+      "why": "Manual snapshots persist until explicitly deleted and are unaffected by the retention setting. Setting retention to 0 also deletes existing automated backups.",
+      "distractors": [
+        "1 to 35 days, and automated backups cannot be disabled",
+        "0 to 90 days, with 0 disabling automated backups",
+        "0 to 7 days, with 0 disabling automated backups"
+      ]
+    },
+    {
+      "id": "RR-043",
+      "domain": "D2",
+      "kind": "number",
+      "cue": "How far back can DynamoDB point-in-time recovery restore a table?",
+      "answer": "Any second within the last 35 days",
+      "why": "PITR restores to a brand-new table; it never overwrites the source. On-demand backups are separate and retained until deleted.",
+      "distractors": [
+        "Any second within the last 7 days",
+        "Any second within the last 14 days",
+        "Any second within the last 90 days"
+      ]
+    },
+    {
+      "id": "RR-044",
+      "domain": "D2",
+      "kind": "number",
+      "cue": "What are the default failure threshold and request intervals for a Route 53 endpoint health check?",
+      "answer": "Failure threshold of 3 consecutive failures, with a standard interval of 30 seconds or a fast interval of 10 seconds",
+      "why": "At standard settings an endpoint is marked unhealthy roughly 90 seconds after failure begins. Fast interval costs more and detects failure in about 30 seconds.",
+      "distractors": [
+        "Failure threshold of 2, with intervals of 30 or 10 seconds",
+        "Failure threshold of 3, with intervals of 60 or 20 seconds",
+        "Failure threshold of 5, with intervals of 30 or 10 seconds"
+      ]
+    },
+    {
+      "id": "RR-045",
+      "domain": "D2",
+      "kind": "number",
+      "cue": "What are the default health check settings on an ALB target group?",
+      "answer": "30-second interval, 5-second timeout, healthy threshold of 5, unhealthy threshold of 2, and a success matcher of HTTP 200",
+      "why": "A target that returns 302 or 401 on the health path fails the matcher even though the application is fine. Widen the matcher or point the check at a dedicated health path.",
+      "distractors": [
+        "10-second interval, 5-second timeout, healthy threshold of 3, unhealthy threshold of 3, matcher 200-399",
+        "30-second interval, 10-second timeout, healthy threshold of 2, unhealthy threshold of 5, matcher 200",
+        "60-second interval, 5-second timeout, healthy threshold of 5, unhealthy threshold of 2, matcher 200-299"
+      ]
+    },
+    {
+      "id": "RR-046",
+      "domain": "D2",
+      "kind": "contrast",
+      "cue": "RDS Multi-AZ versus a read replica.",
+      "answer": "Multi-AZ is synchronous replication to a standby for availability, with automatic failover and no read capacity; a read replica is asynchronous, readable, can be cross-Region, and must be promoted manually",
+      "why": "Availability and durability questions point to Multi-AZ; read scaling and cross-Region DR point to read replicas. Multi-AZ DB cluster deployments are the exception that adds two readable standbys.",
+      "distractors": [
+        "Multi-AZ is asynchronous and readable; a read replica is synchronous and not readable",
+        "Both are synchronous, but only read replicas support automatic failover",
+        "Multi-AZ can be cross-Region; read replicas are always in the same Region"
+      ]
+    },
+    {
+      "id": "RR-047",
+      "domain": "D2",
+      "kind": "contrast",
+      "cue": "Cross-zone load balancing defaults on ALB versus NLB.",
+      "answer": "Cross-zone load balancing is on by default for ALB and off by default for NLB (where enabling it may incur inter-AZ data charges)",
+      "why": "With cross-zone off, each AZ node distributes only to its own targets, so uneven target counts per AZ produce uneven load. It can be enabled per target group.",
+      "distractors": [
+        "It is off by default on ALB and on by default on NLB",
+        "It is on by default on both, but only NLB can disable it",
+        "It is off by default on both and must be enabled at the load balancer level"
+      ]
+    },
+    {
+      "id": "RR-048",
+      "domain": "D2",
+      "kind": "contrast",
+      "cue": "Restoring from a manual DB snapshot versus point-in-time recovery.",
+      "answer": "A snapshot restore recovers the exact moment the snapshot was taken; PITR replays transaction logs to any second within the retention window, and both create a brand-new DB instance",
+      "why": "PITR is the answer when the RPO must be minutes rather than the last snapshot. Neither operation restores in place over the existing instance.",
+      "distractors": [
+        "A snapshot restore recovers any second in the window; PITR recovers only the snapshot moment",
+        "PITR restores in place over the existing instance; a snapshot restore creates a new instance",
+        "Both restore to the same endpoint, so no application change is required"
+      ]
+    },
+    {
+      "id": "RR-049",
+      "domain": "D2",
+      "kind": "contrast",
+      "cue": "Pilot light versus warm standby disaster recovery.",
+      "answer": "Pilot light keeps only core data replicated with servers switched off, so recovery requires provisioning and scaling; warm standby runs a scaled-down but always-live copy of the full stack that only needs scaling up",
+      "why": "Warm standby buys a lower RTO for higher steady-state cost. Backup and restore is slowest and cheapest; active-active is fastest and most expensive.",
+      "distractors": [
+        "Pilot light runs a scaled-down live stack; warm standby keeps only replicated data",
+        "Both run the full stack at production scale, differing only in DNS configuration",
+        "Pilot light is multi-Region; warm standby is multi-AZ within one Region"
+      ]
+    },
+    {
+      "id": "RR-050",
+      "domain": "D2",
+      "kind": "contrast",
+      "cue": "Auto Scaling health check type EC2 versus ELB.",
+      "answer": "EC2 health checks only consider instance status checks; ELB health checks additionally mark an instance unhealthy when the load balancer target health check fails",
+      "why": "An application hung on a running instance stays in service under EC2 health checks. Add ELB health checks plus an adequate grace period for application-level replacement.",
+      "distractors": [
+        "ELB health checks only consider instance status checks; EC2 health checks add application checks",
+        "EC2 health checks include the target group health check when a load balancer is attached",
+        "Both types are evaluated only during the health check grace period"
+      ]
+    },
+    {
+      "id": "RR-051",
+      "domain": "D2",
+      "kind": "spot_the_trap",
+      "cue": "PITR was performed successfully on the production database, but the application still fails to connect.",
+      "answer": "The trap is assuming restore is in place; PITR and snapshot restores always create a NEW DB instance with a NEW endpoint, so the application connection string, Secrets Manager entry, or CNAME must be repointed",
+      "why": "Security groups and parameter groups on the restored instance also default rather than carrying over, which is the second common cause of a failed cutover.",
+      "distractors": [
+        "The restored instance needs automated backups re-enabled before it accepts connections",
+        "PITR restores are read-only until the retention window closes",
+        "The restore must be promoted from replica to primary before use"
+      ]
+    },
+    {
+      "id": "RR-052",
+      "domain": "D2",
+      "kind": "spot_the_trap",
+      "cue": "A Route 53 endpoint health check on an internal ALB in a private subnet reports unhealthy even though the application works.",
+      "answer": "The trap is reachability; Route 53 health checkers run from public AWS IP ranges and cannot reach private endpoints - use a CloudWatch alarm-based health check instead",
+      "why": "The alarm-based health check derives health from any CloudWatch metric, such as ALB HealthyHostCount, so the target never needs to be publicly reachable.",
+      "distractors": [
+        "The health check interval must be set to fast (10 seconds) for internal load balancers",
+        "The health check must use HTTPS with string matching for internal endpoints",
+        "Evaluate target health must be disabled on the alias record"
+      ]
+    },
+    {
+      "id": "RR-053",
+      "domain": "D2",
+      "kind": "spot_the_trap",
+      "cue": "A runbook says to create a new Auto Scaling group from an existing launch configuration.",
+      "answer": "The trap is the launch configuration itself; launch configurations are no longer available for new use and lack current features - Auto Scaling groups must be created from launch templates",
+      "why": "Launch templates add versioning, mixed instance policies, Spot allocation, and newer instance and networking options. Existing configurations should be migrated to templates.",
+      "distractors": [
+        "Launch configurations must be copied to the target Region before use",
+        "Launch configurations cannot be used with target tracking scaling policies",
+        "Launch configurations require detailed monitoring to be enabled explicitly"
+      ]
+    },
+    {
+      "id": "RR-054",
+      "domain": "D2",
+      "kind": "symptom_to_fix",
+      "cue": "An Application Load Balancer returns HTTP 503 for every request.",
+      "answer": "No healthy or no registered targets in the target group - check target health status, the health check path, port and matcher, and that the target security group allows the load balancer security group on the health check port",
+      "why": "503 from the load balancer itself means it has nowhere to send the request. The target group health tab names the exact failure reason.",
+      "distractors": [
+        "The target closed the connection or returned a malformed response",
+        "The target did not respond within the load balancer idle timeout",
+        "The client sent a malformed request line or invalid headers"
+      ]
+    },
+    {
+      "id": "RR-055",
+      "domain": "D2",
+      "kind": "symptom_to_fix",
+      "cue": "An Application Load Balancer intermittently returns HTTP 504 on long-running report requests.",
+      "answer": "Gateway timeout - the target did not respond within the ALB idle timeout (60 seconds by default); raise the idle timeout, or make the request asynchronous",
+      "why": "The idle timeout applies to both front-end and back-end connections. Target keep-alive should be set higher than the ALB idle timeout to avoid races.",
+      "distractors": [
+        "There are no healthy targets registered in the target group",
+        "The target returned a malformed HTTP response and the connection was reset",
+        "The listener certificate has expired"
+      ]
+    },
+    {
+      "id": "RR-056",
+      "domain": "D2",
+      "kind": "symptom_to_fix",
+      "cue": "An Application Load Balancer returns HTTP 502 immediately for a portion of requests.",
+      "answer": "Bad gateway - the target closed the connection, returned a malformed or oversized response, or (for a Lambda target) returned an invalid payload or errored; check application logs and target keep-alive settings",
+      "why": "502 means the response reached the load balancer and was unusable, unlike 503 (nowhere to send) and 504 (nothing came back in time).",
+      "distractors": [
+        "No healthy targets are registered in the target group",
+        "The target did not respond within the idle timeout",
+        "The security group on the load balancer blocks the client source range"
+      ]
+    },
+    {
+      "id": "RR-057",
+      "domain": "D2",
+      "kind": "symptom_to_fix",
+      "cue": "An Auto Scaling group launches instances and terminates them a few minutes later, repeatedly, and never stabilizes.",
+      "answer": "ELB health checks are failing before the application finishes starting - increase the health check grace period and verify the health check path, port, and matcher against a slow-booting application",
+      "why": "The grace period is the window during which health check failures are ignored after launch. Too short a grace period produces exactly this launch-and-kill loop.",
+      "distractors": [
+        "The scaling policy cooldown is too short, so the group scales in immediately",
+        "The launch template AMI is in a different Availability Zone from the subnets",
+        "The termination policy is set to OldestInstance"
+      ]
+    },
+    {
+      "id": "RR-058",
+      "domain": "D2",
+      "kind": "symptom_to_fix",
+      "cue": "A Multi-AZ RDS failover has completed and the console shows the instance available, but the application still cannot connect.",
+      "answer": "Stale DNS - the endpoint name is unchanged but now resolves to the promoted standby, so the client must respect the DNS TTL, flush its cache, and re-establish the connection pool",
+      "why": "Java clients in particular cache DNS indefinitely unless the JVM TTL is configured. Also confirm the standby AZ subnet is reachable from the application security group.",
+      "distractors": [
+        "The application must be repointed to a new endpoint created by the failover",
+        "The read replica must be promoted before the application can reconnect",
+        "The parameter group must be reapplied and the instance rebooted"
+      ]
+    },
+    {
+      "id": "RR-059",
+      "domain": "D3",
+      "kind": "pick_service",
+      "cue": "Operating system patches must be applied to tagged instance groups on a defined monthly schedule with an approval delay and compliance reporting.",
+      "answer": "Systems Manager Patch Manager with patch baselines and patch groups, executed inside a maintenance window",
+      "why": "Patch baselines define approval rules and auto-approval delays; patch groups map instances by the Patch Group tag; maintenance windows control when patching runs.",
+      "distractors": [
+        "Systems Manager Run Command executing a yum or apt document on a schedule",
+        "Systems Manager State Manager with a custom shell document",
+        "EC2 Image Builder pipelines rebuilding the AMI monthly"
+      ]
+    },
+    {
+      "id": "RR-060",
+      "domain": "D3",
+      "kind": "pick_service",
+      "cue": "Auditors require interactive shell access to instances with no SSH keys, no bastion host, no inbound ports, and a full session transcript.",
+      "answer": "Systems Manager Session Manager, with session logging to S3 or CloudWatch Logs",
+      "why": "Session Manager connects outbound over the SSM agent, so no port 22 and no public IP are needed. Sessions are recorded in CloudTrail and optionally logged keystroke by keystroke.",
+      "distractors": [
+        "EC2 Instance Connect with an IAM-managed key push",
+        "A bastion host in a public subnet with a restricted security group",
+        "Systems Manager Fleet Manager remote desktop"
+      ]
+    },
+    {
+      "id": "RR-061",
+      "domain": "D3",
+      "kind": "pick_service",
+      "cue": "A single ad hoc command must run right now across 500 tagged instances, with per-instance output captured.",
+      "answer": "Systems Manager Run Command targeting instances by tag, with output sent to S3 or CloudWatch Logs",
+      "why": "Run Command executes an SSM document once against a target set, with rate control (concurrency and error threshold). State Manager is for continuous enforcement, not one-off execution.",
+      "distractors": [
+        "Systems Manager State Manager association applied to the tag",
+        "Systems Manager Automation runbook with a loop step",
+        "A Lambda function invoking SSH over a VPC endpoint"
+      ]
+    },
+    {
+      "id": "RR-062",
+      "domain": "D3",
+      "kind": "pick_service",
+      "cue": "An agent must remain installed and a configuration file must stay correct on every instance, including newly launched ones, and be reapplied if it drifts.",
+      "answer": "Systems Manager State Manager associations",
+      "why": "State Manager applies a document on a schedule to a target set defined by tags or a resource group, so it enforces desired state continuously rather than once.",
+      "distractors": [
+        "Systems Manager Run Command scheduled with EventBridge Scheduler",
+        "AWS Config with a custom rule and automatic remediation",
+        "User data scripts in the launch template"
+      ]
+    },
+    {
+      "id": "RR-063",
+      "domain": "D3",
+      "kind": "pick_service",
+      "cue": "Configuration values and one encrypted database password must be stored hierarchically at no additional cost, without automatic rotation.",
+      "answer": "Systems Manager Parameter Store, using a SecureString parameter encrypted with KMS",
+      "why": "Parameter Store standard tier is free, supports hierarchical paths and KMS-backed SecureString, but has no built-in rotation. Secrets Manager charges per secret and adds managed rotation.",
+      "distractors": [
+        "AWS Secrets Manager with automatic rotation disabled",
+        "An encrypted S3 object read at application start",
+        "A KMS-encrypted environment variable on the compute resource"
+      ]
+    },
+    {
+      "id": "RR-064",
+      "domain": "D3",
+      "kind": "pick_service",
+      "cue": "One CloudFormation template must be deployed to every account in three organizational units and to four Regions, and applied automatically to new accounts.",
+      "answer": "CloudFormation StackSets with service-managed permissions and automatic deployment enabled",
+      "why": "Service-managed StackSets integrate with Organizations, target OUs directly, and auto-deploy to accounts added later. Self-managed permissions require manual IAM roles per target account.",
+      "distractors": [
+        "CloudFormation StackSets with self-managed permissions",
+        "A CodePipeline stage deploying the template per account",
+        "AWS RAM sharing of the CloudFormation stack across accounts"
+      ]
+    },
+    {
+      "id": "RR-065",
+      "domain": "D3",
+      "kind": "pick_service",
+      "cue": "Hardened golden AMIs must be built on a schedule from a base image plus components, tested, and distributed to several accounts and Regions.",
+      "answer": "EC2 Image Builder with an image pipeline, recipe, components, and a distribution configuration",
+      "why": "Image Builder handles build, test, versioning, and cross-account and cross-Region distribution as a managed pipeline. Packer scripts or manual AMI creation carry the operational overhead.",
+      "distractors": [
+        "A CodeBuild project running Packer on a schedule",
+        "Data Lifecycle Manager AMI policies",
+        "A Systems Manager Automation runbook that snapshots a running instance"
+      ]
+    },
+    {
+      "id": "RR-066",
+      "domain": "D3",
+      "kind": "pick_service",
+      "cue": "Application accounts must launch resources into subnets owned by a central networking account, without VPC peering.",
+      "answer": "AWS Resource Access Manager (RAM) sharing the subnets with the organization or the target accounts",
+      "why": "RAM shares subnets, Transit Gateways, Route 53 Resolver rules, License Manager configurations, and IPAM pools across accounts. Participants launch into the shared subnet but cannot modify the VPC.",
+      "distractors": [
+        "VPC peering between the networking account and each application account",
+        "AWS Transit Gateway attachments in each application account",
+        "AWS PrivateLink endpoint services published by the networking account"
+      ]
+    },
+    {
+      "id": "RR-067",
+      "domain": "D3",
+      "kind": "pick_service",
+      "cue": "Operational issues raised from CloudWatch alarms, Config rules, and EventBridge events must be aggregated as work items with runbooks attached, in one place.",
+      "answer": "Systems Manager OpsCenter, with OpsItems created from alarms, events, and Config findings",
+      "why": "OpsCenter aggregates OpsItems with related resources and recommended Automation runbooks, so remediation happens next to the finding. Explorer provides the aggregated dashboard view.",
+      "distractors": [
+        "AWS Security Hub with custom insights",
+        "Systems Manager Incident Manager response plans only",
+        "An SNS topic fanned out to a ticketing webhook"
+      ]
+    },
+    {
+      "id": "RR-068",
+      "domain": "D3",
+      "kind": "number",
+      "cue": "What are the value-size limits for Parameter Store standard and advanced tiers?",
+      "answer": "Standard parameters are up to 4 KB with 10,000 parameters per account per Region at no cost; advanced parameters are up to 8 KB, are chargeable, and support parameter policies such as expiration",
+      "why": "A payload larger than 4 KB or the need for expiry and no-change notification policies forces the advanced tier. Tier changes are one-way in practice for policy-bearing parameters.",
+      "distractors": [
+        "Standard up to 8 KB and advanced up to 16 KB",
+        "Standard up to 4 KB and advanced up to 64 KB",
+        "Both tiers up to 4 KB, differing only in throughput"
+      ]
+    },
+    {
+      "id": "RR-069",
+      "domain": "D3",
+      "kind": "number",
+      "cue": "What is the maximum CloudFormation template size when passed directly versus stored in S3?",
+      "answer": "51,200 bytes when passed inline in the API call, and 1 MB when referenced from an S3 URL",
+      "why": "Large templates hit the inline limit first, which is a standard reason to split into nested stacks or upload to S3. Resource count per stack is capped separately at 500.",
+      "distractors": [
+        "460,800 bytes inline and 1 MB from S3",
+        "51,200 bytes inline and 460,800 bytes from S3",
+        "1 MB inline and 5 MB from S3"
+      ]
+    },
+    {
+      "id": "RR-070",
+      "domain": "D3",
+      "kind": "number",
+      "cue": "What are the default minimum healthy percent and maximum percent for an ECS rolling update?",
+      "answer": "Minimum healthy percent 100 and maximum percent 200",
+      "why": "At those defaults a new task starts before an old one stops, so the service needs headroom for double the tasks. On EC2 launch type with a full cluster, the deployment stalls unless the minimum is lowered.",
+      "distractors": [
+        "Minimum healthy percent 50 and maximum percent 200",
+        "Minimum healthy percent 100 and maximum percent 150",
+        "Minimum healthy percent 0 and maximum percent 100"
+      ]
+    },
+    {
+      "id": "RR-071",
+      "domain": "D3",
+      "kind": "number",
+      "cue": "What is the default minimum healthy percentage during an Auto Scaling group instance refresh?",
+      "answer": "90 percent",
+      "why": "The refresh replaces instances in batches while keeping at least that share in service, so a small group may replace only one instance at a time. Lower it to speed up replacement at the cost of capacity.",
+      "distractors": [
+        "50 percent",
+        "100 percent",
+        "75 percent"
+      ]
+    },
+    {
+      "id": "RR-072",
+      "domain": "D3",
+      "kind": "number",
+      "cue": "Which outbound network access does a Systems Manager managed node require, and to which endpoints?",
+      "answer": "Outbound TCP 443 to the ssm, ssmmessages, and ec2messages endpoints - either via internet or NAT, or via interface VPC endpoints for those three services",
+      "why": "No inbound ports are needed at all. Missing ssmmessages is the classic cause of a node that registers but cannot start a Session Manager session.",
+      "distractors": [
+        "Inbound TCP 443 from the Systems Manager service prefix list",
+        "Outbound TCP 22 and 3389 to the ssm endpoints",
+        "Outbound TCP 443 to the ssm endpoint only"
+      ]
+    },
+    {
+      "id": "RR-073",
+      "domain": "D3",
+      "kind": "contrast",
+      "cue": "CloudFormation DeletionPolicy versus UpdateReplacePolicy.",
+      "answer": "DeletionPolicy controls what happens when the resource is removed from the stack or the stack is deleted; UpdateReplacePolicy controls what happens to the OLD resource when an update forces replacement - both accept Retain, Snapshot, or Delete",
+      "why": "Setting only DeletionPolicy leaves data unprotected during a replacing update. Databases and buckets usually need both set to Retain or Snapshot.",
+      "distractors": [
+        "DeletionPolicy applies during replacement; UpdateReplacePolicy applies on stack deletion",
+        "UpdateReplacePolicy accepts only Retain, while DeletionPolicy accepts all three values",
+        "Both apply only to stateful resources such as RDS and are ignored elsewhere"
+      ]
+    },
+    {
+      "id": "RR-074",
+      "domain": "D3",
+      "kind": "contrast",
+      "cue": "CloudFormation change sets versus drift detection.",
+      "answer": "A change set previews what a proposed template or parameter update would do BEFORE execution; drift detection reports how deployed resources differ from the template because of out-of-band changes ALREADY made",
+      "why": "Change sets are forward-looking risk control; drift detection is backward-looking configuration audit. Drift results are point-in-time and must be re-run.",
+      "distractors": [
+        "Change sets report out-of-band modifications; drift detection previews updates",
+        "Both preview updates, but drift detection also executes the change",
+        "Change sets apply only to StackSets; drift detection applies only to single stacks"
+      ]
+    },
+    {
+      "id": "RR-075",
+      "domain": "D3",
+      "kind": "contrast",
+      "cue": "Nested stacks versus cross-stack references with Export and Fn::ImportValue.",
+      "answer": "Nested stacks are child stacks owned and lifecycle-managed by one parent, good for reusable components; cross-stack exports share values between independent stacks with separate lifecycles, but an export cannot be modified or deleted while another stack imports it",
+      "why": "The import lock is the operational pain point - you must delete the importing stack first. Exports are also Region-scoped and must have unique names per account and Region.",
+      "distractors": [
+        "Nested stacks share values across independent stacks; exports create parent-child ownership",
+        "Exports can be updated freely while imported, but nested stacks cannot be updated independently",
+        "Nested stacks work across Regions; exports are limited to a single account"
+      ]
+    },
+    {
+      "id": "RR-076",
+      "domain": "D3",
+      "kind": "contrast",
+      "cue": "Systems Manager Inventory versus AWS Config for tracking configuration.",
+      "answer": "SSM Inventory collects in-guest software and OS metadata (installed applications, patches, network config, custom inventory) from managed nodes; AWS Config records AWS resource configuration state and relationships over time and evaluates compliance rules",
+      "why": "What version of the agent is installed on the instance is Inventory; whether the security group allows 0.0.0.0/0 is Config. Config also provides the configuration timeline and change history.",
+      "distractors": [
+        "Inventory records AWS resource configuration history; Config collects in-guest software metadata",
+        "Both collect in-guest software, but Config additionally supports patch compliance",
+        "Inventory evaluates compliance rules; Config only stores raw snapshots"
+      ]
+    },
+    {
+      "id": "RR-077",
+      "domain": "D3",
+      "kind": "spot_the_trap",
+      "cue": "A stack sits in ROLLBACK_COMPLETE and the engineer tries to fix the template and update the stack.",
+      "answer": "The trap is trying to update; a stack in ROLLBACK_COMPLETE cannot be updated - it must be deleted and recreated (ROLLBACK_COMPLETE follows a failed CREATE, so there is no prior good state to update)",
+      "why": "Contrast with UPDATE_ROLLBACK_COMPLETE, which is a healthy state that can be updated normally. Only the failed-creation rollback state is terminal.",
+      "distractors": [
+        "The stack must be moved to UPDATE_ROLLBACK_COMPLETE with ContinueUpdateRollback first",
+        "The stack must have termination protection disabled before it can be updated",
+        "The stack must be updated with a change set rather than a direct update"
+      ]
+    },
+    {
+      "id": "RR-078",
+      "domain": "D3",
+      "kind": "spot_the_trap",
+      "cue": "A stack is stuck in UPDATE_ROLLBACK_FAILED because one resource cannot roll back.",
+      "answer": "The trap is deleting the stack; call ContinueUpdateRollback and use ResourcesToSkip for the resources that cannot roll back, then reconcile those resources manually",
+      "why": "Skipped resources are left in their current state and the stack reaches UPDATE_ROLLBACK_COMPLETE, after which normal updates work again. Fix the underlying cause (usually permissions or a manual change) first.",
+      "distractors": [
+        "Delete the stack and redeploy from the last known good template",
+        "Run drift detection and then execute a change set with the corrected template",
+        "Disable rollback on the stack and repeat the failed update"
+      ]
+    },
+    {
+      "id": "RR-079",
+      "domain": "D3",
+      "kind": "spot_the_trap",
+      "cue": "A network stack update fails with an error that an export cannot be updated because it is in use.",
+      "answer": "The trap is expecting a normal update; an exported output value cannot be changed or removed while any stack imports it - update or delete the importing stacks first, then change the export",
+      "why": "This is the main operational cost of cross-stack exports versus SSM Parameter Store lookups, which have no such lock.",
+      "distractors": [
+        "Exports can only be updated from the account that owns the importing stack",
+        "The export must be renamed with a unique suffix before it can be changed",
+        "The importing stack must be moved into a StackSet before the export can change"
+      ]
+    },
+    {
+      "id": "RR-080",
+      "domain": "D3",
+      "kind": "spot_the_trap",
+      "cue": "A stack reports CREATE_COMPLETE for an instance while the application bootstrap is still running and later fails.",
+      "answer": "The trap is treating resource creation as application readiness; add a CreationPolicy and have the instance call cfn-signal on successful bootstrap so CloudFormation waits for the signal or times out",
+      "why": "Without a CreationPolicy or WaitCondition, CloudFormation only knows the API call succeeded. UpdatePolicy plays the equivalent role for Auto Scaling group rolling updates.",
+      "distractors": [
+        "Add a DependsOn attribute pointing at the instance resource",
+        "Set the stack rollback configuration with a monitoring time window",
+        "Use cfn-hup to detect metadata changes after creation"
+      ]
+    },
+    {
+      "id": "RR-081",
+      "domain": "D3",
+      "kind": "symptom_to_fix",
+      "cue": "Newly launched instances do not appear in Systems Manager Fleet Manager as managed nodes.",
+      "answer": "Check the three prerequisites in order - SSM Agent installed and running, an instance profile granting AmazonSSMManagedInstanceCore, and a network path on TCP 443 to the ssm, ssmmessages, and ec2messages endpoints (NAT, internet, or interface endpoints)",
+      "why": "Almost every SSM visibility question resolves to agent, role, or network path. The agent log on the instance names which one is failing.",
+      "distractors": [
+        "Enable EC2 detailed monitoring so the agent can report status",
+        "Register the instances manually with a hybrid activation code",
+        "Add the instances to a resource group before they can be managed"
+      ]
+    },
+    {
+      "id": "RR-082",
+      "domain": "D3",
+      "kind": "symptom_to_fix",
+      "cue": "Stack deletion fails with DELETE_FAILED on an S3 bucket resource.",
+      "answer": "The bucket is not empty - CloudFormation cannot delete a bucket containing objects or versions; empty it (including noncurrent versions and delete markers) and retry, or set a DeletionPolicy of Retain",
+      "why": "Retained resources and resources with dependencies outside the stack are the other common DELETE_FAILED causes. Deletion can also be retried while skipping the failing resource.",
+      "distractors": [
+        "The bucket policy denies the CloudFormation service principal",
+        "Termination protection is enabled on the stack",
+        "The bucket has a lifecycle configuration that must be removed first"
+      ]
+    },
+    {
+      "id": "RR-083",
+      "domain": "D3",
+      "kind": "symptom_to_fix",
+      "cue": "A stack rolls back with an error stating there are not enough free addresses in the subnet.",
+      "answer": "The subnet CIDR is too small for the requested instances or ENIs - deploy into a larger subnet or add subnets in additional Availability Zones, remembering AWS reserves 5 addresses in every subnet",
+      "why": "Subnet CIDRs cannot be resized after creation, so the fix is a new or additional subnet. Elastic network interfaces from managed services consume addresses too.",
+      "distractors": [
+        "Add a secondary CIDR block to the VPC and the subnet expands automatically",
+        "Release unused Elastic IP addresses in the account",
+        "Increase the VPC ENI service quota through Service Quotas"
+      ]
+    },
+    {
+      "id": "RR-084",
+      "domain": "D3",
+      "kind": "symptom_to_fix",
+      "cue": "A docker push to a private Amazon ECR repository fails with no basic auth credentials.",
+      "answer": "The Docker client is not authenticated - run aws ecr get-login-password and pipe it to docker login against the registry URI, and confirm the caller has ecr:GetAuthorizationToken plus push permissions",
+      "why": "ECR authorization tokens are short-lived (12 hours) so CI systems must re-authenticate each run. The repository policy and the caller IAM policy must both allow the push.",
+      "distractors": [
+        "Enable enhanced scanning on the repository",
+        "Create a pull through cache rule for the registry",
+        "Add a lifecycle policy so the repository accepts new image tags"
+      ]
+    },
+    {
+      "id": "RR-085",
+      "domain": "D3",
+      "kind": "symptom_to_fix",
+      "cue": "Patch Manager reports a set of nodes as non-compliant even though patching ran without errors.",
+      "answer": "Check the Patch Group tag matches a baseline and that the baseline approval rules (auto-approval delay, severity and classification filters) actually approve the missing patches; unapproved patches are counted as missing",
+      "why": "A node with no matching patch group falls back to the default baseline for the OS. Compliance also reflects patches installed outside the approved list as installed-other.",
+      "distractors": [
+        "Re-register the nodes as managed nodes and re-run the maintenance window",
+        "Increase the maintenance window duration and cutoff",
+        "Enable SSM Inventory collection on the nodes before patching"
+      ]
+    },
+    {
+      "id": "RR-086",
+      "domain": "D3",
+      "kind": "symptom_to_fix",
+      "cue": "Pods in an EKS cluster get AccessDenied when calling S3, although the node role has S3 permissions.",
+      "answer": "Give the pod its own identity - configure IAM roles for service accounts (IRSA) or EKS Pod Identity and bind the role to the service account the pod uses",
+      "why": "Relying on the node instance role grants every pod on the node the same permissions and is the anti-pattern the exam tests. IRSA requires the cluster OIDC provider to be associated.",
+      "distractors": [
+        "Attach the S3 policy directly to the EKS cluster service role",
+        "Enable EKS control plane audit logging and retry the request",
+        "Add the pod security group to an S3 gateway endpoint policy"
+      ]
+    },
+    {
+      "id": "RR-087",
+      "domain": "D4",
+      "kind": "pick_service",
+      "cue": "Security wants a continuous report of S3 buckets, KMS keys, and IAM roles whose policies grant access to principals outside the organization.",
+      "answer": "IAM Access Analyzer external access analyzer, scoped to the organization as the zone of trust",
+      "why": "Access Analyzer uses automated reasoning over resource policies to prove which grants are external. Its unused access analyzer separately reports stale roles, users, and permissions.",
+      "distractors": [
+        "The IAM policy simulator run against each resource policy",
+        "AWS Config with the s3-bucket-public-read-prohibited managed rule",
+        "Amazon Macie sensitive data discovery jobs"
+      ]
+    },
+    {
+      "id": "RR-088",
+      "domain": "D4",
+      "kind": "pick_service",
+      "cue": "Any security group that is modified to allow 0.0.0.0/0 on port 22 must be detected and reverted automatically.",
+      "answer": "An AWS Config managed rule (restricted-ssh) with an automatic remediation action calling a Systems Manager Automation runbook",
+      "why": "Config evaluates on configuration change and can invoke Automation remediation directly, with retries. This is the standard low-code detect-and-remediate pattern on the exam.",
+      "distractors": [
+        "A GuardDuty finding routed through EventBridge to a Lambda function",
+        "A service control policy denying the AuthorizeSecurityGroupIngress action",
+        "A Trusted Advisor security check with weekly email notification"
+      ]
+    },
+    {
+      "id": "RR-089",
+      "domain": "D4",
+      "kind": "pick_service",
+      "cue": "Which service detects credential compromise, crypto-mining, and anomalous API behaviour by analysing CloudTrail, VPC Flow Logs, and DNS logs without deploying agents?",
+      "answer": "Amazon GuardDuty",
+      "why": "GuardDuty consumes those log sources natively without enabling or paying for them separately, and adds EKS audit, S3 data event, RDS login, and malware protection coverage.",
+      "distractors": [
+        "Amazon Inspector",
+        "AWS Security Hub",
+        "Amazon Detective"
+      ]
+    },
+    {
+      "id": "RR-090",
+      "domain": "D4",
+      "kind": "pick_service",
+      "cue": "The company must discover which S3 buckets contain personally identifiable information and classify the findings.",
+      "answer": "Amazon Macie",
+      "why": "Macie runs managed and custom data identifiers over S3 objects and reports sensitive data findings plus bucket-level public access and encryption posture.",
+      "distractors": [
+        "Amazon GuardDuty S3 protection",
+        "AWS Config with the s3-bucket-server-side-encryption-enabled rule",
+        "Amazon Inspector for S3"
+      ]
+    },
+    {
+      "id": "RR-091",
+      "domain": "D4",
+      "kind": "pick_service",
+      "cue": "EC2 instances, container images in ECR, and Lambda functions must be continuously scanned for known CVEs and unintended network exposure.",
+      "answer": "Amazon Inspector",
+      "why": "Inspector scans continuously (agent-based via SSM or agentless for EC2, on push and continuously for ECR, and code and package scanning for Lambda) and produces risk-scored findings.",
+      "distractors": [
+        "Amazon GuardDuty Malware Protection",
+        "AWS Security Hub Foundational Security Best Practices standard",
+        "AWS Systems Manager Patch Manager compliance scanning"
+      ]
+    },
+    {
+      "id": "RR-092",
+      "domain": "D4",
+      "kind": "pick_service",
+      "cue": "Findings from GuardDuty, Inspector, Macie, and Config across 40 accounts must be normalized into one format and scored against CIS and PCI standards.",
+      "answer": "AWS Security Hub, with a delegated administrator account and the relevant security standards enabled",
+      "why": "Security Hub normalizes findings into AWS Security Finding Format, deduplicates them, runs standards checks, and supports automation rules and cross-Region aggregation.",
+      "distractors": [
+        "AWS Config aggregators with conformance packs only",
+        "Amazon Detective behaviour graphs",
+        "AWS Audit Manager assessments"
+      ]
+    },
+    {
+      "id": "RR-093",
+      "domain": "D4",
+      "kind": "pick_service",
+      "cue": "RDS database credentials must rotate every 30 days with no application downtime and no custom rotation code.",
+      "answer": "AWS Secrets Manager with the managed rotation function for the supported RDS engine",
+      "why": "Secrets Manager ships AWS-managed rotation Lambda functions for supported RDS, Redshift, and DocumentDB engines, and supports the alternating-users strategy for zero-downtime rotation.",
+      "distractors": [
+        "Parameter Store SecureString with a scheduled EventBridge rule",
+        "IAM database authentication with token refresh in the application",
+        "KMS automatic key rotation on the database encryption key"
+      ]
+    },
+    {
+      "id": "RR-094",
+      "domain": "D4",
+      "kind": "pick_service",
+      "cue": "Before deploying a new permissions boundary, the team wants to confirm whether a specific role could still call a specific API on a specific resource.",
+      "answer": "The IAM policy simulator, which evaluates identity policies, resource policies, boundaries, and SCPs against a chosen action",
+      "why": "The simulator is a dry-run evaluation with no API calls made. Access Analyzer policy validation checks syntax and best practice, but does not answer allow-or-deny for a specific call.",
+      "distractors": [
+        "IAM Access Analyzer policy validation",
+        "CloudTrail Event history filtered by error code",
+        "AWS Config with the iam-policy-no-statements-with-admin-access rule"
+      ]
+    },
+    {
+      "id": "RR-095",
+      "domain": "D4",
+      "kind": "number",
+      "cue": "What is the default rotation period when automatic key rotation is enabled on a KMS customer managed key?",
+      "answer": "Once per year (approximately every 365 days), with a configurable period between 90 and 2,560 days",
+      "why": "Rotation keeps the same key ID and ARN and retains old backing material for decryption, so nothing needs re-encrypting. AWS managed keys rotate on their own schedule and cannot be configured.",
+      "distractors": [
+        "Every 90 days, and it is not configurable",
+        "Every 3 years, configurable between 1 and 5 years",
+        "Every 30 days, configurable between 30 and 365 days"
+      ]
+    },
+    {
+      "id": "RR-096",
+      "domain": "D4",
+      "kind": "number",
+      "cue": "What minimum password length can be set in the IAM account password policy?",
+      "answer": "Any value from 6 to 128 characters",
+      "why": "The policy also controls character-type requirements, password expiry in days, reuse prevention of up to 24 previous passwords, and whether users may change their own password.",
+      "distractors": [
+        "Any value from 8 to 64 characters",
+        "Any value from 1 to 128 characters",
+        "Any value from 12 to 256 characters"
+      ]
+    },
+    {
+      "id": "RR-097",
+      "domain": "D4",
+      "kind": "number",
+      "cue": "How many Trusted Advisor check categories are there, and which support plan unlocks the full set?",
+      "answer": "Six categories - cost optimization, performance, security, fault tolerance, service limits, and operational excellence - with the full check set requiring Business, Enterprise On-Ramp, or Enterprise Support",
+      "why": "Basic and Developer plans get a limited free set, including the core security checks and all service quota checks. Programmatic access to the Trusted Advisor API also requires Business or higher.",
+      "distractors": [
+        "Five categories, with the full set requiring Developer Support or higher",
+        "Six categories, all available on every support plan",
+        "Four categories, with the full set requiring Enterprise Support only"
+      ]
+    },
+    {
+      "id": "RR-098",
+      "domain": "D4",
+      "kind": "number",
+      "cue": "How far ahead of expiry does ACM begin automatic renewal, and which certificates qualify?",
+      "answer": "Renewal begins about 60 days before expiry, and only for ACM-issued certificates that are DNS-validated (or email-validated with a response) and in use by an integrated service",
+      "why": "Imported certificates never auto-renew and must be re-imported manually. Track upcoming expiry with the ACM Certificate Approaching Expiration EventBridge event and the DaysToExpiry metric.",
+      "distractors": [
+        "Renewal begins 30 days before expiry, for all ACM certificates including imported ones",
+        "Renewal begins 90 days before expiry, only for email-validated certificates",
+        "Renewal begins 7 days before expiry, only for certificates attached to CloudFront"
+      ]
+    },
+    {
+      "id": "RR-099",
+      "domain": "D4",
+      "kind": "contrast",
+      "cue": "Service control policies versus IAM identity policies.",
+      "answer": "An SCP is a permissions guardrail that sets the maximum available permissions for accounts in an OU and never grants anything; an IAM identity policy actually grants permissions to a principal - effective access is the intersection",
+      "why": "An action allowed in IAM but absent from the SCP is denied. SCPs do not apply to the management account or to service-linked roles.",
+      "distractors": [
+        "SCPs grant permissions to every principal in the account; IAM policies restrict them",
+        "SCPs apply to resource policies only; IAM policies apply to principals only",
+        "SCPs override explicit denies in IAM policies"
+      ]
+    },
+    {
+      "id": "RR-100",
+      "domain": "D4",
+      "kind": "contrast",
+      "cue": "Secrets Manager versus Parameter Store SecureString.",
+      "answer": "Secrets Manager adds built-in scheduled rotation (managed for supported databases), cross-Region replication, and resource policies, and charges per secret per month; Parameter Store SecureString is free at the standard tier with KMS encryption and hierarchy but no native rotation",
+      "why": "Rotation requirement is the deciding fact. Cost-sensitive static configuration with no rotation requirement goes to Parameter Store.",
+      "distractors": [
+        "Parameter Store provides managed database rotation; Secrets Manager does not",
+        "Only Parameter Store supports KMS encryption; Secrets Manager uses its own encryption",
+        "Secrets Manager is free for the first 10,000 secrets; Parameter Store is always chargeable"
+      ]
+    },
+    {
+      "id": "RR-101",
+      "domain": "D4",
+      "kind": "contrast",
+      "cue": "AWS managed KMS keys versus customer managed keys.",
+      "answer": "AWS managed keys (aws/service aliases) are created and rotated by the service, have a key policy you cannot edit, and cannot be shared across accounts; customer managed keys let you set the key policy, grants, rotation period, and cross-account use",
+      "why": "Any requirement involving cross-account sharing, custom key policy, grants, or key deletion control forces a customer managed key. AWS owned keys are invisible entirely.",
+      "distractors": [
+        "AWS managed keys can be shared cross-account; customer managed keys cannot",
+        "Only AWS managed keys support automatic rotation",
+        "Customer managed keys cannot be used with EBS or S3 default encryption"
+      ]
+    },
+    {
+      "id": "RR-102",
+      "domain": "D4",
+      "kind": "contrast",
+      "cue": "AWS Config versus AWS CloudTrail during an investigation.",
+      "answer": "CloudTrail answers who made the API call, when, and from where; Config answers what the resource configuration was at a point in time and whether it complies with rules",
+      "why": "Config gives the configuration timeline and relationships; CloudTrail gives the actor and request parameters. Investigations normally need both.",
+      "distractors": [
+        "Config records the API caller identity; CloudTrail records resource configuration history",
+        "Both record API calls, but Config retains them for 90 days",
+        "CloudTrail evaluates compliance rules; Config delivers the audit log to S3"
+      ]
+    },
+    {
+      "id": "RR-103",
+      "domain": "D4",
+      "kind": "spot_the_trap",
+      "cue": "A team tries to share an encrypted EBS snapshot with another account and the share option is unavailable.",
+      "answer": "The trap is the key; a snapshot encrypted with the default aws/ebs AWS managed key can never be shared - copy the snapshot re-encrypting with a customer managed key, share the snapshot, and grant the other account use of that key in the key policy",
+      "why": "The same rule blocks sharing AMIs backed by default-key-encrypted snapshots. Unencrypted snapshots can be shared or made public directly.",
+      "distractors": [
+        "The snapshot must be copied to the destination Region before it can be shared",
+        "The snapshot must be converted to an AMI before cross-account sharing is possible",
+        "Snapshot sharing requires both accounts to be in the same AWS Organization"
+      ]
+    },
+    {
+      "id": "RR-104",
+      "domain": "D4",
+      "kind": "spot_the_trap",
+      "cue": "A KMS key policy was updated to allow a role in another account, but calls from that account still fail with AccessDenied.",
+      "answer": "The trap is thinking one policy is enough; cross-account KMS use requires BOTH the key policy in the key owner account and an IAM policy in the caller account granting the kms actions on that key ARN",
+      "why": "KMS is one of the services where the resource policy alone is insufficient across accounts. Grants are the alternative for temporary, more granular delegation.",
+      "distractors": [
+        "The key must have automatic rotation enabled before cross-account use",
+        "The key must be replicated as a multi-Region key into the caller account",
+        "The caller must assume a role in the key owner account; direct cross-account use is not supported"
+      ]
+    },
+    {
+      "id": "RR-105",
+      "domain": "D4",
+      "kind": "symptom_to_fix",
+      "cue": "A user has an IAM policy that explicitly allows the action, but every call returns AccessDenied.",
+      "answer": "Something above the identity policy is denying it - check for an SCP that does not allow the action, a permissions boundary, a session policy, an explicit Deny in any attached policy, or a resource policy denial; confirm with the policy simulator and the CloudTrail error detail",
+      "why": "Explicit deny always wins, and SCPs and boundaries cap rather than grant. The CloudTrail errorMessage usually names which layer denied the call.",
+      "distractors": [
+        "Attach the AdministratorAccess policy temporarily to confirm the permissions work",
+        "Recreate the access keys because the credentials have expired",
+        "Enable MFA on the account so the condition key evaluates correctly"
+      ]
+    },
+    {
+      "id": "RR-106",
+      "domain": "D4",
+      "kind": "symptom_to_fix",
+      "cue": "An ACM certificate has been stuck in Pending validation for two days.",
+      "answer": "Validation records are missing or wrong - create the exact ACM-provided CNAME record in the correct public hosted zone (ACM can write it directly for Route 53 zones), and confirm the domain resolves publicly",
+      "why": "Requests expire after 72 hours if unvalidated, requiring a new certificate. Email validation instead requires someone to click the link sent to the domain contact addresses.",
+      "distractors": [
+        "Request the certificate again in us-east-1 so validation can complete",
+        "Attach the certificate to a load balancer to trigger validation",
+        "Enable certificate transparency logging on the request"
+      ]
+    },
+    {
+      "id": "RR-107",
+      "domain": "D5",
+      "kind": "pick_service",
+      "cue": "Before a change window, the team must prove whether traffic can flow from an application ENI to a database ENI, without sending any packets.",
+      "answer": "VPC Reachability Analyzer",
+      "why": "Reachability Analyzer performs static configuration analysis over route tables, security groups, NACLs, and gateways and names the blocking component when the path is unreachable.",
+      "distractors": [
+        "VPC Flow Logs filtered on REJECT records",
+        "Amazon CloudWatch Network Monitor probes",
+        "VPC Traffic Mirroring to a packet analysis appliance"
+      ]
+    },
+    {
+      "id": "RR-108",
+      "domain": "D5",
+      "kind": "pick_service",
+      "cue": "On-premises servers over a VPN must resolve names in a Route 53 private hosted zone.",
+      "answer": "A Route 53 Resolver inbound endpoint in the VPC, with on-premises DNS forwarding the zone to the endpoint IP addresses",
+      "why": "Inbound means queries coming into the VPC from on premises. It gives on-premises resolvers a reachable target inside the VPC for the Route 53 Resolver.",
+      "distractors": [
+        "A Route 53 Resolver outbound endpoint with a forwarding rule",
+        "A Route 53 Resolver DNS Firewall rule group associated with the VPC",
+        "A conditional forwarder pointing at the VPC base plus two address"
+      ]
+    },
+    {
+      "id": "RR-109",
+      "domain": "D5",
+      "kind": "pick_service",
+      "cue": "EC2 instances in a VPC must resolve names held on an on-premises Active Directory DNS server.",
+      "answer": "A Route 53 Resolver outbound endpoint with a forwarding rule for the on-premises domain, associated with the VPC",
+      "why": "Outbound means queries leaving the VPC toward on premises. Forwarding rules can be shared to other accounts through AWS RAM.",
+      "distractors": [
+        "A Route 53 Resolver inbound endpoint in the VPC",
+        "A DHCP option set pointing instances at the on-premises DNS servers only",
+        "A Route 53 private hosted zone with matching records maintained by a sync job"
+      ]
+    },
+    {
+      "id": "RR-110",
+      "domain": "D5",
+      "kind": "pick_service",
+      "cue": "Outbound DNS queries from a VPC to known malicious or unapproved domains must be blocked and logged.",
+      "answer": "Route 53 Resolver DNS Firewall with domain lists and rule groups associated to the VPC",
+      "why": "DNS Firewall filters at the Resolver, so it stops name resolution for blocked domains and can alert, block, or return NODATA. Network Firewall filters packets, not resolver queries.",
+      "distractors": [
+        "AWS Network Firewall with a domain-based stateful rule group",
+        "AWS WAF with a managed rule group for malicious domains",
+        "A network ACL denying outbound UDP port 53"
+      ]
+    },
+    {
+      "id": "RR-111",
+      "domain": "D5",
+      "kind": "pick_service",
+      "cue": "A non-HTTP TCP and UDP workload in two Regions needs static anycast entry points and fast failover, with clients that cache DNS aggressively.",
+      "answer": "AWS Global Accelerator with an accelerator, listeners, and endpoint groups in both Regions",
+      "why": "Global Accelerator gives two static anycast IPs, enters the AWS backbone at the nearest edge, and shifts traffic on health check failure without any DNS change. That defeats client DNS caching.",
+      "distractors": [
+        "Amazon CloudFront with a custom origin and origin failover",
+        "Route 53 latency-based routing with health checks",
+        "A Network Load Balancer with cross-Region target groups"
+      ]
+    },
+    {
+      "id": "RR-112",
+      "domain": "D5",
+      "kind": "pick_service",
+      "cue": "Private-subnet instances must reach Amazon S3 without a NAT gateway, and the team wants to eliminate the per-GB NAT data charge.",
+      "answer": "An S3 gateway VPC endpoint, added as a route in the private subnet route tables",
+      "why": "Gateway endpoints for S3 and DynamoDB have no hourly or data charge and work through route table prefix lists. Interface endpoints for S3 exist but bill hourly and per GB.",
+      "distractors": [
+        "An S3 interface VPC endpoint with private DNS enabled",
+        "A NAT instance sized for the traffic instead of a NAT gateway",
+        "An AWS PrivateLink endpoint service fronted by a Network Load Balancer"
+      ]
+    },
+    {
+      "id": "RR-113",
+      "domain": "D5",
+      "kind": "number",
+      "cue": "How many IP addresses does AWS reserve in every VPC subnet, and how many are usable in a /24?",
+      "answer": "5 reserved (network address, VPC router, DNS, future use, broadcast), leaving 251 usable in a /24",
+      "why": "Subnet sizing questions expect you to subtract 5 before counting instances and service ENIs. A /28 yields only 11 usable addresses.",
+      "distractors": [
+        "4 reserved, leaving 252 usable in a /24",
+        "3 reserved, leaving 253 usable in a /24",
+        "5 reserved, leaving 250 usable in a /24"
+      ]
+    },
+    {
+      "id": "RR-114",
+      "domain": "D5",
+      "kind": "number",
+      "cue": "What are the smallest and largest CIDR block sizes allowed for a VPC and its subnets?",
+      "answer": "Between /28 (smallest) and /16 (largest) for both the VPC CIDR and each subnet",
+      "why": "A VPC CIDR cannot be resized, but secondary CIDR blocks can be added. Subnet CIDRs can never be changed after creation.",
+      "distractors": [
+        "Between /30 and /16",
+        "Between /28 and /8",
+        "Between /24 and /16"
+      ]
+    },
+    {
+      "id": "RR-115",
+      "domain": "D5",
+      "kind": "number",
+      "cue": "Which port range must a network ACL allow outbound so that responses to inbound requests can return?",
+      "answer": "Ephemeral ports 1024-65535",
+      "why": "NACLs are stateless, so return traffic needs an explicit rule in the opposite direction. Security groups are stateful and need no such rule.",
+      "distractors": [
+        "Ports 0-1023",
+        "Ports 32768-60999 only",
+        "Only the original destination port"
+      ]
+    },
+    {
+      "id": "RR-116",
+      "domain": "D5",
+      "kind": "number",
+      "cue": "What aggregation intervals can VPC Flow Logs use, and which is the default?",
+      "answer": "10 minutes by default, or 1 minute if maximum aggregation interval is set to 60 seconds",
+      "why": "The 10-minute default explains why records seem to lag during a live investigation. Flow logs also never capture certain traffic such as instance metadata service and Amazon DNS server traffic.",
+      "distractors": [
+        "5 minutes by default, or 1 minute optionally",
+        "1 minute by default, or 10 minutes optionally",
+        "15 minutes by default, or 5 minutes optionally"
+      ]
+    },
+    {
+      "id": "RR-117",
+      "domain": "D5",
+      "kind": "number",
+      "cue": "What are the default and maximum TTL values for a CloudFront cache behavior when the origin sends no cache-control headers?",
+      "answer": "Default TTL 86,400 seconds (24 hours), maximum TTL 31,536,000 seconds (365 days), minimum TTL 0",
+      "why": "Origin Cache-Control or Expires headers win within the min and max bounds; the default TTL applies only when the origin sends none. Setting minimum TTL above 0 will override shorter origin directives.",
+      "distractors": [
+        "Default 3,600 seconds, maximum 86,400 seconds, minimum 0",
+        "Default 86,400 seconds, maximum 604,800 seconds, minimum 60",
+        "Default 0 seconds, maximum 31,536,000 seconds, minimum 0"
+      ]
+    },
+    {
+      "id": "RR-118",
+      "domain": "D5",
+      "kind": "contrast",
+      "cue": "Security groups versus network ACLs.",
+      "answer": "Security groups are stateful, attach to ENIs, support allow rules only, and evaluate all rules; NACLs are stateless, attach to subnets, support allow and deny rules, and evaluate rules in numbered order until a match",
+      "why": "Only NACLs can block a specific IP address. Only NACLs require explicit ephemeral-port return rules.",
+      "distractors": [
+        "Security groups are stateless and subnet-level; NACLs are stateful and ENI-level",
+        "Both are stateful, but only NACLs support deny rules",
+        "Security groups evaluate rules in numbered order; NACLs evaluate all rules together"
+      ]
+    },
+    {
+      "id": "RR-119",
+      "domain": "D5",
+      "kind": "contrast",
+      "cue": "Gateway VPC endpoints versus interface VPC endpoints.",
+      "answer": "Gateway endpoints exist only for S3 and DynamoDB, are configured as route table targets, and are free; interface endpoints (PrivateLink) create an ENI with a private IP in each subnet, support most services and cross-account endpoint services, and bill per hour and per GB",
+      "why": "Gateway endpoints are not reachable from on premises over VPN or Direct Connect; interface endpoints are. That is the usual discriminator in hybrid scenarios.",
+      "distractors": [
+        "Gateway endpoints create an ENI in each subnet; interface endpoints add a route table entry",
+        "Gateway endpoints work for all AWS services; interface endpoints are limited to S3 and DynamoDB",
+        "Both are reachable from on premises, but only gateway endpoints support endpoint policies"
+      ]
+    },
+    {
+      "id": "RR-120",
+      "domain": "D5",
+      "kind": "contrast",
+      "cue": "Route 53 alias records versus CNAME records.",
+      "answer": "Alias records are a Route 53 extension that can be created at the zone apex, point to AWS resources such as ALB, CloudFront, and S3 website endpoints, are free to query, and support evaluate target health; CNAMEs cannot exist at the apex and are billed as normal queries",
+      "why": "A requirement to map example.com (not www.example.com) to a load balancer forces an alias record. Aliases also follow the target resource IP changes automatically.",
+      "distractors": [
+        "CNAME records can be created at the zone apex; alias records cannot",
+        "Alias records require a TTL to be set explicitly; CNAMEs inherit the zone default",
+        "Alias records can point to any external hostname; CNAMEs work only with AWS resources"
+      ]
+    },
+    {
+      "id": "RR-121",
+      "domain": "D5",
+      "kind": "contrast",
+      "cue": "CloudFront cache policy versus origin request policy.",
+      "answer": "The cache policy defines what goes into the cache key (headers, cookies, query strings) and the TTLs; the origin request policy defines what is forwarded to the origin WITHOUT becoming part of the cache key",
+      "why": "Forward a header the origin needs but that would fragment the cache by putting it in the origin request policy only. Adding it to the cache policy multiplies cache entries and lowers hit ratio.",
+      "distractors": [
+        "The origin request policy defines the cache key; the cache policy defines what is forwarded",
+        "Both define the cache key, but only the origin request policy sets TTLs",
+        "The cache policy applies to the viewer request; the origin request policy applies to the viewer response"
+      ]
+    },
+    {
+      "id": "RR-122",
+      "domain": "D5",
+      "kind": "spot_the_trap",
+      "cue": "VPC A is peered with VPC B, and VPC B is peered with VPC C. Traffic from A to C fails.",
+      "answer": "The trap is transitivity; VPC peering is not transitive - A must peer directly with C, or all three must attach to a Transit Gateway",
+      "why": "Peering also requires non-overlapping CIDRs and route table entries plus security group rules on BOTH sides. Transit Gateway is the answer whenever the topology grows beyond a handful of VPCs.",
+      "distractors": [
+        "Route propagation must be enabled on the peering connection",
+        "The peering connections must be in the same Availability Zone",
+        "Edge-to-edge routing must be enabled on VPC B"
+      ]
+    },
+    {
+      "id": "RR-123",
+      "domain": "D5",
+      "kind": "spot_the_trap",
+      "cue": "The CloudFront cache hit ratio is low, so the team runs invalidations more often.",
+      "answer": "The trap is invalidation; invalidations remove objects from cache and make the hit ratio worse - low hit ratio usually means the cache key includes too many headers, cookies, or query strings, or TTLs are too short",
+      "why": "Trim the cache policy to only what varies the response, move the rest into the origin request policy, and raise TTLs or set origin Cache-Control headers.",
+      "distractors": [
+        "The origin is not sending Cache-Control headers, so nothing is cached at all",
+        "The distribution price class excludes the edge locations serving most viewers",
+        "Compression is disabled, so objects exceed the maximum cacheable size"
+      ]
+    },
+    {
+      "id": "RR-124",
+      "domain": "D5",
+      "kind": "spot_the_trap",
+      "cue": "An interface VPC endpoint for Secrets Manager was created, but applications still resolve the public endpoint name.",
+      "answer": "The trap is assuming the endpoint is transparent; enable private DNS on the interface endpoint (which needs enableDnsSupport and enableDnsHostnames on the VPC) and allow inbound TCP 443 to the endpoint security group",
+      "why": "Without private DNS the service hostname still resolves publicly and traffic leaves through the NAT gateway. The endpoint-specific DNS name would otherwise have to be coded into the application.",
+      "distractors": [
+        "Add the endpoint prefix list to the private subnet route tables",
+        "Attach an endpoint policy allowing the secretsmanager actions",
+        "Recreate the endpoint in every Availability Zone used by the workload"
+      ]
+    },
+    {
+      "id": "RR-125",
+      "domain": "D5",
+      "kind": "spot_the_trap",
+      "cue": "A NAT gateway was created in the same private subnet as the application instances, and outbound internet access still fails.",
+      "answer": "The trap is placement; a public NAT gateway must live in a PUBLIC subnet whose route table sends 0.0.0.0/0 to the internet gateway, while the private subnet route table sends 0.0.0.0/0 to the NAT gateway",
+      "why": "The NAT gateway also needs an Elastic IP. NAT gateways are zonal, so per-AZ NAT gateways avoid both cross-AZ charges and an AZ-wide outage.",
+      "distractors": [
+        "The NAT gateway requires source/destination check to be disabled",
+        "The NAT gateway security group must allow outbound port 443",
+        "The private subnet needs an egress-only internet gateway in addition to the NAT gateway"
+      ]
+    },
+    {
+      "id": "RR-126",
+      "domain": "D5",
+      "kind": "symptom_to_fix",
+      "cue": "Flow logs for an instance show inbound records with ACCEPT and the matching outbound records with REJECT.",
+      "answer": "A network ACL is blocking the return traffic - security groups are stateful so they would never accept inbound and reject the response; add the ephemeral port range 1024-65535 to the outbound NACL rules",
+      "why": "The reverse pattern (inbound REJECT with no outbound record at all) points at the security group or an inbound NACL deny. This ACCEPT-then-REJECT signature is the classic NACL fingerprint.",
+      "distractors": [
+        "The security group is missing an outbound rule for the response traffic",
+        "The route table has no return route to the client subnet",
+        "The instance operating system firewall is dropping the response"
+      ]
+    },
+    {
+      "id": "RR-127",
+      "domain": "D5",
+      "kind": "symptom_to_fix",
+      "cue": "Instances in a private subnet cannot download OS updates from the internet, though DNS resolves correctly.",
+      "answer": "Check the private subnet route table has 0.0.0.0/0 pointing at a NAT gateway in a public subnet in the same AZ, and that the NAT gateway subnet routes 0.0.0.0/0 to an internet gateway",
+      "why": "This is a routing problem, not a security group problem, because security groups already allow all outbound by default. A gateway endpoint would only cover S3 and DynamoDB traffic.",
+      "distractors": [
+        "Assign public IP addresses to the instances so they can reach the internet",
+        "Add an inbound security group rule allowing HTTPS from 0.0.0.0/0",
+        "Attach an egress-only internet gateway to the VPC"
+      ]
+    },
+    {
+      "id": "RR-128",
+      "domain": "D5",
+      "kind": "symptom_to_fix",
+      "cue": "A newly launched EC2 instance in a public subnet cannot be reached from the internet, and the security group already allows the traffic.",
+      "answer": "Confirm the instance has a public IPv4 or Elastic IP address and that the subnet route table has a 0.0.0.0/0 route to an attached internet gateway; check the NACL allows both directions",
+      "why": "A subnet is only public because of the internet gateway route. Auto-assign public IPv4 is off by default on non-default subnets, which is the usual cause.",
+      "distractors": [
+        "Enable enableDnsHostnames on the VPC so the public DNS name resolves",
+        "Move the instance to a subnet in a different Availability Zone",
+        "Add a NAT gateway route to the public subnet route table"
+      ]
+    },
+    {
+      "id": "RR-129",
+      "domain": "D5",
+      "kind": "symptom_to_fix",
+      "cue": "CloudFront returns HTTP 403 AccessDenied for objects in a private S3 bucket origin.",
+      "answer": "Attach an origin access control (OAC) to the origin and update the bucket policy to allow the CloudFront service principal with the distribution ARN as the source, keeping Block Public Access on",
+      "why": "A 403 from an S3 origin means the object exists but CloudFront may not read it; a 404 means the object or path is wrong. Legacy OAI still works but OAC is the current mechanism and supports SSE-KMS.",
+      "distractors": [
+        "Disable S3 Block Public Access and make the objects publicly readable",
+        "Change the origin to the S3 static website endpoint and allow public reads",
+        "Create an invalidation for the affected object paths"
+      ]
+    },
+    {
+      "id": "RR-130",
+      "domain": "D5",
+      "kind": "symptom_to_fix",
+      "cue": "ELB access logging is enabled but no log files appear in the S3 bucket.",
+      "answer": "Fix the destination bucket - it must be in the same Region as the load balancer, and its bucket policy must allow the ELB log delivery principal to write to the configured prefix (with SSE-S3 or a KMS key the service can use)",
+      "why": "Access logs are delivered every 5 minutes and only when there is traffic, so an idle load balancer legitimately produces nothing. Enabling logging fails outright if the policy is wrong.",
+      "distractors": [
+        "Enable connection logs in addition to access logs on the listener",
+        "Increase the load balancer idle timeout so requests are logged on completion",
+        "Enable cross-zone load balancing so all nodes deliver their logs"
+      ]
+    }
+  ]
+}

@@ -391,7 +391,9 @@ function renderRecall(app) {
   const c = STATE.recallQueue[STATE.recallIdx];
   const boxes = [0, 1, 2].map(b => cards.filter(x => (STATE.recallBoxes[x.id]?.box || 0) === b).length);
   const doms = STATE.manifest.domains.map(d => d.id);
-  const filters = [['all', 'All'], ['weak', 'Weak only'], ...doms.map(d => [d, d]), ['pick_service', 'Pick service'], ['number', 'Numbers'], ['contrast', 'Contrast'], ['spot_the_trap', 'Spot trap']];
+  const kindLabels = { pick_service: 'Pick service', number: 'Numbers', contrast: 'Contrast', spot_the_trap: 'Spot trap', symptom_to_fix: 'Symptom → fix' };
+  const kinds = [...new Set(cards.map(c => c.kind).filter(Boolean))];
+  const filters = [['all', 'All'], ['weak', 'Weak only'], ...doms.map(d => [d, d]), ...kinds.map(k => [k, kindLabels[k] || k.replace(/_/g, ' ')])];
   let html = `<div class="sub-toggle"><button data-rm="pick" class="${STATE.recallMode === 'pick' ? 'active' : ''}">Pick (4 options)</button><button data-rm="flip" class="${STATE.recallMode === 'flip' ? 'active' : ''}">Flip card</button></div>
     <div class="sub-toggle">${filters.map(([k, l]) => `<button data-rf="${k}" class="${STATE.recallFilter === k ? 'active' : ''}">${l}</button>`).join('')}</div>
     <div class="box-bar"><span class="b0">New/missed ${boxes[0]}</span><span class="b1">Learning ${boxes[1]}</span><span class="b2">Mastered ${boxes[2]}</span><span style="margin-left:auto;background:transparent" class="streak">🔥 ${STATE.recallStreak}</span></div>`;
