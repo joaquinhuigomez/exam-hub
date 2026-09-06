@@ -1,0 +1,1327 @@
+{
+  "domain": "D1",
+  "title": "Monitoring, Logging, Analysis, Remediation, and Performance Optimization",
+  "questions": [
+    {
+      "id": "D1-Q001",
+      "type": "multiple_response",
+      "difficulty": "easy",
+      "tags": [
+        "cloudwatch-agent",
+        "ec2",
+        "iam",
+        "custom-metrics"
+      ],
+      "scenario": "A CloudOps engineer builds a CloudWatch dashboard for a fleet of Amazon Linux 2023 EC2 instances launched from a minimal base AMI. CPUUtilization, NetworkIn, and DiskReadOps appear normally, but no memory metric is ever available when creating an alarm, and the CWAgent namespace does not exist in the account.",
+      "stem": "Which two actions are required to make memory utilization available as a CloudWatch metric? (Choose two.)",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Install the CloudWatch agent on the instances and start it with an agent configuration file that includes the mem metrics section.",
+          "correct": true,
+          "why": "Memory is visible only from inside the guest OS, so the CloudWatch agent must collect mem_used_percent and publish it as a custom metric (default namespace CWAgent)."
+        },
+        {
+          "letter": "B",
+          "text": "Enable EC2 detailed monitoring so that the hypervisor publishes memory metrics every 1 minute.",
+          "correct": false,
+          "why": "Detailed monitoring only changes the publishing frequency of the existing hypervisor-visible metrics from 5 minutes to 1 minute; it never adds memory or in-guest disk usage metrics."
+        },
+        {
+          "letter": "C",
+          "text": "Create a CloudWatch Logs metric filter on the instances' system log group to extract memory values from /var/log/messages.",
+          "correct": false,
+          "why": "A metric filter can only extract values from log events that are already being shipped, and the OS does not write memory utilization to the system log in a parseable form by default."
+        },
+        {
+          "letter": "D",
+          "text": "Attach an instance profile to the instances that grants the CloudWatchAgentServerPolicy managed policy.",
+          "correct": true,
+          "why": "The agent needs cloudwatch:PutMetricData, logs write permissions, and ssm:GetParameter to publish; without the instance profile the agent starts but silently fails to publish."
+        },
+        {
+          "letter": "E",
+          "text": "Install the SSM Agent and enable Systems Manager Inventory so that memory usage is collected during the inventory scan.",
+          "correct": false,
+          "why": "Inventory collects software and configuration data, not time-series performance metrics, and it does not publish anything to CloudWatch metrics."
+        }
+      ],
+      "knowledge_point": "EC2 default metrics are hypervisor-visible only (CPU, network, EBS I/O, status checks). Memory, swap, in-guest disk used percent, and process metrics require the CloudWatch agent plus an instance profile with CloudWatchAgentServerPolicy.",
+      "trap_alert": "Detailed monitoring changes granularity, not the metric catalog. If the question says 'memory' or 'disk space used', the answer always involves the agent.",
+      "mnemonic": "Hypervisor sees the box, the agent sees inside the box.",
+      "doc_refs": [
+        "https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Install-CloudWatch-Agent.html",
+        "https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/create-iam-roles-for-cloudwatch-agent.html"
+      ]
+    },
+    {
+      "id": "D1-Q002",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": [
+        "cloudwatch-agent",
+        "systems-manager",
+        "parameter-store",
+        "run-command"
+      ],
+      "scenario": "A company runs 300 EC2 instances with the CloudWatch agent already installed. Engineers currently connect to instances individually and hand-edit /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json, and the configurations have drifted so that some instances report different metrics and namespaces. The team wants one authoritative configuration that can be pushed fleet-wide.",
+      "stem": "Which approach centralizes the agent configuration with the LEAST operational overhead?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Bake the agent configuration file into a new AMI with EC2 Image Builder and replace every instance from the new AMI.",
+          "correct": false,
+          "why": "It does produce consistency, but every configuration change then requires a new image build and a full fleet replacement, which is far more overhead than pushing a parameter."
+        },
+        {
+          "letter": "B",
+          "text": "Store the agent configuration JSON in an SSM Parameter Store parameter and apply it to the fleet with Run Command using the AmazonCloudWatch-ManageAgent document, which fetches the configuration from the parameter.",
+          "correct": true,
+          "why": "This is the documented pattern: one parameter holds the config, and the managed document fetches and applies it to any set of managed nodes, so updates are a single Run Command invocation."
+        },
+        {
+          "letter": "C",
+          "text": "Upload the configuration to an S3 bucket and add a cron job on each instance that downloads the file hourly and restarts the agent.",
+          "correct": false,
+          "why": "This is custom scripting that must be maintained on every instance, restarts the agent even when nothing changed, and provides no execution reporting or targeting."
+        },
+        {
+          "letter": "D",
+          "text": "Add the configuration file to EC2 user data and reboot all instances so the new file is written.",
+          "correct": false,
+          "why": "User data runs only at launch by default, so a reboot does not re-execute it, and this forces unnecessary downtime across the fleet."
+        }
+      ],
+      "knowledge_point": "The CloudWatch agent configuration belongs in SSM Parameter Store; Run Command with AmazonCloudWatch-ManageAgent (action configure, optionalConfigurationSource ssm) distributes it to managed nodes.",
+      "trap_alert": "Any answer that requires touching each instance directly, or rebuilding AMIs for a config change, is the high-overhead option on this exam.",
+      "mnemonic": "One parameter, one Run Command, whole fleet.",
+      "doc_refs": [
+        "https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/install-CloudWatch-Agent-on-EC2-Instance-fleet.html",
+        "https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/create-cloudwatch-agent-configuration-file.html"
+      ]
+    },
+    {
+      "id": "D1-Q003",
+      "type": "multiple_response",
+      "difficulty": "hard",
+      "tags": [
+        "eks",
+        "container-insights",
+        "managed-prometheus",
+        "managed-grafana"
+      ],
+      "scenario": "A platform team runs Amazon EKS with managed node groups. They need per-pod and per-container CPU and memory metrics in CloudWatch for alarming, and they also want to keep the PromQL dashboards their developers already wrote without operating self-managed Prometheus and Grafana servers on the cluster.",
+      "stem": "Which two actions meet these requirements? (Choose two.)",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Install the CloudWatch agent on the worker nodes using only the EC2 metrics section of the agent configuration.",
+          "correct": false,
+          "why": "That configuration collects node-level OS metrics only; it produces no pod, container, or Kubernetes namespace dimensions."
+        },
+        {
+          "letter": "B",
+          "text": "Deploy the Amazon CloudWatch Observability EKS add-on to enable Container Insights, and grant its service account an IAM role through EKS Pod Identity or IRSA with the CloudWatchAgentServerPolicy permissions.",
+          "correct": true,
+          "why": "The add-on runs the CloudWatch agent as a DaemonSet and emits Container Insights metrics at cluster, node, pod, and container level; the pod needs an IAM identity to publish, which is why the add-on fails silently without Pod Identity or IRSA."
+        },
+        {
+          "letter": "C",
+          "text": "Enable EC2 detailed monitoring on the managed node group so metrics are delivered every minute.",
+          "correct": false,
+          "why": "Detailed monitoring changes the granularity of instance-level metrics and gives no visibility into containers scheduled on those instances."
+        },
+        {
+          "letter": "D",
+          "text": "Create a CloudWatch Logs metric filter over the EKS control plane audit log group to extract container CPU and memory values.",
+          "correct": false,
+          "why": "Control plane audit logs record API calls to the Kubernetes API server, not kubelet resource utilization, so there is nothing to extract."
+        },
+        {
+          "letter": "E",
+          "text": "Send the cluster's Prometheus metrics to Amazon Managed Service for Prometheus and query them from Amazon Managed Grafana.",
+          "correct": true,
+          "why": "Managed Service for Prometheus provides a managed, PromQL-compatible ingestion and query endpoint, and Managed Grafana renders the existing dashboards, removing the need to run the servers yourself."
+        }
+      ],
+      "knowledge_point": "For EKS: Container Insights (via the CloudWatch Observability add-on) gives CloudWatch-native container metrics and alarms; Amazon Managed Service for Prometheus plus Managed Grafana preserves PromQL dashboards without self-managed servers. Pods always need an IAM identity (Pod Identity or IRSA) to write to AWS APIs.",
+      "trap_alert": "Node-level agent configuration looks like the same answer as Container Insights but produces no pod or container dimensions, so pod-level alarms are impossible.",
+      "mnemonic": "Add-on for containers, AMP+AMG for PromQL.",
+      "doc_refs": [
+        "https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/ContainerInsights.html",
+        "https://docs.aws.amazon.com/prometheus/latest/userguide/what-is-Amazon-Managed-Service-Prometheus.html"
+      ]
+    },
+    {
+      "id": "D1-Q004",
+      "type": "single_choice",
+      "difficulty": "easy",
+      "tags": [
+        "cloudwatch",
+        "alarms",
+        "detailed-monitoring",
+        "insufficient-data"
+      ],
+      "scenario": "An engineer creates a CloudWatch alarm on the AWS/EC2 CPUUtilization metric with a period of 60 seconds and 1 datapoint to alarm. The instances use default monitoring settings. The alarm alternates between INSUFFICIENT_DATA and brief OK states and never fires during a known CPU saturation event.",
+      "stem": "What is the MOST likely cause and the correct fix?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "The alarm treats missing data incorrectly; change the missing data treatment to notBreaching.",
+          "correct": false,
+          "why": "Changing missing-data treatment only decides how empty periods are evaluated; it does not create the datapoints the alarm needs to detect the saturation event."
+        },
+        {
+          "letter": "B",
+          "text": "The evaluation window is too short; change the alarm to 3 out of 5 datapoints with the same 60-second period.",
+          "correct": false,
+          "why": "Requiring more datapoints from a metric that publishes nothing in most 60-second periods makes the alarm even less likely to evaluate."
+        },
+        {
+          "letter": "C",
+          "text": "Basic monitoring publishes EC2 metrics every 5 minutes, so most 60-second periods have no datapoint; enable detailed monitoring so CPUUtilization is published every 1 minute.",
+          "correct": true,
+          "why": "An alarm period shorter than the metric's publishing interval leaves most periods empty; detailed monitoring delivers 1-minute EC2 metrics that match the 60-second period."
+        },
+        {
+          "letter": "D",
+          "text": "Install the CloudWatch agent to publish CPUUtilization as a high-resolution custom metric at 1-second granularity.",
+          "correct": false,
+          "why": "It would produce data, but it duplicates an existing AWS metric at added cost and effort; 1-second resolution is unnecessary when the alarm period is 60 seconds."
+        }
+      ],
+      "knowledge_point": "Alarm period must be greater than or equal to the metric's publishing interval. EC2 basic monitoring = 5 minutes (free), detailed monitoring = 1 minute (paid). Custom metrics are standard (60 s) or high resolution (1 s), and only high-resolution metrics support 10-second and 30-second alarm periods.",
+      "trap_alert": "A permanent INSUFFICIENT_DATA state usually means no data is arriving in the period, not that the missing-data setting is wrong.",
+      "mnemonic": "Period shorter than publishing interval = empty buckets.",
+      "doc_refs": [
+        "https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-cloudwatch-new.html",
+        "https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/publishingMetrics.html"
+      ]
+    },
+    {
+      "id": "D1-Q005",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": [
+        "cloudwatch",
+        "alarms",
+        "treat-missing-data",
+        "custom-metrics"
+      ],
+      "scenario": "A batch application calls PutMetricData for a custom metric named ProcessingErrors only when an error occurs, so on healthy days the metric receives no datapoints at all. An alarm with a threshold of greater than 0 over a 5-minute period does fire correctly when errors happen, but the rest of the time it sits in INSUFFICIENT_DATA and the on-call team assumes monitoring is broken.",
+      "stem": "What should the CloudOps engineer do so that the alarm shows OK during healthy periods, with the LEAST operational overhead?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Configure the alarm to treat missing data as notBreaching.",
+          "correct": true,
+          "why": "With notBreaching, periods with no datapoints are evaluated as within the threshold, so the alarm settles in OK when no errors are published and still moves to ALARM when a non-zero datapoint arrives."
+        },
+        {
+          "letter": "B",
+          "text": "Configure the alarm to treat missing data as breaching.",
+          "correct": false,
+          "why": "That inverts the requirement: quiet, healthy periods would be evaluated as threshold breaches and the alarm would page continuously."
+        },
+        {
+          "letter": "C",
+          "text": "Modify the application to publish a value of 0 for the metric every minute.",
+          "correct": false,
+          "why": "This does work and is a valid design, but it requires an application change and extra PutMetricData calls, which is more overhead than a single alarm setting."
+        },
+        {
+          "letter": "D",
+          "text": "Configure the alarm to treat missing data as ignore.",
+          "correct": false,
+          "why": "The ignore setting makes the alarm keep its current state during empty periods, so an alarm that has never had data simply stays in INSUFFICIENT_DATA."
+        }
+      ],
+      "knowledge_point": "treat-missing-data options: notBreaching (empty period counts as good), breaching (counts as bad), ignore (retain current state), missing (default: alarm goes to INSUFFICIENT_DATA if all evaluated periods are empty). Sparse metrics need notBreaching or a published zero.",
+      "trap_alert": "ignore does not force OK. It freezes the existing state, which for a brand-new alarm is INSUFFICIENT_DATA.",
+      "mnemonic": "Sparse metric plus notBreaching equals a quiet OK.",
+      "doc_refs": [
+        "https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/AlarmThatSendsEmail.html"
+      ]
+    },
+    {
+      "id": "D1-Q006",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": [
+        "cloudwatch",
+        "alarms",
+        "datapoints-to-alarm",
+        "alb"
+      ],
+      "scenario": "An alarm on the ALB TargetResponseTime metric uses a 60-second period, 1 evaluation period, and a 2-second threshold. A nightly reporting job creates a single-minute latency spike that pages the on-call engineer at 03:00 every night. Genuine sustained latency degradation must still be detected within about 5 minutes.",
+      "stem": "How should the engineer tune the alarm?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Raise the alarm threshold to 10 seconds.",
+          "correct": false,
+          "why": "A higher threshold suppresses the nightly spike but also hides real degradation between 2 and 10 seconds, which is exactly what the alarm exists to catch."
+        },
+        {
+          "letter": "B",
+          "text": "Change the period to 15 minutes with 1 datapoint to alarm.",
+          "correct": false,
+          "why": "Averaging over 15 minutes dilutes the spike but pushes detection of real incidents well past the 5-minute requirement."
+        },
+        {
+          "letter": "C",
+          "text": "Keep the 60-second period and set 5 evaluation periods with 3 datapoints to alarm.",
+          "correct": true,
+          "why": "M-of-N evaluation ignores an isolated 1-minute spike but moves to ALARM once 3 of the last 5 minutes breach, which is within the 5-minute detection window."
+        },
+        {
+          "letter": "D",
+          "text": "Set the alarm to treat missing data as ignore.",
+          "correct": false,
+          "why": "Missing-data treatment has no effect here; the metric is being published continuously and the problem is a genuine but transient breach."
+        }
+      ],
+      "knowledge_point": "Datapoints to alarm (M) out of evaluation periods (N) is the noise-suppression control. Raising the threshold or the period trades away sensitivity or detection speed; M-of-N keeps both.",
+      "trap_alert": "Lengthening the period looks like the same fix as M-of-N, but it breaks any stated detection-time requirement.",
+      "mnemonic": "M of N kills flapping without blinding the alarm.",
+      "doc_refs": [
+        "https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/AlarmThatSendsEmail.html"
+      ]
+    },
+    {
+      "id": "D1-Q007",
+      "type": "single_choice",
+      "difficulty": "hard",
+      "tags": [
+        "cloudwatch",
+        "composite-alarms",
+        "sns",
+        "alert-fatigue"
+      ],
+      "scenario": "A microservice has 40 CloudWatch alarms, each with an SNS action to the on-call topic. When a shared backend dependency degrades, roughly 30 of them enter ALARM within two minutes and the on-call engineer receives 30 pages. The team wants a single page when both the ALB 5XX alarm and the backend health alarm are in ALARM at the same time, while keeping every existing alarm visible on dashboards.",
+      "stem": "What should the CloudOps engineer implement with the LEAST operational overhead?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Delete the individual alarms and replace them with one metric math alarm that aggregates every underlying metric.",
+          "correct": false,
+          "why": "This destroys the per-signal detail the dashboards depend on, and a single metric math expression cannot reasonably express 40 different thresholds and statistics."
+        },
+        {
+          "letter": "B",
+          "text": "Create a composite alarm whose rule expression combines the child alarms (for example, ALARM(alb-5xx) AND ALARM(backend-health)), attach the SNS action to the composite alarm, and remove the notification actions from the child alarms.",
+          "correct": true,
+          "why": "A composite alarm evaluates a boolean rule over existing alarm states, so the children keep evaluating and showing on dashboards while exactly one actionable notification is sent."
+        },
+        {
+          "letter": "C",
+          "text": "Create an EventBridge rule on CloudWatch alarm state-change events that invokes a Lambda function to deduplicate notifications before publishing to SNS.",
+          "correct": false,
+          "why": "It can work but means writing, deploying, and maintaining deduplication logic and state, which is far more overhead than a native composite alarm."
+        },
+        {
+          "letter": "D",
+          "text": "Increase datapoints to alarm on all 40 child alarms so that fewer of them transition to ALARM.",
+          "correct": false,
+          "why": "This only delays each alarm; when the dependency stays degraded all 40 still fire and the on-call engineer still receives 30 pages."
+        }
+      ],
+      "knowledge_point": "Composite alarms combine child alarm states with AND/OR/NOT rule expressions to produce one actionable notification. Best practice is to remove actions from the children and put the action on the composite; composite alarms can also suppress notifications via an alarm suppressor.",
+      "trap_alert": "Composite alarms take alarm states as input, not metrics. Any answer that describes combining raw metrics is metric math, not a composite alarm.",
+      "mnemonic": "Metric math combines metrics; composite alarms combine alarms.",
+      "doc_refs": [
+        "https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Create_Composite_Alarm.html"
+      ]
+    },
+    {
+      "id": "D1-Q008",
+      "type": "single_choice",
+      "difficulty": "easy",
+      "tags": [
+        "ec2",
+        "status-checks",
+        "alarm-actions",
+        "auto-recovery"
+      ],
+      "scenario": "A single-instance legacy application becomes unreachable roughly once a month. Each time, CloudWatch shows StatusCheckFailed_System equal to 1 while StatusCheckFailed_Instance stays at 0, and AWS Support confirms underlying host issues. The application depends on keeping the same instance ID, private IP address, and attached Elastic IP address, and it uses only EBS volumes.",
+      "stem": "Which action automatically remediates the failure while preserving those attributes?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Create a CloudWatch alarm on StatusCheckFailed_System with the EC2 recover action.",
+          "correct": true,
+          "why": "A system status check failure indicates an impaired host; recovery migrates the instance to new underlying hardware and preserves instance ID, private IP, Elastic IP, and instance metadata."
+        },
+        {
+          "letter": "B",
+          "text": "Create a CloudWatch alarm on StatusCheckFailed_Instance with the EC2 reboot action.",
+          "correct": false,
+          "why": "It watches the wrong check: instance status failures are guest-OS or configuration problems, and rebooting does not move the instance off impaired hardware."
+        },
+        {
+          "letter": "C",
+          "text": "Create a CloudWatch alarm on StatusCheckFailed with the EC2 terminate action.",
+          "correct": false,
+          "why": "Terminating destroys the instance, its instance ID, and its private IP address, which violates the stated requirement."
+        },
+        {
+          "letter": "D",
+          "text": "Place the instance in an Auto Scaling group of one with ELB health checks so the instance is replaced automatically.",
+          "correct": false,
+          "why": "Replacement launches a brand-new instance with a different instance ID and private IP address, so the application's identity requirements are not met."
+        }
+      ],
+      "knowledge_point": "StatusCheckFailed_System = AWS-side host or network problem, remediate with recover (or stop/start). StatusCheckFailed_Instance = guest OS problem, remediate with reboot. StatusCheckFailed is the combined metric. Recovery keeps instance ID, private IP, Elastic IP, and metadata.",
+      "trap_alert": "Recover is not available for every instance type or for instance-store-backed instances, and it does not fix an OS-level hang, which is what the instance status check reports.",
+      "mnemonic": "System check = AWS's fault = recover; Instance check = your OS = reboot.",
+      "doc_refs": [
+        "https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/monitoring-system-instance-status-check.html",
+        "https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/UsingAlarmActions.html"
+      ]
+    },
+    {
+      "id": "D1-Q009",
+      "type": "multiple_response",
+      "difficulty": "medium",
+      "tags": [
+        "sns",
+        "cloudwatch",
+        "kms",
+        "notifications",
+        "troubleshooting"
+      ],
+      "scenario": "A newly created CloudWatch alarm transitions to ALARM as expected and its history shows the SNS action, but the operations mailbox never receives the message. The SNS topic was created this morning with server-side encryption enabled using the AWS managed key for SNS, and the topic's NumberOfNotificationsFailed metric is non-zero.",
+      "stem": "Which two actions should the CloudOps engineer take to deliver the notifications? (Choose two.)",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Have the recipient open the AWS Notification confirmation message and confirm the email subscription.",
+          "correct": true,
+          "why": "An email subscription stays in PendingConfirmation until the recipient clicks the confirmation link, and SNS delivers nothing to an unconfirmed subscription."
+        },
+        {
+          "letter": "B",
+          "text": "Change the alarm period to 1 minute so notifications are published more frequently.",
+          "correct": false,
+          "why": "Publishing frequency is irrelevant; the alarm already published and the failure happened on the SNS side."
+        },
+        {
+          "letter": "C",
+          "text": "Re-create the topic encryption using a customer managed KMS key and grant the cloudwatch.amazonaws.com service principal kms:GenerateDataKey* and kms:Decrypt in the key policy.",
+          "correct": true,
+          "why": "AWS managed keys cannot have their key policy edited, so an AWS service such as CloudWatch cannot publish to a topic encrypted with one; a customer managed key with the service principal allowed is required."
+        },
+        {
+          "letter": "D",
+          "text": "Attach an IAM policy granting sns:Receive to the on-call engineers' IAM users.",
+          "correct": false,
+          "why": "Email delivery is performed by SNS to an address, not by an IAM principal calling an API, so user permissions have no effect."
+        },
+        {
+          "letter": "E",
+          "text": "Set the alarm's missing data treatment to breaching so that the notification is retried.",
+          "correct": false,
+          "why": "Missing-data treatment affects alarm state evaluation only and provides no retry behavior for SNS delivery."
+        }
+      ],
+      "knowledge_point": "Two classic causes of a missing alarm email: the subscription was never confirmed (PendingConfirmation), or the topic policy / SSE key policy does not allow the publishing service principal. AWS managed KMS keys have immutable key policies, so SSE topics that AWS services publish to need a customer managed key.",
+      "trap_alert": "The alarm turning red proves the alarm evaluated, not that the notification was delivered. Check the subscription state and the topic's NumberOfNotificationsFailed metric.",
+      "mnemonic": "Confirm the subscription, then check who is allowed to publish.",
+      "doc_refs": [
+        "https://docs.aws.amazon.com/sns/latest/dg/sns-key-management.html",
+        "https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/US_SetupSNS.html"
+      ]
+    },
+    {
+      "id": "D1-Q010",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": [
+        "cloudwatch-logs",
+        "subscription-filter",
+        "data-firehose",
+        "metric-filter"
+      ],
+      "scenario": "Application logs land in a CloudWatch Logs log group. A security team needs those events searchable in their central OpenSearch domain within seconds of being written. Today a scheduled Lambda function calls FilterLogEvents every hour, which is slow, misses events during high-volume periods, and is being throttled.",
+      "stem": "Which solution delivers the log events in near real time?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Create a metric filter on the log group that extracts the fields of interest and publishes them as custom metrics.",
+          "correct": false,
+          "why": "Metric filters convert matching log events into numeric metrics for alarming; they do not deliver the log events themselves anywhere."
+        },
+        {
+          "letter": "B",
+          "text": "Create a CloudWatch Logs subscription filter on the log group that streams matching events to Amazon Data Firehose, which delivers them to the destination.",
+          "correct": true,
+          "why": "Subscription filters push matching log events out of CloudWatch Logs in near real time to Lambda, Amazon Data Firehose, or OpenSearch, removing all polling."
+        },
+        {
+          "letter": "C",
+          "text": "Schedule CreateExportTask to export the log group to Amazon S3 and query the exported objects with Amazon Athena.",
+          "correct": false,
+          "why": "Export tasks are batch operations that can take up to 12 hours to make data available and are limited to one active export task per account, so they cannot meet a seconds-level requirement."
+        },
+        {
+          "letter": "D",
+          "text": "Run scheduled CloudWatch Logs Insights queries and email the results to the security team.",
+          "correct": false,
+          "why": "Logs Insights is an interactive analysis tool over data already in CloudWatch Logs; it does not continuously deliver events to an external system."
+        }
+      ],
+      "knowledge_point": "Metric filter = logs to metrics for alarms. Subscription filter = near-real-time delivery of log events to Lambda, Amazon Data Firehose, or OpenSearch (including cross-account). Export task = batch to S3. Logs Insights = ad hoc query.",
+      "trap_alert": "Do not choose export-to-S3 for anything described as real time or near real time; that is always the subscription filter.",
+      "mnemonic": "Filter to metric, subscribe to stream, export to bucket.",
+      "doc_refs": [
+        "https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/SubscriptionFilters.html"
+      ]
+    },
+    {
+      "id": "D1-Q011",
+      "type": "single_choice",
+      "difficulty": "hard",
+      "tags": [
+        "cloudwatch",
+        "cross-account-observability",
+        "dashboards",
+        "organizations"
+      ],
+      "scenario": "An enterprise runs workloads in 25 AWS Organizations member accounts across three Regions. During incidents, engineers switch IAM roles into each account and open the CloudWatch console one account at a time. Leadership wants a single dashboard in the central operations account showing metrics and logs from all accounts and Regions, without duplicating data or building custom pipelines.",
+      "stem": "What should the CloudOps engineer implement?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Create a subscription filter in every account that copies logs to the operations account and a Lambda function that republishes each metric with PutMetricData.",
+          "correct": false,
+          "why": "This duplicates every metric and log event, doubles ingestion cost, and creates a large custom pipeline to maintain in 25 accounts."
+        },
+        {
+          "letter": "B",
+          "text": "Create cross-account IAM roles and have engineers use the console account switcher during incidents.",
+          "correct": false,
+          "why": "This is the manual process the company already has; it never produces a single dashboard across accounts."
+        },
+        {
+          "letter": "C",
+          "text": "Enable an AWS Organizations CloudTrail organization trail and build the dashboards from the trail data in the operations account.",
+          "correct": false,
+          "why": "An organization trail centralizes API activity records, not CloudWatch metrics or application logs, so it cannot back an operational metrics dashboard."
+        },
+        {
+          "letter": "D",
+          "text": "Configure CloudWatch cross-account observability: create a monitoring account sink in the operations account, link the 25 source accounts to it, and build dashboards with cross-account, cross-Region widgets.",
+          "correct": true,
+          "why": "Cross-account observability gives the monitoring account read access to source-account metrics, logs, traces, and Application Signals in place, and CloudWatch dashboards natively support cross-account and cross-Region widgets."
+        }
+      ],
+      "knowledge_point": "CloudWatch cross-account observability = one sink in the monitoring account plus an observability link in each source account (can be deployed org-wide). It shares metrics, logs, traces, and Application Signals without copying them, and dashboards can render cross-account and cross-Region widgets.",
+      "trap_alert": "Copying telemetry between accounts is almost never the exam answer once cross-account observability exists; the tell-tale phrase is 'without duplicating data'.",
+      "mnemonic": "Sink in the monitor, links in the sources.",
+      "doc_refs": [
+        "https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-Unified-Cross-Account.html"
+      ]
+    },
+    {
+      "id": "D1-Q012",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": [
+        "eventbridge",
+        "systems-manager",
+        "automation",
+        "alarms",
+        "remediation"
+      ],
+      "scenario": "When a CloudWatch alarm on a custom application health metric enters ALARM, the CloudOps team wants the AWS-RestartEC2Instance Automation runbook to run automatically against the affected instance. While editing the alarm, the engineer finds only Auto Scaling, EC2, SNS, and Systems Manager OpsItem or incident actions, and cannot select the runbook.",
+      "stem": "How should the engineer wire the alarm to the runbook?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Create an EventBridge rule that matches the CloudWatch Alarm State Change event for that alarm with a state value of ALARM, and set the Automation runbook as the target using an EventBridge IAM role that allows ssm:StartAutomationExecution and iam:PassRole.",
+          "correct": true,
+          "why": "CloudWatch alarm actions cannot start an Automation execution directly, so the supported pattern is to match the alarm's state-change event in EventBridge and target the runbook with a rule role."
+        },
+        {
+          "letter": "B",
+          "text": "Add an SNS action to the alarm and subscribe the Automation runbook ARN to the SNS topic.",
+          "correct": false,
+          "why": "SNS subscription protocols do not include Systems Manager Automation, so a runbook ARN cannot be a subscriber."
+        },
+        {
+          "letter": "C",
+          "text": "Configure the alarm's EC2 action to reboot the instance instead of running the runbook.",
+          "correct": false,
+          "why": "The EC2 reboot action is available only for alarms on EC2 per-instance metrics, and it does not perform the additional runbook steps the team wants."
+        },
+        {
+          "letter": "D",
+          "text": "Create a State Manager association that runs the runbook every 30 minutes and checks the alarm state first.",
+          "correct": false,
+          "why": "Polling on a schedule adds latency and cost and reverses the event-driven model the alarm already provides."
+        }
+      ],
+      "knowledge_point": "CloudWatch alarm actions are limited to SNS, Auto Scaling, EC2 actions (stop/terminate/reboot/recover), and Systems Manager OpsItem or incident. Anything else, including Lambda and Automation runbooks, is reached by an EventBridge rule matching the 'CloudWatch Alarm State Change' event.",
+      "trap_alert": "The alarm-to-Lambda and alarm-to-Automation paths always go through EventBridge; only OpsItem and incident creation are native alarm actions for Systems Manager.",
+      "mnemonic": "Alarm fires an event; EventBridge picks the target.",
+      "doc_refs": [
+        "https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/cloudwatch-and-eventbridge.html",
+        "https://docs.aws.amazon.com/systems-manager/latest/userguide/automation-cwe-target.html"
+      ]
+    },
+    {
+      "id": "D1-Q013",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": [
+        "eventbridge",
+        "event-pattern",
+        "troubleshooting"
+      ],
+      "scenario": "An engineer creates an EventBridge rule on the default event bus to catch EC2 instances entering the stopped state, with the pattern {\"source\":[\"aws.ec2\"],\"detail-type\":[\"EC2 Instance State Change\"],\"detail\":{\"state\":[\"Stopped\"]}}. Instances are being stopped, but the rule's TriggeredRules metric stays at zero and the target is never invoked.",
+      "stem": "What is the cause of the problem?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "The rule has no dead-letter queue, so matched events are being discarded.",
+          "correct": false,
+          "why": "A dead-letter queue only captures events that matched but failed delivery to the target; those would show as TriggeredRules greater than zero with FailedInvocations."
+        },
+        {
+          "letter": "B",
+          "text": "The target does not have a resource-based policy allowing events.amazonaws.com to invoke it.",
+          "correct": false,
+          "why": "A missing target permission produces failed invocations, not a TriggeredRules count of zero, because the rule would still match."
+        },
+        {
+          "letter": "C",
+          "text": "The event pattern does not match: the detail type must be \"EC2 Instance State-change Notification\" and the state value must be lowercase \"stopped\", because event patterns are matched exactly and are case sensitive.",
+          "correct": true,
+          "why": "TriggeredRules of zero means no event ever satisfied the pattern; EventBridge performs exact, case-sensitive matching of every field specified in the pattern."
+        },
+        {
+          "letter": "D",
+          "text": "AWS service events must be received on a custom event bus, so the rule should be moved off the default bus.",
+          "correct": false,
+          "why": "The reverse is true: events from AWS services are always delivered to the account's default event bus."
+        }
+      ],
+      "knowledge_point": "Triage an EventBridge rule with its metrics. TriggeredRules = 0 means the event pattern never matched (wrong source, detail-type string, or case). FailedInvocations greater than 0 means the pattern matched but the target rejected or errored, which is a permissions or target problem.",
+      "trap_alert": "The EC2 state-change detail type is 'EC2 Instance State-change Notification', and state values are lowercase. Use the sandbox or a catch-all rule to capture a real event before writing the pattern.",
+      "mnemonic": "No triggers = bad pattern; failed invocations = bad permissions.",
+      "doc_refs": [
+        "https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-troubleshooting.html",
+        "https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-event-patterns.html"
+      ]
+    },
+    {
+      "id": "D1-Q014",
+      "type": "multiple_response",
+      "difficulty": "medium",
+      "tags": [
+        "eventbridge",
+        "dlq",
+        "iam",
+        "automation",
+        "troubleshooting"
+      ],
+      "scenario": "An EventBridge rule that targets a Systems Manager Automation runbook shows a healthy TriggeredRules count but a rising FailedInvocations count, and no automation executions appear in the Systems Manager console. The team also discovered that events failing delivery are being lost with no record of what they contained.",
+      "stem": "Which two actions should the CloudOps engineer take? (Choose two.)",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Increase the rule's invocation rate limit in the EventBridge console.",
+          "correct": false,
+          "why": "There is no per-rule invocation rate setting to raise, and throttling would surface as retries rather than immediate invocation failures."
+        },
+        {
+          "letter": "B",
+          "text": "Broaden the event pattern to include additional event sources.",
+          "correct": false,
+          "why": "The pattern is already matching, as shown by the TriggeredRules count, so widening it adds noise without fixing delivery."
+        },
+        {
+          "letter": "C",
+          "text": "Attach an IAM role to the rule's target that allows ssm:StartAutomationExecution and iam:PassRole for the runbook's automation assume role.",
+          "correct": true,
+          "why": "EventBridge assumes the rule's role to start the execution; without StartAutomationExecution and PassRole on the automation role, every invocation fails with AccessDenied."
+        },
+        {
+          "letter": "D",
+          "text": "Configure a dead-letter queue on the rule's target so undeliverable events are retained in Amazon SQS for inspection and reprocessing.",
+          "correct": true,
+          "why": "A target DLQ captures events that EventBridge could not deliver after retries, which preserves the payload for troubleshooting and replay."
+        },
+        {
+          "letter": "E",
+          "text": "Enable an EventBridge archive on the event bus and replay the archive to retry failed deliveries.",
+          "correct": false,
+          "why": "Archive and replay stores events that reached the bus and re-sends them later for reprocessing or testing; it is not the mechanism for capturing failed target deliveries."
+        }
+      ],
+      "knowledge_point": "EventBridge target failures are permission problems most of the time: API targets need a rule IAM role, and Lambda/SNS/SQS targets need a resource-based policy. Add a target DLQ so undeliverable events survive; archive and replay is for reprocessing bus history, not delivery failures.",
+      "trap_alert": "DLQ and archive/replay sound interchangeable. DLQ = failed delivery to a target. Archive/replay = events that were successfully published to the bus.",
+      "mnemonic": "Role to start it, DLQ to catch it, archive to rewind it.",
+      "doc_refs": [
+        "https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-rule-dlq.html",
+        "https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-use-resource-based.html"
+      ]
+    },
+    {
+      "id": "D1-Q015",
+      "type": "single_choice",
+      "difficulty": "hard",
+      "tags": [
+        "systems-manager",
+        "automation",
+        "iam",
+        "passrole",
+        "troubleshooting"
+      ],
+      "scenario": "An EventBridge rule starts a custom Systems Manager Automation runbook whenever a CloudWatch alarm enters ALARM. Every execution fails within seconds, before any step runs, with a message stating that the calling principal is not authorized to perform iam:PassRole on the runbook's AutomationAssumeRole. The automation assume role itself already has the EC2 permissions the runbook steps need.",
+      "stem": "What should the CloudOps engineer do to fix the failure?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Add ssm:StartAutomationExecution to the AutomationAssumeRole that the runbook uses for its steps.",
+          "correct": false,
+          "why": "The error names the caller, not the assumed role; the automation role runs the steps and does not start the execution."
+        },
+        {
+          "letter": "B",
+          "text": "Grant the EventBridge rule's IAM role iam:PassRole on the AutomationAssumeRole ARN, in addition to ssm:StartAutomationExecution.",
+          "correct": true,
+          "why": "The principal that starts an Automation execution must be allowed to pass the automation role to Systems Manager, so PassRole scoped to that role ARN is required on the rule's role."
+        },
+        {
+          "letter": "C",
+          "text": "Attach the AmazonSSMManagedInstanceCore policy to the instance profile of the target EC2 instances.",
+          "correct": false,
+          "why": "That policy is the managed-node prerequisite for the SSM Agent; it has no bearing on who is authorized to start the automation."
+        },
+        {
+          "letter": "D",
+          "text": "Enable CloudTrail data events for Systems Manager so the failure can be traced.",
+          "correct": false,
+          "why": "This is a diagnostic step that produces no fix, and Systems Manager API activity is already recorded as management events."
+        }
+      ],
+      "knowledge_point": "Automation has two identities: the caller (who runs StartAutomationExecution and must hold iam:PassRole on the automation role) and the AutomationAssumeRole (which the steps run as and needs the resource permissions). AccessDenied on PassRole always points at the caller.",
+      "trap_alert": "Read the ARN in the AccessDenied message. If it is the assumed-role of the rule or a user, fix the caller's policy; if the failure is inside a step, fix the automation assume role.",
+      "mnemonic": "Caller passes the role; the role does the work.",
+      "doc_refs": [
+        "https://docs.aws.amazon.com/systems-manager/latest/userguide/automation-permissions.html",
+        "https://docs.aws.amazon.com/systems-manager/latest/userguide/automation-setup.html"
+      ]
+    },
+    {
+      "id": "D1-Q016",
+      "type": "single_choice",
+      "difficulty": "hard",
+      "tags": [
+        "systems-manager",
+        "automation",
+        "rate-control",
+        "approvals"
+      ],
+      "scenario": "A team maintains an Automation runbook that stops an instance, resizes it, and starts it again. A previous run executed against all 800 tagged production instances simultaneously and caused an outage. Corporate change policy now also requires a named manager to approve before the production steps execute.",
+      "stem": "How should the runbook be executed to satisfy both requirements?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Invoke the runbook from a Lambda function that iterates over instances with a sleep between calls.",
+          "correct": false,
+          "why": "This rebuilds native functionality in custom code, has no approval mechanism, and is subject to the Lambda timeout on a long-running fleet operation."
+        },
+        {
+          "letter": "B",
+          "text": "Run the underlying commands with Run Command inside a maintenance window instead of using Automation.",
+          "correct": false,
+          "why": "A maintenance window controls when work happens rather than how many targets run concurrently, and Run Command cannot stop, resize, and start an instance."
+        },
+        {
+          "letter": "C",
+          "text": "Split the fleet manually into 20 separate executions of 40 instances each and run them one at a time.",
+          "correct": false,
+          "why": "It limits blast radius but is entirely manual, error-prone at 800 instances, and still provides no approval gate."
+        },
+        {
+          "letter": "D",
+          "text": "Run the Automation against tag-based targets with rate control (a concurrency such as 10% and an error threshold) and include an aws:approve step that pauses the execution until an approver responds.",
+          "correct": true,
+          "why": "Automation rate control caps concurrency and stops the run once the error threshold is reached, and the aws:approve action pauses the execution pending a decision from designated approvers."
+        }
+      ],
+      "knowledge_point": "Automation at fleet scale uses targets (tags, resource groups, or a parameter), rate control (MaxConcurrency as a count or percentage, MaxErrors as a count or percentage), and aws:approve for a human gate. Approval requests notify through SNS and time out if unanswered.",
+      "trap_alert": "MaxErrors is an error threshold that halts new invocations; it does not roll back what already ran, so the concurrency setting is what limits blast radius.",
+      "mnemonic": "Targets pick who, MaxConcurrency picks how many, aws:approve picks when.",
+      "doc_refs": [
+        "https://docs.aws.amazon.com/systems-manager/latest/userguide/automation-working-targets-and-rate-controls.html",
+        "https://docs.aws.amazon.com/systems-manager/latest/userguide/automation-action-approve.html"
+      ]
+    },
+    {
+      "id": "D1-Q017",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": [
+        "health-dashboard",
+        "eventbridge",
+        "opscenter",
+        "automation"
+      ],
+      "scenario": "Several EC2 instances were retired last quarter and the team learned about it only after the instances stopped. AWS had published scheduled retirement notifications in advance. The CloudOps team now wants any scheduled change or degraded-hardware notification for its resources to automatically create a tracked work item and notify the on-call channel.",
+      "stem": "Which solution meets the requirement?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Create an EventBridge rule with an event pattern on the aws.health source and target an SNS topic plus a Systems Manager Automation runbook that opens an OpsItem in OpsCenter.",
+          "correct": true,
+          "why": "AWS Health delivers account-specific events, including scheduled instance retirements and degraded hardware, to EventBridge, where they can fan out to notification and remediation targets."
+        },
+        {
+          "letter": "B",
+          "text": "Run a scheduled Lambda function every hour that calls DescribeInstanceStatus and parses the events field.",
+          "correct": false,
+          "why": "Polling works only for EC2-scoped events, adds latency and cost, and misses the broader set of service events AWS Health publishes."
+        },
+        {
+          "letter": "C",
+          "text": "Create a CloudWatch alarm on StatusCheckFailed_System for every instance and send it to the on-call topic.",
+          "correct": false,
+          "why": "That alarm reacts after the hardware is already impaired; it gives none of the advance warning a scheduled retirement notice provides."
+        },
+        {
+          "letter": "D",
+          "text": "Subscribe the on-call distribution list to the weekly Trusted Advisor notification email.",
+          "correct": false,
+          "why": "Trusted Advisor reports checks such as limits and cost optimization on its own cadence and is not the delivery channel for scheduled resource retirement events."
+        }
+      ],
+      "knowledge_point": "AWS Health Dashboard events (source aws.health) are consumable in EventBridge for automation. Account-level events reach the account's default bus; the organizational view and the Health API require a Business, Enterprise On-Ramp, or Enterprise Support plan.",
+      "trap_alert": "Status check alarms are reactive. Any question about advance notice of retirement, maintenance, or degraded hardware points at AWS Health events, not CloudWatch metrics.",
+      "mnemonic": "AWS tells you first through Health, not through a metric.",
+      "doc_refs": [
+        "https://docs.aws.amazon.com/health/latest/ug/cloudwatch-events-health.html",
+        "https://docs.aws.amazon.com/systems-manager/latest/userguide/OpsCenter.html"
+      ]
+    },
+    {
+      "id": "D1-Q018",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": [
+        "x-ray",
+        "latency",
+        "tracing",
+        "root-cause"
+      ],
+      "scenario": "After a release, p99 latency on a customer-facing API rose from 300 ms to 4 seconds. The ALB TargetResponseTime metric confirms the increase, but CPU, memory, and connection metrics look normal on all six services behind the API, and each team insists their service is fast. The request path traverses several internal services and a DynamoDB table.",
+      "stem": "What is the MOST effective way to identify which component is responsible for the added latency?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Enable Container Insights on the ECS cluster and compare task-level CPU and memory utilization.",
+          "correct": false,
+          "why": "Container Insights reports resource utilization, which the team has already confirmed is normal, and it cannot attribute latency to a specific downstream call."
+        },
+        {
+          "letter": "B",
+          "text": "Enable ALB access logs and run a CloudWatch Logs Insights query on the target_processing_time field.",
+          "correct": false,
+          "why": "Access logs isolate latency to the first target behind the load balancer but reveal nothing about the chain of internal service and database calls that target makes."
+        },
+        {
+          "letter": "C",
+          "text": "Instrument the services with the AWS Distro for OpenTelemetry or the X-Ray SDK and use the X-Ray service map and trace analytics to find the slow segment.",
+          "correct": true,
+          "why": "Distributed tracing breaks a single request into per-service and per-downstream-call segments and subsegments, which is the only way to attribute latency across a multi-hop path."
+        },
+        {
+          "letter": "D",
+          "text": "Enable VPC Flow Logs on the subnets and analyze them with Amazon Athena.",
+          "correct": false,
+          "why": "Flow logs record connection metadata such as addresses, ports, bytes, and accept or reject decisions; they carry no application request timing."
+        }
+      ],
+      "knowledge_point": "CloudWatch metrics tell you a service is slow; X-Ray traces tell you which call inside the request is slow. Use the service map for the dependency view and trace analytics or trace filters to isolate slow segments and errors.",
+      "trap_alert": "ALB access logs give request_processing_time, target_processing_time, and response_processing_time, which localize latency to the load balancer or its target only, not to downstream dependencies.",
+      "mnemonic": "Metrics say what; traces say where.",
+      "doc_refs": [
+        "https://docs.aws.amazon.com/xray/latest/devguide/aws-xray.html",
+        "https://docs.aws.amazon.com/xray/latest/devguide/xray-console-servicemap.html"
+      ]
+    },
+    {
+      "id": "D1-Q019",
+      "type": "single_choice",
+      "difficulty": "easy",
+      "tags": [
+        "cloudtrail",
+        "data-events",
+        "s3",
+        "auditing"
+      ],
+      "scenario": "Objects were deleted from a production S3 bucket. The company has an AWS Organizations organization trail with log file validation enabled that delivers to a central S3 bucket, but a search of CloudTrail Event history and the delivered logs returns no DeleteObject entries. Bucket-level API calls such as PutBucketPolicy appear normally.",
+      "stem": "What should the CloudOps engineer do so that future object deletions are recorded?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Enable CloudTrail Insights on the trail.",
+          "correct": false,
+          "why": "Insights detects unusual rates of API activity against the events a trail already logs; it does not add object-level events."
+        },
+        {
+          "letter": "B",
+          "text": "Enable log file validation on the trail so that deleted-object records can be recovered.",
+          "correct": false,
+          "why": "Log file validation produces digest files that prove log integrity; it neither adds new event types nor recovers events that were never logged."
+        },
+        {
+          "letter": "C",
+          "text": "Enable S3 server access logging on the bucket to retrieve the past DeleteObject requests.",
+          "correct": false,
+          "why": "Server access logging is best-effort, delayed, and cannot be applied retroactively, so it neither explains the past deletions nor is the preferred audit mechanism."
+        },
+        {
+          "letter": "D",
+          "text": "Configure the trail to log S3 data events (object-level) for the bucket, because management events do not include object-level API calls such as GetObject and DeleteObject.",
+          "correct": true,
+          "why": "CloudTrail logs management events by default; object-level S3 operations and Lambda invocations are data events that must be explicitly enabled per resource selector."
+        }
+      ],
+      "knowledge_point": "CloudTrail management events (control plane, on by default, one free copy) versus data events (S3 object-level, Lambda Invoke, DynamoDB item-level; off by default, charged, configured with advanced event selectors). Log file validation only proves integrity; Insights only detects anomalous API volume.",
+      "trap_alert": "'The API call is missing from CloudTrail' almost always means it is a data event, not a broken trail.",
+      "mnemonic": "Bucket actions are management; object actions are data.",
+      "doc_refs": [
+        "https://docs.aws.amazon.com/awscloudtrail/latest/userguide/logging-data-events-with-cloudtrail.html"
+      ]
+    },
+    {
+      "id": "D1-Q020",
+      "type": "single_choice",
+      "difficulty": "easy",
+      "tags": [
+        "ebs",
+        "burst-balance",
+        "gp3",
+        "performance"
+      ],
+      "scenario": "A reporting database runs on a 500 GiB gp2 volume. Every afternoon the application slows sharply. CloudWatch shows BurstBalance falling to 0 percent during the slowdown, VolumeQueueLength above 20, and VolumeReadOps flat at the volume's baseline, while instance CPU utilization stays below 30 percent.",
+      "stem": "What is the MOST appropriate remediation?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Snapshot the volume and restore it to a larger gp2 volume to increase the baseline IOPS.",
+          "correct": false,
+          "why": "It raises the gp2 baseline (3 IOPS per GiB), but it requires a restore, costs more storage than needed, and still ties IOPS to capacity."
+        },
+        {
+          "letter": "B",
+          "text": "Modify the volume to gp3 and provision the required IOPS and throughput independently of the volume size.",
+          "correct": true,
+          "why": "gp3 delivers a 3,000 IOPS and 125 MiB/s baseline regardless of size and lets IOPS and throughput be provisioned separately, which removes the burst-credit model entirely."
+        },
+        {
+          "letter": "C",
+          "text": "Launch the instance as an EBS-optimized instance type to increase available bandwidth.",
+          "correct": false,
+          "why": "The bottleneck is the volume exhausting its burst credits, not instance-to-EBS bandwidth, and current-generation instances are EBS-optimized by default."
+        },
+        {
+          "letter": "D",
+          "text": "Enable fast snapshot restore for the volume's snapshots.",
+          "correct": false,
+          "why": "Fast snapshot restore only removes the initialization penalty on volumes newly created from a snapshot; it does nothing for a running volume's sustained IOPS."
+        }
+      ],
+      "knowledge_point": "BurstBalance at 0 with a rising VolumeQueueLength is the signature of a gp2 (or st1/sc1) volume throttled to its baseline. gp2 baseline is 3 IOPS per GiB (min 100, burst 3,000); gp3 gives 3,000 IOPS and 125 MiB/s baseline with IOPS and throughput provisioned independently, usually at lower cost.",
+      "trap_alert": "BurstBalance exists only for gp2, st1, and sc1. If a question mentions BurstBalance on gp3 or io2, the scenario is wrong or the volume type is not what you assumed.",
+      "mnemonic": "Burst at zero means baseline-only; gp3 has no burst to lose.",
+      "doc_refs": [
+        "https://docs.aws.amazon.com/ebs/latest/userguide/general-purpose.html",
+        "https://docs.aws.amazon.com/ebs/latest/userguide/using_cloudwatch_ebs.html"
+      ]
+    },
+    {
+      "id": "D1-Q021",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": [
+        "ebs",
+        "modify-volume",
+        "elastic-volumes",
+        "limits"
+      ],
+      "scenario": "Two hours ago an engineer modified an attached volume from gp2 to gp3 with 6,000 provisioned IOPS. The volume state has been showing in-use - optimizing since then. Load has increased and the team now wants 12,000 IOPS, but the ModifyVolume call returns an error stating that the volume was modified too recently.",
+      "stem": "What should the CloudOps engineer do?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Wait until at least 6 hours have elapsed since the last modification finished, then request the new IOPS; the volume continues to deliver at least its previous performance while it is optimizing.",
+          "correct": true,
+          "why": "EBS enforces a minimum interval of 6 hours between modifications of the same volume, and a volume in the optimizing state is fully usable at no less than its source performance."
+        },
+        {
+          "letter": "B",
+          "text": "Detach and reattach the volume to reset the modification cooldown.",
+          "correct": false,
+          "why": "The interval is tracked per volume regardless of attachment state, so detaching causes an outage without allowing an earlier modification."
+        },
+        {
+          "letter": "C",
+          "text": "Create a snapshot, build a new 12,000 IOPS volume from it, and swap the volumes on the instance.",
+          "correct": false,
+          "why": "This does reach the target configuration, but it requires downtime and data copy time for a change that Elastic Volumes performs online once the interval elapses."
+        },
+        {
+          "letter": "D",
+          "text": "Open a support case to have the volume modification limit lifted for this volume.",
+          "correct": false,
+          "why": "The 6-hour interval is a service behavior of Elastic Volumes, not an adjustable service quota."
+        }
+      ],
+      "knowledge_point": "Elastic Volumes changes are online, but a volume can only be modified again after 6 hours (or after the previous modification reaches the optimizing state and completes). While optimizing, the volume performs at least as well as the source configuration. Size can only grow, never shrink, and the file system must be extended afterwards.",
+      "trap_alert": "Do not confuse 'optimizing' with 'unavailable'. Data is fully accessible during optimization, so downtime-based answers are wrong.",
+      "mnemonic": "One modification per volume per 6 hours.",
+      "doc_refs": [
+        "https://docs.aws.amazon.com/ebs/latest/userguide/modify-volume-requirements.html",
+        "https://docs.aws.amazon.com/ebs/latest/userguide/requesting-ebs-volume-modifications.html"
+      ]
+    },
+    {
+      "id": "D1-Q022",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": [
+        "compute-optimizer",
+        "right-sizing",
+        "cloudwatch-agent",
+        "cost"
+      ],
+      "scenario": "Finance asked for EC2 right-sizing. The CloudOps engineer opted in to AWS Compute Optimizer yesterday. Most instances show a finding of Not enough metrics or produce no recommendation at all, and the recommendations that do appear consider only CPU and network, while the workload is known to be memory bound.",
+      "stem": "What should the engineer do to obtain complete recommendations?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Enable detailed monitoring on every instance, which makes recommendations available immediately.",
+          "correct": false,
+          "why": "Detailed monitoring improves the resolution of the data Compute Optimizer analyzes, but it does not bypass the minimum metric history the service requires."
+        },
+        {
+          "letter": "B",
+          "text": "Use Cost Explorer rightsizing recommendations instead, because they require no metric history.",
+          "correct": false,
+          "why": "Cost Explorer rightsizing is also derived from CloudWatch utilization history, so it faces the same data requirement and likewise lacks memory data without the agent."
+        },
+        {
+          "letter": "C",
+          "text": "Wait until each instance has accumulated at least 30 hours of metric data in the last 14 days, and install the CloudWatch agent so memory metrics are available for memory-aware recommendations.",
+          "correct": true,
+          "why": "Compute Optimizer requires a minimum of 30 hours of metrics within the preceding 14 days, and it can only factor memory into recommendations when the CloudWatch agent publishes memory utilization."
+        },
+        {
+          "letter": "D",
+          "text": "Attach the ComputeOptimizerReadOnlyAccess policy to each instance's instance profile.",
+          "correct": false,
+          "why": "That policy governs which principals can read recommendations; instances do not call Compute Optimizer, so it has no effect on data collection."
+        }
+      ],
+      "knowledge_point": "Compute Optimizer needs at least 30 hours of CloudWatch metric data within the last 14 days per resource, uses CPU, network, disk, and EBS metrics by default, and includes memory only if the CloudWatch agent publishes it. Enhanced infrastructure metrics (a paid feature) extend the lookback to 3 months.",
+      "trap_alert": "'No recommendation available' is almost always a data-history problem, not a permissions problem.",
+      "mnemonic": "30 hours in 14 days, plus the agent for memory.",
+      "doc_refs": [
+        "https://docs.aws.amazon.com/compute-optimizer/latest/ug/requirements.html",
+        "https://docs.aws.amazon.com/compute-optimizer/latest/ug/metrics.html"
+      ]
+    },
+    {
+      "id": "D1-Q023",
+      "type": "single_choice",
+      "difficulty": "easy",
+      "tags": [
+        "ec2",
+        "burstable",
+        "cpu-credits",
+        "t-family"
+      ],
+      "scenario": "A web tier runs on t3.large instances in standard mode. During the daily traffic peak users report slow page loads, but CloudWatch shows CPUUtilization flattening at roughly 30 percent rather than climbing, CPUCreditBalance at 0, and CPUCreditUsage tracking the earn rate exactly. Memory and disk metrics are healthy.",
+      "stem": "What is the correct explanation and remediation?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Increase the Auto Scaling group's desired capacity so more instances share the traffic.",
+          "correct": false,
+          "why": "Adding instances masks the symptom and increases cost while every new instance is subject to the same credit exhaustion during a sustained peak."
+        },
+        {
+          "letter": "B",
+          "text": "Enable detailed monitoring so the true CPU utilization becomes visible.",
+          "correct": false,
+          "why": "The metric is already accurate; the plateau reflects real throttling to the baseline, so finer granularity changes nothing."
+        },
+        {
+          "letter": "C",
+          "text": "Migrate the root volumes to gp3 to remove an I/O bottleneck.",
+          "correct": false,
+          "why": "Storage metrics are healthy and the plateau is on CPU, so a volume change does not address the constraint."
+        },
+        {
+          "letter": "D",
+          "text": "The instances have exhausted their CPU credits and are capped at the burstable baseline; switch them to unlimited mode or move to a fixed-performance family such as M7i.",
+          "correct": true,
+          "why": "In standard mode a burstable instance with a zero credit balance is throttled to its baseline percentage, which is exactly the flat CPU line; unlimited mode allows sustained bursting for a surcharge, and a fixed-performance family removes the model entirely."
+        }
+      ],
+      "knowledge_point": "T-family instances earn CPU credits at a fixed hourly rate and spend them to exceed the baseline. CPUCreditBalance at 0 in standard mode means the instance is throttled to baseline. Unlimited mode bursts beyond baseline and bills surplus credits (CPUSurplusCreditsCharged); fixed-performance families avoid credits altogether.",
+      "trap_alert": "A CPU graph that flatlines below 100 percent while users complain is credit throttling, not idle capacity.",
+      "mnemonic": "Flat CPU plus zero credits equals baseline jail.",
+      "doc_refs": [
+        "https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/burstable-credits-baseline-concepts.html",
+        "https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/burstable-performance-instances-unlimited-mode.html"
+      ]
+    },
+    {
+      "id": "D1-Q024",
+      "type": "multiple_response",
+      "difficulty": "medium",
+      "tags": [
+        "s3",
+        "multipart-upload",
+        "transfer-acceleration",
+        "performance"
+      ],
+      "scenario": "Branch offices on separate continents upload 20 GB video files over the public internet to a single S3 bucket in us-east-1. Uploads take several hours, and a network interruption near the end forces the entire file to be re-sent. The team cannot change the bucket's Region and does not want to install agents on the branch workstations.",
+      "stem": "Which two changes will improve upload performance and resilience? (Choose two.)",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Use multipart upload so the file is split into parts that upload in parallel and only failed parts are retried.",
+          "correct": true,
+          "why": "Multipart upload parallelizes a large object across parts and makes retries part-scoped instead of restarting the whole 20 GB transfer; AWS recommends it for objects above 100 MB."
+        },
+        {
+          "letter": "B",
+          "text": "Enable S3 Versioning on the bucket.",
+          "correct": false,
+          "why": "Versioning protects against overwrite and deletion; it has no effect on transfer speed or on resuming an interrupted upload."
+        },
+        {
+          "letter": "C",
+          "text": "Add randomized prefixes to the object keys to increase the achievable request rate.",
+          "correct": false,
+          "why": "Prefix parallelism raises request rate limits (3,500 PUT/COPY/POST/DELETE per prefix per second) and matters for many small objects, not for a handful of very large ones."
+        },
+        {
+          "letter": "D",
+          "text": "Apply an S3 Lifecycle rule that transitions objects to S3 Intelligent-Tiering after upload.",
+          "correct": false,
+          "why": "Lifecycle rules act on objects already stored and are a storage-cost control, not an ingestion performance control."
+        },
+        {
+          "letter": "E",
+          "text": "Turn on S3 Transfer Acceleration and have the offices upload through the bucket's accelerated endpoint.",
+          "correct": true,
+          "why": "Transfer Acceleration routes the upload into the nearest CloudFront edge location and across the AWS backbone to the bucket's Region, which is designed for long-distance transfers over the public internet."
+        }
+      ],
+      "knowledge_point": "Large-object S3 ingestion: multipart upload for parallelism and resumability (required above 5 GB), Transfer Acceleration for long-distance internet transfers, byte-range GETs for parallel downloads, key prefixes for request-rate scaling with many small objects, and AWS DataSync for bulk on-premises file system migration with an agent.",
+      "trap_alert": "Prefix randomization is the answer to a request-rate ceiling (503 Slow Down), not to a single slow large upload.",
+      "mnemonic": "Big file: split it (multipart) and shorten the path (acceleration).",
+      "doc_refs": [
+        "https://docs.aws.amazon.com/AmazonS3/latest/userguide/mpuoverview.html",
+        "https://docs.aws.amazon.com/AmazonS3/latest/userguide/transfer-acceleration.html"
+      ]
+    },
+    {
+      "id": "D1-Q025",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": [
+        "efs",
+        "throughput-mode",
+        "burst-credits",
+        "lifecycle"
+      ],
+      "scenario": "A nightly analytics job reads from an Amazon EFS file system that holds about 200 GiB and uses Bursting Throughput. The job used to finish in 90 minutes and now takes over 5 hours. CloudWatch shows BurstCreditBalance declining to zero early in the run and throughput pinned at a low, constant ceiling for the remainder.",
+      "stem": "What should the CloudOps engineer change?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Change the file system's performance mode from General Purpose to Max I/O.",
+          "correct": false,
+          "why": "Performance mode addresses IOPS parallelism, not throughput credits, it raises per-operation latency, and it cannot be changed on an existing file system."
+        },
+        {
+          "letter": "B",
+          "text": "Enable EFS lifecycle management to move infrequently accessed files to the EFS Infrequent Access storage class.",
+          "correct": false,
+          "why": "Lifecycle management to IA reduces storage cost and can add first-byte latency and per-access charges for the job's reads; it does not raise throughput."
+        },
+        {
+          "letter": "C",
+          "text": "Mount the file system from additional EC2 instances so the job's reads are spread across more clients.",
+          "correct": false,
+          "why": "Throughput limits are enforced at the file system level, so adding clients divides the same ceiling rather than increasing it."
+        },
+        {
+          "letter": "D",
+          "text": "Change the file system's throughput mode to Elastic (or to Provisioned Throughput sized for the job) so throughput is no longer tied to burst credits and stored size.",
+          "correct": true,
+          "why": "Bursting Throughput scales with stored data (about 50 KiB/s per GiB baseline) and throttles to that baseline when credits are exhausted; Elastic throughput scales automatically with demand, and Provisioned sets a fixed guaranteed level."
+        }
+      ],
+      "knowledge_point": "EFS throughput modes: Bursting (baseline scales with stored size, uses BurstCreditBalance), Elastic (pay per data transferred, scales automatically, the default for new file systems), Provisioned (fixed throughput independent of size). Performance mode (General Purpose vs Max I/O) is a separate, creation-time property. Lifecycle to IA or Archive is a cost lever.",
+      "trap_alert": "PercentIOLimit approaching 100 percent points at the General Purpose IOPS limit; BurstCreditBalance at zero points at the throughput mode. They are different knobs.",
+      "mnemonic": "Credits gone means the mode is wrong.",
+      "doc_refs": [
+        "https://docs.aws.amazon.com/efs/latest/ug/performance.html",
+        "https://docs.aws.amazon.com/efs/latest/ug/monitoring-cloudwatch.html"
+      ]
+    },
+    {
+      "id": "D1-Q026",
+      "type": "single_choice",
+      "difficulty": "easy",
+      "tags": [
+        "rds",
+        "performance-insights",
+        "enhanced-monitoring",
+        "troubleshooting"
+      ],
+      "scenario": "An Amazon RDS for PostgreSQL instance slows down every weekday between 14:00 and 16:00. CloudWatch shows CPUUtilization around 55 percent, FreeableMemory and FreeStorageSpace healthy, and DatabaseConnections well below the maximum. The DBA needs to know which SQL statements and which wait events are consuming database time during the window.",
+      "stem": "What should the CloudOps engineer enable?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Performance Insights, and analyze the DB load (average active sessions) chart sliced by top SQL and by wait event.",
+          "correct": true,
+          "why": "Performance Insights measures database load in average active sessions and attributes it to specific SQL statements, waits, hosts, and users, which is exactly the question being asked."
+        },
+        {
+          "letter": "B",
+          "text": "Enhanced Monitoring at 1-second granularity to view per-process operating system metrics.",
+          "correct": false,
+          "why": "Enhanced Monitoring uses an on-instance agent to report OS-level metrics such as per-process CPU and memory; it never shows SQL text or database wait events."
+        },
+        {
+          "letter": "C",
+          "text": "A CloudWatch Logs metric filter over the PostgreSQL log group to count slow queries.",
+          "correct": false,
+          "why": "It requires log_min_duration_statement tuning and yields only counts of slow statements, with no view of overall database load or wait breakdown."
+        },
+        {
+          "letter": "D",
+          "text": "A read replica so that reporting traffic is offloaded from the primary instance.",
+          "correct": false,
+          "why": "This is a possible remediation once the cause is known, but it identifies nothing and may simply move an unexplained workload elsewhere."
+        }
+      ],
+      "knowledge_point": "Three RDS observability layers: CloudWatch metrics (instance-level, hypervisor view), Enhanced Monitoring (OS-level, agent-based, down to 1-second granularity, delivered to CloudWatch Logs), Performance Insights (database engine internals: DB load in AAS, top SQL, waits, hosts, users; free tier retains 7 days).",
+      "trap_alert": "Enhanced Monitoring and Performance Insights both sound like 'more detail'. OS process detail = Enhanced Monitoring; SQL and wait events = Performance Insights.",
+      "mnemonic": "OS process, Enhanced. SQL and waits, Insights.",
+      "doc_refs": [
+        "https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_PerfInsights.html",
+        "https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_Monitoring.OS.html"
+      ]
+    },
+    {
+      "id": "D1-Q027",
+      "type": "single_choice",
+      "difficulty": "hard",
+      "tags": [
+        "rds-proxy",
+        "parameter-groups",
+        "connections",
+        "lambda"
+      ],
+      "scenario": "A Lambda-based application connects directly to an RDS for MySQL instance. During traffic bursts the application returns Too many connections errors, DatabaseConnections spikes to the instance maximum, and each function invocation opens a new connection. An engineer tried to raise max_connections in the parameter group attached to the instance and received an error stating that the operation is not supported. Failovers also take longer than the team wants.",
+      "stem": "What is the BEST solution?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Edit max_connections in the default parameter group and reboot the instance to apply it.",
+          "correct": false,
+          "why": "Default parameter groups cannot be modified at all, which is the error the engineer hit; a custom parameter group would be required, and more connections consume memory without pooling anything."
+        },
+        {
+          "letter": "B",
+          "text": "Deploy Amazon RDS Proxy in front of the database and point the application at the proxy endpoint so connections are pooled and shared across invocations.",
+          "correct": true,
+          "why": "RDS Proxy multiplexes many short-lived client connections onto a small pool of database connections, which is the designed answer for serverless connection storms, and it also shortens failover by preserving client connections."
+        },
+        {
+          "letter": "C",
+          "text": "Scale the instance up to a larger class so that the connection limit derived from memory increases.",
+          "correct": false,
+          "why": "A larger class raises the ceiling and costs more, but the burst pattern will exhaust the new limit as well, and modifying the class requires downtime unless Multi-AZ is used."
+        },
+        {
+          "letter": "D",
+          "text": "Create a custom parameter group, change the static parameters it contains, and apply it without rebooting the instance.",
+          "correct": false,
+          "why": "Static parameters take effect only after an instance reboot; the change would show as pending-reboot and nothing would improve until the reboot occurred."
+        }
+      ],
+      "knowledge_point": "RDS Proxy pools and reuses database connections, which fixes connection storms from Lambda or containerized clients and reduces failover time by up to about 66 percent. Default parameter groups are immutable; you must create a custom group, and static parameters require a reboot while dynamic parameters apply immediately.",
+      "trap_alert": "Raising max_connections is the intuitive fix and the wrong answer: it is memory-bound, cannot be done on a default parameter group, and does not stop each invocation from opening its own connection.",
+      "mnemonic": "Many short connections, one proxy pool.",
+      "doc_refs": [
+        "https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/rds-proxy.html",
+        "https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_WorkingWithParamGroups.html"
+      ]
+    },
+    {
+      "id": "D1-Q028",
+      "type": "multiple_response",
+      "difficulty": "hard",
+      "tags": [
+        "placement-groups",
+        "efa",
+        "hpc",
+        "networking"
+      ],
+      "scenario": "A tightly coupled MPI simulation runs on 32 EC2 instances that are currently spread across three Availability Zones in one Region. Job runtimes vary widely and profiling shows most of the wall-clock time is spent waiting on inter-node message passing rather than on computation. The team needs the lowest and most consistent node-to-node latency and the highest packet rate.",
+      "stem": "Which two changes should the CloudOps engineer make? (Choose two.)",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Place the instances in a spread placement group across the three Availability Zones.",
+          "correct": false,
+          "why": "Spread placement groups isolate instances on distinct hardware for availability (limited to seven instances per Availability Zone per group) and keep cross-AZ latency, which is the opposite of what MPI needs."
+        },
+        {
+          "letter": "B",
+          "text": "Launch all instances in a single Availability Zone within a cluster placement group.",
+          "correct": true,
+          "why": "A cluster placement group packs instances close together on the same high-bisection-bandwidth network segment in one Availability Zone, giving the lowest latency and highest per-flow throughput."
+        },
+        {
+          "letter": "C",
+          "text": "Use instance types that support Elastic Fabric Adapter and attach an EFA to each node for the MPI traffic.",
+          "correct": true,
+          "why": "EFA adds an OS-bypass interface that lets MPI libraries talk directly to the network hardware, which is what removes kernel overhead and delivers consistent low latency at scale."
+        },
+        {
+          "letter": "D",
+          "text": "Use a partition placement group with seven partitions.",
+          "correct": false,
+          "why": "Partition placement groups spread instances across distinct racks to reduce correlated hardware failure for distributed systems such as HDFS or Cassandra; they do not minimize inter-node latency."
+        },
+        {
+          "letter": "E",
+          "text": "Attach multiple elastic network interfaces to each instance to aggregate network bandwidth.",
+          "correct": false,
+          "why": "Additional ENIs do not increase an instance's aggregate bandwidth allocation or reduce latency; single-flow limits and instance-level bandwidth still apply."
+        }
+      ],
+      "knowledge_point": "Placement groups: cluster (single AZ, lowest latency and highest throughput, HPC), partition (separate racks, distributed data stores), spread (distinct hardware, max 7 instances per AZ, critical individual instances). ENA is standard enhanced networking; EFA adds OS-bypass for MPI and NCCL and must be attached at launch on supported instance types.",
+      "trap_alert": "Cluster placement groups cannot span Availability Zones, so any answer combining a cluster placement group with multi-AZ placement is impossible.",
+      "mnemonic": "Cluster for speed, partition for racks, spread for safety.",
+      "doc_refs": [
+        "https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/placement-groups.html",
+        "https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/efa.html"
+      ]
+    }
+  ]
+}
