@@ -1,0 +1,1426 @@
+{
+  "domain": "D2",
+  "title": "Reliability and Business Continuity",
+  "weight": 0.22,
+  "intro": "This domain is 22% of the exam — roughly 14 of 65 questions, the joint-largest block alongside D1 and D3. It is not architecture trivia: nearly every stem describes something already broken or already slow (instances churning in an Auto Scaling group, HTTP 503 from an ALB, a Route 53 failover that never fires, a PITR restore that leaves the app pointing at the old endpoint) and asks which knob you turn. Three mental models unlock the whole domain. First, capacity is a control loop: a metric drives a policy, the policy changes desired capacity, and a health check plus a grace period decides whether the new capacity counts — every scaling bug is a broken link in that loop. Second, health checks are the truth source for every routing layer: the target group decides whether a target gets traffic, the ASG health check type decides whether an instance gets replaced, and Route 53 decides whether a Region or endpoint gets DNS answers — and the same instance can be healthy to one and unhealthy to another. Third, recovery is defined by RPO/RTO and by what the restore actually produces: almost every AWS restore creates a NEW resource with a NEW endpoint or ID, so 'we restored it' is never the end of the runbook. Memorise the defaults — cooldown 300 s, deregistration delay 300 s, Route 53 failure threshold 3, RDS automated backup retention 0–35 days, DynamoDB PITR 35 days, DynamoDB auto scaling target 70% — because the exam tests them as the discriminating fact.",
+  "sections": [
+    {
+      "id": "asg-mechanics",
+      "title": "EC2 Auto Scaling mechanics",
+      "summary": "An ASG is a control loop over min/max/desired plus a health signal; almost every ASG incident is a health-check, grace-period, or lifecycle-hook problem, not a scaling-policy problem.",
+      "concepts": [
+        {
+          "name": "Launch templates vs launch configurations, and min/max/desired",
+          "explain": "A launch template is the versioned recipe for an instance: AMI, instance type, key pair, security groups, IAM instance profile, user data, block device mappings, tags. Launch configurations are the deprecated predecessor — immutable, unversioned, and unable to express anything modern (no mixed instance policies, no T-series unlimited mode, no multiple network interfaces, no EBS gp3/io2 defaults, no instance metadata v2 enforcement in the same clean way). AWS stopped adding features to launch configurations and no longer allows creating them in new accounts, so on the exam 'you must use a launch template' is nearly always the right half of the answer.\nCapacity is three numbers. Desired is what the ASG actively tries to hold. Min is the floor it will never scale below, max is the ceiling it will never exceed. A scaling policy only ever changes desired, and it is silently clamped by min and max — this is the single most common 'my scaling policy did nothing' cause. Editing a launch template does not touch running instances: existing instances keep the old version until you replace them (instance refresh, or terminate-and-let-ASG-replace).",
+          "exam_tests": "Trigger words: 'the scaling policy triggered but no instances launched', 'we updated the AMI but instances still run the old image', 'we need to add a second instance type for Spot diversification'. The discriminating facts are: policies change desired and are clamped by max; template edits require an instance refresh (or replacement) to take effect; mixed instance policies / multiple instance types require a launch template, not a launch configuration.",
+          "example": {
+            "scenario": "An ASG has min 2, max 4, desired 4. A target-tracking policy on CPU fires repeatedly during a traffic spike, CloudWatch shows the alarm in ALARM, but the group never grows and latency stays high.",
+            "answer": "Raise the maximum capacity of the Auto Scaling group.",
+            "why": "Desired is already pinned at max, so the policy has nothing left to increase — the alarm fires and the action is a no-op. Adding a second scaling policy or shortening the cooldown changes nothing while max is the binding constraint; the Activity History shows no scaling activity at all rather than a failed launch."
+          },
+          "compare": {
+            "columns": [
+              "Capability",
+              "Launch template",
+              "Launch configuration"
+            ],
+            "rows": [
+              [
+                "Versioning",
+                "Yes — versions + $Latest/$Default",
+                "No — immutable, must clone to change"
+              ],
+              [
+                "Multiple instance types / mixed On-Demand + Spot",
+                "Yes",
+                "No"
+              ],
+              [
+                "T-unlimited, placement groups, multiple ENIs, tag-on-launch",
+                "Yes",
+                "Limited or unsupported"
+              ],
+              [
+                "Used by EC2 Fleet / Spot Fleet",
+                "Yes",
+                "No"
+              ],
+              [
+                "Status in 2025-2026",
+                "Recommended; required for new features",
+                "Deprecated; not creatable in new accounts"
+              ]
+            ]
+          },
+          "gotchas": [
+            "A scaling policy can only move desired between min and max — it never raises max for you.",
+            "Changing a launch template version does not modify running instances; you need an instance refresh or manual replacement.",
+            "The ASG uses a specific template version ($Latest, $Default, or a pinned number) — pinning to a number means new launches ignore your edits.",
+            "Deleting the AMI referenced by the launch template does not break running instances but every subsequent launch fails with a client error in Activity History.",
+            "If the launch template omits the IAM instance profile, instances launch fine but never register with Systems Manager — a very common cross-domain trap.",
+            "Setting desired below min is rejected; setting min above the current desired immediately launches instances."
+          ],
+          "numbers": [
+            "ASG default cooldown 300 s",
+            "Launch template versions are numbered from 1; $Latest and $Default are aliases"
+          ]
+        },
+        {
+          "name": "Health check type EC2 vs ELB, grace period, and diagnosing instance churn",
+          "explain": "The ASG replaces any instance it considers unhealthy. What 'unhealthy' means depends on the health check type. With health check type EC2 (the default) the ASG only looks at EC2 status checks: an instance that is running but serving 500s is 'healthy' and stays in the group forever. With health check type ELB the ASG additionally consumes the target group's health check result, so an instance that fails the application health check path gets terminated and replaced. Adding ELB health checks is the fix for 'the load balancer marks targets unhealthy but the ASG never replaces them'.\nThe health check grace period is the number of seconds after launch during which the ASG ignores health check results. Default 300 s. It exists because an instance needs time to boot, run user data, install the app, and start listening. If the grace period is shorter than real boot-to-ready time, the ASG kills each instance just before it becomes healthy, launches a replacement, kills that one too — this is the classic 'instances churn' / 'the group launches and terminates instances in a loop' symptom.\nDiagnosis order for churn: read the Activity History cause strings. 'Failed ELB health checks' plus terminations at a fixed age ≈ grace period too short or health check path wrong. 'Failed EC2 health checks' ≈ genuine instance/system failure or a bad AMI. 'An instance was taken out of service in response to a system health check failure' with no ELB involvement ≈ hardware/status check. Terminations described as rebalancing across AZs ≈ AZRebalance, not a failure at all.",
+          "exam_tests": "Trigger words: 'instances are repeatedly terminated and launched', 'the ALB shows targets unhealthy but the ASG does nothing', 'the application takes 6 minutes to start'. The discriminating fact is usually 'change health check type to ELB' (ASG ignores app health) or 'increase the health check grace period' (app slower than 300 s). If the stem says the instance never becomes healthy at all, the fault is the target group health check path/port/matcher or the security group, not the grace period.",
+          "example": {
+            "scenario": "A new application deployed behind an ALB takes about 7 minutes to warm its cache before it answers on /health. The ASG uses ELB health checks with default settings. Instances are terminated roughly 5 minutes after launch and replaced, in a continuous loop, and the ALB never has a healthy target.",
+            "answer": "Increase the Auto Scaling group's health check grace period to comfortably exceed the 7-minute startup time (for example 600 s).",
+            "why": "The default grace period is 300 s, so the ASG starts honouring the failing ELB health check two minutes before the app is capable of passing it, terminates the instance, and repeats. Lengthening health check intervals or unhealthy thresholds on the target group only delays the failure marginally and degrades real failure detection; the grace period is the knob that is specifically 'ignore health during startup'."
+          },
+          "compare": {
+            "columns": [
+              "Health check type",
+              "Signals used",
+              "Replaces instance that returns HTTP 500?",
+              "Typical use"
+            ],
+            "rows": [
+              [
+                "EC2 (default)",
+                "EC2 system + instance status checks",
+                "No",
+                "Batch/worker fleets with no load balancer"
+              ],
+              [
+                "ELB",
+                "EC2 status checks + target group health check",
+                "Yes",
+                "Any ASG behind ALB/NLB — near-always correct on the exam"
+              ],
+              [
+                "EBS (attached volume)",
+                "Adds impaired attached-EBS status",
+                "No",
+                "Fleets sensitive to volume impairment"
+              ],
+              [
+                "Custom (SetInstanceHealth API)",
+                "Whatever your agent reports",
+                "Yes, if you call it",
+                "App-specific health signal not expressible as an HTTP check"
+              ]
+            ]
+          },
+          "gotchas": [
+            "Health check type EC2 will never replace an instance whose OS is up but whose application is dead.",
+            "The grace period restarts on launch only — it does not apply after an instance enters service and later fails.",
+            "Grace period default is 300 s; the target group's own healthy/unhealthy thresholds are a separate timer and both must be satisfied.",
+            "Setting an enormous grace period hides real failures: a genuinely broken instance serves errors for the whole grace window.",
+            "If the ALB security group cannot reach the instance security group on the health check port, every instance fails health checks forever — no grace period value fixes that.",
+            "Activity History cause strings are the primary diagnostic artefact; the exam expects you to check them before changing any setting."
+          ],
+          "numbers": [
+            "Default health check grace period 300 s",
+            "Default health check type EC2"
+          ]
+        },
+        {
+          "name": "Lifecycle hooks, termination policy order, suspended processes, and standby",
+          "explain": "Lifecycle hooks pause an instance in a wait state so you can do work before it enters or leaves service. Two states matter: autoscaling:EC2_INSTANCE_LAUNCHING puts the instance in Pending:Wait (use it to install software, pull config, warm caches, register with a config store) and autoscaling:EC2_INSTANCE_TERMINATING puts it in Terminating:Wait (use it to drain connections, upload logs, deregister from a service registry). Each hook has a heartbeat timeout (default 3600 s, max 172800 s / 48 h) and a default result of ABANDON or CONTINUE. Your automation calls RecordLifecycleActionHeartbeat to extend the window and CompleteLifecycleAction to release the instance early. If nothing ever calls CompleteLifecycleAction, the instance sits in the wait state for the whole timeout and then takes the default result — 'instances stay in Pending:Wait for an hour' means your Lambda/EventBridge target never completed the action.\nThe default termination policy is an ordered list, and the exam tests the order: within the AZ that has the most instances (AZ balance first), terminate the instance using the oldest launch template or launch configuration; if there is still a tie, terminate the instance closest to the next billing hour. You can override with OldestInstance, NewestInstance, OldestLaunchTemplate, ClosestToNextInstanceHour, AllocationStrategy, or a custom Lambda-backed policy.\nSuspending processes is the safe way to freeze automation. Suspend Launch and Terminate while troubleshooting; suspend AZRebalance to stop cross-AZ churn; suspend ReplaceUnhealthy to keep a broken-but-diagnosable instance alive; suspend HealthCheck to stop health-driven replacement; suspend AddToLoadBalancer so new instances launch without receiving traffic. Standby is the per-instance equivalent: EnterStandby removes the instance from the load balancer and (by default) decrements desired capacity so a replacement is not launched, letting you patch or debug it in place; ExitStandby returns it.",
+          "exam_tests": "Trigger words: 'run a script before the instance is terminated', 'copy logs off the instance before it goes away', 'patch one instance without the group replacing it', 'which instance is terminated first'. Discriminators: lifecycle hook on EC2_INSTANCE_TERMINATING for pre-termination work (NOT user data, NOT a shutdown script — those are not guaranteed); standby for taking one instance out safely; suspend processes for freezing the whole group; and the memorised default termination order.",
+          "example": {
+            "scenario": "A CloudOps engineer must upload application logs from each instance to S3 before Auto Scaling terminates it during scale-in. A shutdown script in the AMI sometimes completes and sometimes does not.",
+            "answer": "Add an autoscaling:EC2_INSTANCE_TERMINATING lifecycle hook, trigger the log upload from the hook event, then call CompleteLifecycleAction.",
+            "why": "The terminating hook holds the instance in Terminating:Wait until your automation explicitly completes the action or the heartbeat times out, which is the only mechanism that guarantees the work finishes before shutdown. OS shutdown scripts race the hypervisor stop and are unreliable; scheduled log shipping loses whatever was written since the last run."
+          },
+          "compare": {
+            "columns": [
+              "Tool",
+              "Scope",
+              "Effect on desired capacity",
+              "Use when"
+            ],
+            "rows": [
+              [
+                "Lifecycle hook (LAUNCHING)",
+                "Every new instance",
+                "None",
+                "Bootstrap/config work before serving traffic"
+              ],
+              [
+                "Lifecycle hook (TERMINATING)",
+                "Every terminating instance",
+                "None",
+                "Drain, log upload, deregistration"
+              ],
+              [
+                "Standby",
+                "One named instance",
+                "Decrements by default (no replacement)",
+                "Patch or debug a single instance in place"
+              ],
+              [
+                "Suspend processes",
+                "Whole group",
+                "None directly",
+                "Freeze automation during maintenance or incident"
+              ],
+              [
+                "Detach instance",
+                "One named instance",
+                "Optionally decrements",
+                "Permanently remove instance from the group"
+              ]
+            ]
+          },
+          "gotchas": [
+            "Default termination order: AZ with most instances → oldest launch template/configuration → closest to next billing hour.",
+            "Lifecycle hook heartbeat default is 3600 s (1 h), maximum 172800 s (48 h); the default result on timeout is usually ABANDON, which terminates the instance.",
+            "Instances stuck in Pending:Wait almost always mean CompleteLifecycleAction was never called — check the EventBridge rule and the Lambda's permissions.",
+            "Suspending Launch alone does not stop terminations; suspending Terminate alone does not stop launches. Suspend both to fully freeze.",
+            "Suspending AddToLoadBalancer means newly launched instances never receive traffic — a subtle cause of 'we scaled out but throughput did not improve'.",
+            "EnterStandby decrements desired capacity by default; if you clear that option the ASG launches a replacement and you end up with extra capacity."
+          ],
+          "numbers": [
+            "Lifecycle heartbeat default 3600 s, max 172800 s",
+            "Default termination policy is a 3-step ordered list"
+          ]
+        },
+        {
+          "name": "Triage flow: 'we scaled but nothing improved'",
+          "explain": "Work the control loop in order rather than guessing. Step 1: did desired capacity actually change? Check the ASG Activity History and the scaling policy's CloudWatch alarm state. No activity at all usually means the alarm never breached, or desired is already at max. Step 2: did instances launch? A failed launch appears in Activity History with a client error — insufficient capacity in the AZ, an invalid or deleted AMI, an exhausted subnet (remember 5 IPs reserved per subnet), an instance-type quota (vCPU limit), or an IAM permission problem on the service-linked role. Step 3: did they become healthy? Health check grace period, health check type, target group path/port/matcher, and security groups. Step 4: did they receive traffic? Check that AddToLoadBalancer is not suspended, that the ALB has a subnet in the instance's AZ, and that the target group shows them healthy. Step 5: is the bottleneck elsewhere? If the fleet doubled and throughput is flat, the constraint is downstream — database connections (RDS Proxy), DynamoDB throttling, a single NAT gateway's port allocation, or a licence/quota.\nThis sequence maps almost one-to-one to the way SOA-C03 writes stems. The exam rarely asks 'what is the right architecture'; it asks which of these five checks the engineer skipped.",
+          "exam_tests": "Trigger words: 'the Auto Scaling group scaled out but application latency did not improve', 'no new instances appeared', 'instances launched but the load balancer still reports zero healthy hosts'. The discriminating fact is which stage of the loop the stem's evidence points at — Activity History content, target group health reason strings, and subnet free-IP counts are the give-aways.",
+          "example": {
+            "scenario": "A scale-out event shows in Activity History with the cause 'a monitor alarm triggered' and the status Failed, with the message that there are not enough free addresses in the subnet.",
+            "answer": "Add additional subnets (or larger CIDRs) in more Availability Zones to the Auto Scaling group so launches have free IP addresses.",
+            "why": "The launch attempt reached EC2 and was rejected for lack of IP addresses, which is a subnet sizing problem, not a scaling policy or health check problem — and AWS reserves 5 addresses in every subnet on top of your instances. Raising max capacity or shortening cooldown cannot help when there is nowhere to place the instance."
+          },
+          "compare": {
+            "columns": [
+              "Stage",
+              "Evidence to check",
+              "Common root cause",
+              "Fix"
+            ],
+            "rows": [
+              [
+                "Policy fired?",
+                "Alarm state, ASG Activity History",
+                "Desired already at max; alarm never breached",
+                "Raise max; fix metric or threshold"
+              ],
+              [
+                "Instance launched?",
+                "Activity History cause string",
+                "Bad AMI, subnet IPs exhausted, vCPU quota, AZ capacity",
+                "Fix template, add subnets/AZs, request quota"
+              ],
+              [
+                "Instance healthy?",
+                "Target group health reason",
+                "Grace period too short, wrong path/port/matcher, SG blocks check",
+                "Extend grace period, fix health check, open SG"
+              ],
+              [
+                "Receiving traffic?",
+                "Suspended processes, ALB subnets",
+                "AddToLoadBalancer suspended; ALB missing that AZ",
+                "Resume process, add ALB subnet"
+              ],
+              [
+                "Throughput improved?",
+                "DB metrics, throttling metrics",
+                "Downstream bottleneck",
+                "RDS Proxy, read replicas, capacity/index fixes"
+              ]
+            ]
+          },
+          "gotchas": [
+            "AWS reserves 5 IP addresses in every subnet; a /28 gives you only 11 usable addresses.",
+            "Insufficient instance capacity in one AZ is transient — spanning more AZs and allowing more instance types (mixed instances policy) is the durable fix.",
+            "Service quotas (vCPU per instance family) cause launch failures that look like ASG bugs; Trusted Advisor and Service Quotas surface them.",
+            "A suspended AddToLoadBalancer process is invisible unless you look at the group's suspended processes list.",
+            "If throughput is flat after doubling capacity, stop tuning the ASG and go look at the data tier.",
+            "Detailed monitoring (1-minute metrics) makes the whole loop react faster; basic 5-minute metrics add up to five minutes of lag before any policy fires."
+          ],
+          "numbers": [
+            "5 IP addresses reserved per subnet",
+            "Basic monitoring 5-minute metrics vs detailed monitoring 1-minute"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "scaling-policies",
+      "title": "Scaling policies, refresh, and container scaling",
+      "summary": "Pick the policy that matches the shape of the demand signal, then tune cooldown/warm-up so the loop settles instead of oscillating.",
+      "concepts": [
+        {
+          "name": "Target tracking vs step vs simple vs scheduled vs predictive",
+          "explain": "Target tracking is the default correct answer for 'least operational overhead'. You give it a metric and a target value (for example ASGAverageCPUUtilization at 50, or ALBRequestCountPerTarget at 1000) and it creates and manages the CloudWatch alarms for you, scaling out aggressively and in conservatively. Step scaling gives you explicit steps: an alarm breaches, and each step range adds a different amount of capacity — right when the response should be proportional to how badly you are breaching. Simple scaling is the legacy single-adjustment policy that blocks on a cooldown after every action; the exam treats it as the wrong answer whenever step or target tracking would do. Scheduled scaling changes min/max/desired at a time you specify (cron or one-off) and is the answer for predictable, calendar-driven demand — a nightly batch, a Monday 09:00 login surge, a Black Friday window. Predictive scaling uses machine learning over at least 24 hours of history (14 days recommended) to forecast daily/weekly cycles and pre-provision capacity before the load arrives; it pairs with a target tracking policy that handles the unforecast residual.\nCooldown and warm-up are different timers and the exam contrasts them. Cooldown (default 300 s) applies to simple scaling: after a scaling activity, further simple-scaling activities are blocked so the previous change can take effect. Instance warm-up applies to step and target tracking policies: newly launched instances are excluded from the group's aggregated metrics until the warm-up elapses, which prevents the still-booting instance's near-zero CPU from dragging the average down and cancelling the scale-out. Target tracking and step scaling do not use cooldown — using warm-up is how you stop oscillation there.",
+          "exam_tests": "Trigger words: 'maintain average CPU around 60%' (target tracking), 'scale more aggressively the further past the threshold' (step), 'traffic spikes every weekday at 08:00' (scheduled), 'recurring daily pattern, provision before demand arrives' (predictive), 'the group keeps scaling out then in repeatedly' (warm-up too short / metric period too short). The discriminator is the shape of the signal, plus 'least operational overhead' pointing at target tracking.",
+          "example": {
+            "scenario": "An ASG behind an ALB oscillates: it adds four instances, then removes them two minutes later, repeatedly, while total request volume is steady. The policy is target tracking on average CPU with a 60% target.",
+            "answer": "Increase the instance warm-up so new instances are excluded from the metric until they are actually serving load.",
+            "why": "Fresh instances report near-zero CPU while booting, pulling the group average below target and triggering an immediate scale-in, which then raises the average and triggers another scale-out — a self-inflicted oscillation. Lowering the target or switching to step scaling does not address the fact that the metric includes instances that are not yet doing work."
+          },
+          "compare": {
+            "columns": [
+              "Policy",
+              "You configure",
+              "Manages alarms for you?",
+              "Timer used",
+              "Best signal shape"
+            ],
+            "rows": [
+              [
+                "Target tracking",
+                "Metric + target value",
+                "Yes",
+                "Instance warm-up",
+                "Smooth, continuous utilisation metric"
+              ],
+              [
+                "Step scaling",
+                "Alarm + step adjustments",
+                "No — you own the alarm",
+                "Instance warm-up",
+                "Proportional response to breach size"
+              ],
+              [
+                "Simple scaling",
+                "Alarm + one adjustment",
+                "No",
+                "Cooldown (default 300 s)",
+                "Legacy; avoid on the exam"
+              ],
+              [
+                "Scheduled",
+                "Time + min/max/desired",
+                "N/A",
+                "N/A",
+                "Known calendar events"
+              ],
+              [
+                "Predictive",
+                "Metric + mode (forecast only / forecast and scale)",
+                "N/A",
+                "N/A",
+                "Recurring daily or weekly cycles"
+              ]
+            ]
+          },
+          "gotchas": [
+            "Default cooldown is 300 s and applies to simple scaling only; target tracking and step scaling use instance warm-up instead.",
+            "Target tracking will scale out to protect the target but will not scale in below min — and it never modifies max.",
+            "Predictive scaling needs at least 24 hours of metric history and only handles recurring patterns; pair it with target tracking for unexpected spikes.",
+            "Multiple policies on one group all evaluate; Auto Scaling applies the one that yields the largest capacity for scale-out — conflicting policies do not cancel out.",
+            "A target tracking policy on a metric that does not fall when you add instances (for example total request count, not per-target) can never converge.",
+            "Scheduled actions set min/max/desired absolutely; a scheduled action that sets max lower than current desired forces an immediate scale-in."
+          ],
+          "numbers": [
+            "Default cooldown 300 s",
+            "Predictive scaling minimum 24 h of history, 14 days recommended",
+            "Detailed monitoring gives 1-minute metrics for faster reaction"
+          ]
+        },
+        {
+          "name": "Instance refresh, warm pools, and capacity rebalancing",
+          "explain": "Instance refresh is the managed way to roll a new launch template version (new AMI, new instance type, new user data) through an ASG. You set a minimum healthy percentage (default 90%) and an instance warm-up, and Auto Scaling replaces instances in batches, waiting for each batch to become healthy. It supports checkpoints (pause after X% for validation) and can roll back automatically if you enable rollback and the new version fails. Instance refresh is also the mechanism behind immutable/blue-green style deployments on EC2 in the exam's vocabulary.\nWarm pools solve slow boot. A warm pool is a pool of pre-initialised instances kept in Stopped (cheapest — you pay only EBS), Running (fastest, full compute charge), or Hibernated (memory preserved, fastest warm start for JVM/cache-heavy apps) state, sitting outside the group's desired capacity. When a scale-out happens, the ASG pulls from the warm pool instead of launching from scratch, cutting minutes off time-to-serve. That is the answer whenever the stem says the application takes many minutes to initialise and scale-out is too slow to absorb the spike.\nCapacity Rebalancing matters for Spot. When EC2 emits a Spot instance rebalance recommendation (an elevated-risk-of-interruption signal that arrives before the 2-minute interruption notice), an ASG with capacity rebalancing enabled proactively launches a replacement On-Demand or Spot instance and then terminates the at-risk one, instead of waiting for the interruption. Combine it with a terminating lifecycle hook to drain gracefully.",
+          "exam_tests": "Trigger words: 'deploy a new AMI to all instances with no downtime' (instance refresh with minimum healthy percentage), 'the application needs 10 minutes to start and scale-out cannot keep up' (warm pool), 'Spot interruptions cause dropped requests' (capacity rebalancing + lifecycle hook). Discriminator: instance refresh replaces existing capacity, warm pools pre-stage new capacity — do not confuse them.",
+          "example": {
+            "scenario": "A Java application in an ASG takes about 9 minutes to boot and warm its JIT and local cache. Traffic spikes at unpredictable times and scale-out arrives far too late, causing several minutes of elevated latency each spike.",
+            "answer": "Configure a warm pool for the Auto Scaling group, keeping pre-initialised instances in the Stopped (or Hibernated) state.",
+            "why": "The warm pool absorbs the boot and initialisation time before the spike, so a scale-out event just starts an already-configured instance instead of building one. Adding a scheduled action does not help because the spikes are unpredictable, and lowering the target-tracking target burns money continuously without shortening the 9-minute initialisation."
+          },
+          "compare": {
+            "columns": [
+              "Warm pool state",
+              "Cost while idle",
+              "Time to serve traffic",
+              "Best for"
+            ],
+            "rows": [
+              [
+                "Stopped",
+                "EBS storage only",
+                "Slowest of the three (boot + app start)",
+                "Cost-sensitive, moderate startup time"
+              ],
+              [
+                "Hibernated",
+                "EBS storage (larger — RAM is written to root volume)",
+                "Fastest for memory-heavy apps",
+                "JVM/cache warm-up dominates startup"
+              ],
+              [
+                "Running",
+                "Full instance charge",
+                "Immediate",
+                "Extreme latency sensitivity, short spikes"
+              ]
+            ]
+          },
+          "gotchas": [
+            "Instance refresh default minimum healthy percentage is 90%; set it lower to roll faster, higher to protect capacity.",
+            "An instance refresh that fails mid-roll leaves a mixed fleet unless you enabled auto rollback — check the refresh status, not just the ASG.",
+            "Warm pool instances are not counted in desired capacity and do not serve traffic; they are additional to the group's in-service instances.",
+            "Warm pools require a launch template; lifecycle hooks on the warm pool transition (Warmed:Pending:Wait) are how you bake in per-instance setup.",
+            "Capacity Rebalancing acts on the rebalance recommendation, which is earlier and less reliable than the 2-minute interruption notice — expect some extra replacements.",
+            "Instance refresh honours the health check grace period and warm-up; a too-short warm-up makes the refresh churn just like normal scaling does."
+          ],
+          "numbers": [
+            "Instance refresh default minimum healthy percentage 90%",
+            "Spot interruption notice 2 minutes; rebalance recommendation arrives earlier"
+          ]
+        },
+        {
+          "name": "ECS service auto scaling, capacity providers, and EKS HPA / Cluster Autoscaler / Karpenter",
+          "explain": "Container scaling is two independent loops and the exam loves to test which one is stuck. In ECS, service auto scaling (Application Auto Scaling) changes the desired task count using target tracking on ECSServiceAverageCPUUtilization, ECSServiceAverageMemoryUtilization, or ALBRequestCountPerTarget, or with step/scheduled policies. That only helps if there is somewhere to place the tasks. On Fargate there always is. On EC2 launch type, capacity providers with managed scaling handle the second loop: the capacity provider watches the CapacityProviderReservation metric and scales the backing ASG to create room, and managed termination protection stops the ASG from killing an instance that still runs tasks. 'Tasks stay in PROVISIONING and never start' on EC2 launch type means no instance has enough CPU/memory/ports/ENIs — the fix is a capacity provider with managed scaling, not a bigger service scaling policy.\nIn EKS the same split exists. The Horizontal Pod Autoscaler scales pod replicas from CPU/memory (via the metrics server) or custom metrics; the Vertical Pod Autoscaler resizes pod requests. Neither adds nodes. Cluster Autoscaler watches for pods stuck in Pending due to insufficient resources and grows the underlying node groups (ASGs) — it is node-group-shaped and needs matching instance types per group. Karpenter replaces Cluster Autoscaler with a provisioner that launches right-sized instances directly from pending pod requirements, without pre-defined node groups, and consolidates underused nodes. 'Pods are Pending with FailedScheduling / Insufficient cpu' = node-level autoscaler problem; 'CPU is at 95% but replica count never changes' = HPA problem (often a missing metrics server or missing resource requests).",
+          "exam_tests": "Trigger words: 'tasks remain in PROVISIONING', 'pods are stuck in Pending', 'the service scales tasks but the cluster runs out of capacity'. The discriminator is always which loop is broken: task/pod count (service auto scaling, HPA) versus underlying instance capacity (capacity provider managed scaling, Cluster Autoscaler, Karpenter). HPA also silently does nothing if pods have no CPU/memory requests defined.",
+          "example": {
+            "scenario": "An ECS service on the EC2 launch type has a target tracking policy that correctly raises desired task count during peak. New tasks sit in PROVISIONING and eventually fail placement, while the ASG behind the cluster stays at its current size.",
+            "answer": "Attach an Auto Scaling group capacity provider with managed scaling (and managed termination protection) to the cluster and use it for the service.",
+            "why": "Service auto scaling only changes the desired task count; nothing is watching for unplaceable tasks and growing the container instance fleet. A capacity provider with managed scaling reacts to CapacityProviderReservation and scales the ASG so tasks can be placed, and managed termination protection prevents scale-in from killing instances that still host tasks."
+          },
+          "compare": {
+            "columns": [
+              "Layer",
+              "ECS",
+              "EKS",
+              "Scales what",
+              "Typical failure symptom"
+            ],
+            "rows": [
+              [
+                "Workload",
+                "Service auto scaling (Application Auto Scaling)",
+                "Horizontal Pod Autoscaler",
+                "Task / pod count",
+                "Utilisation high, count flat (missing metrics or requests)"
+              ],
+              [
+                "Infrastructure",
+                "Capacity provider managed scaling on an ASG",
+                "Cluster Autoscaler or Karpenter",
+                "Container instances / nodes",
+                "Tasks PROVISIONING or pods Pending / FailedScheduling"
+              ],
+              [
+                "Serverless option",
+                "Fargate capacity provider (FARGATE, FARGATE_SPOT)",
+                "Fargate profile",
+                "Nothing to manage",
+                "Quota limits rather than capacity limits"
+              ]
+            ]
+          },
+          "gotchas": [
+            "ECS service auto scaling never adds EC2 container instances — only a capacity provider (or Fargate) does.",
+            "Managed termination protection must be enabled for capacity provider scale-in to avoid terminating instances that still run tasks; it requires the ASG to have instance protection settings managed by ECS.",
+            "HPA does nothing useful if pods lack CPU/memory resource requests — utilisation is a percentage of the request.",
+            "The Kubernetes metrics server is a prerequisite for CPU/memory-based HPA and is not installed by default on EKS.",
+            "Cluster Autoscaler assumes nodes within a node group are interchangeable; heterogeneous requirements need multiple node groups or Karpenter.",
+            "Awsvpc network mode consumes an ENI per task — ENI limits per instance type can block task placement even when CPU and memory are free."
+          ],
+          "numbers": [
+            "ECS target tracking predefined metrics: ECSServiceAverageCPUUtilization, ECSServiceAverageMemoryUtilization, ALBRequestCountPerTarget"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "caching",
+      "title": "Caching for scale",
+      "summary": "Caching buys read scale and latency, but it also hides the real bottleneck — know which cache fits which access pattern and what the cache masks.",
+      "concepts": [
+        {
+          "name": "CloudFront as a scaling and origin-protection layer",
+          "explain": "CloudFront is an edge cache, but operationally it is also origin-offload: every cache hit is a request your origin never sees. Cache hit ratio is the operational metric, and it is dominated by the cache key. Cache policies decide which headers, query strings, and cookies enter the cache key — every additional element multiplies the number of distinct cached objects and lowers the hit ratio. Origin request policies control what gets forwarded to the origin without polluting the cache key, which is how you send a header the origin needs (say User-Agent or a custom auth header) without fragmenting the cache. TTLs come from the origin's Cache-Control/Expires unless the cache policy's min/default/max TTL overrides them: default TTL applies when the origin sends no caching header, max TTL caps what the origin can ask for, min TTL floors it.\nFor reliability, CloudFront gives you origin groups with origin failover (primary origin, secondary origin, and a list of failover status codes such as 500, 502, 503, 504) which is a legitimate DR pattern for static and read-heavy workloads. Invalidations purge objects before TTL expiry; versioned object names (app.v2.js) are the cheaper, recommended alternative.",
+          "exam_tests": "Trigger words: 'cache hit ratio is low', 'the origin is overwhelmed during traffic spikes', 'stale content is still served after a deploy'. Discriminators: low hit ratio → remove unnecessary headers/cookies/query strings from the cache key (use an origin request policy if the origin still needs them); stale content → invalidation or versioned filenames; origin overload → increase TTLs and offload static assets to CloudFront.",
+          "example": {
+            "scenario": "A site behind CloudFront shows a cache hit ratio of 18%. The cache policy forwards all cookies and all query strings to the origin, and the origin sets Cache-Control: max-age=86400 on static assets.",
+            "answer": "Change the cache policy to include only the cookies and query strings that actually vary the response, forwarding the rest via an origin request policy if the origin needs them.",
+            "why": "Every distinct cookie or query string value creates a separate cache key entry, so a per-user session cookie makes almost every request unique and the origin sees nearly all traffic. The origin's TTL is already generous, so raising TTLs or adding invalidations addresses the wrong variable."
+          },
+          "gotchas": [
+            "Forwarding all cookies or all query strings is the single most common cause of a low cache hit ratio.",
+            "Min TTL greater than 0 makes CloudFront ignore shorter origin Cache-Control values; default TTL applies only when the origin sends no caching directive.",
+            "Invalidations are billed beyond the free monthly allowance and take time to propagate; versioned object names are the recommended pattern.",
+            "Origin failover triggers only on the status codes and timeouts you configure, and only for GET/HEAD/OPTIONS requests.",
+            "A 403 from an S3 origin through CloudFront usually means the origin access control/policy is wrong, not that the object is missing (404).",
+            "CloudFront needs its ACM certificate in us-east-1 regardless of where the origin lives."
+          ],
+          "numbers": [
+            "Common origin-failover status codes: 500, 502, 503, 504",
+            "CloudFront ACM certificate must be in us-east-1"
+          ]
+        },
+        {
+          "name": "ElastiCache Redis (Valkey/Redis OSS) vs Memcached, and DAX",
+          "explain": "Memcached is a simple, multi-threaded, in-memory key-value cache. It scales horizontally by adding nodes and sharding client-side, has no persistence, no replication, no failover, and no rich data types. Losing a node loses that node's data — which is fine for a pure cache and nothing else. Redis (and the Valkey/Redis OSS engines in ElastiCache) adds replication, Multi-AZ with automatic failover, snapshots/AOF persistence, transactions, pub/sub, sorted sets, geospatial, Lua, and — with cluster mode enabled — hash-slot sharding across up to 500 shards with replicas per shard. Cluster mode disabled gives you one shard: one primary plus up to five read replicas, scaled vertically. Cluster mode enabled gives horizontal write scaling but requires a cluster-aware client and cross-slot operations are restricted.\nEviction policy matters operationally. When memory fills, Redis applies maxmemory-policy: volatile-lru and allkeys-lru evict, noeviction returns errors on writes. 'Writes to the cache started failing with OOM' means noeviction plus a full cache — the fix is an eviction policy or more memory (scale up node type, or add shards). Watch Evictions, CPUUtilization/EngineCPUUtilization, DatabaseMemoryUsagePercentage, SwapUsage and CacheHitRate.\nDAX is different in kind: it is a write-through, DynamoDB-API-compatible cache that sits in front of DynamoDB inside your VPC and delivers microsecond reads for eventually consistent reads. It requires the DAX SDK/client, caches item and query results, and does not accelerate strongly consistent reads or writes. Use DAX for DynamoDB read-heavy hot keys; use ElastiCache when you need a general-purpose cache or a cache in front of RDS/Aurora.",
+          "exam_tests": "Trigger words: 'need automatic failover / persistence / replicas' (Redis), 'simplest possible multi-threaded object cache, no HA needed' (Memcached), 'microsecond reads for DynamoDB with minimal application change' (DAX), 'strongly consistent reads are still slow' (DAX does not help — it serves eventually consistent reads), 'SET commands fail with OOM' (eviction policy).",
+          "example": {
+            "scenario": "A DynamoDB-backed product catalogue is read-heavy with a few extremely hot partition keys. Read latency must drop to microseconds and the team wants minimal application rewriting.",
+            "answer": "Deploy a DAX cluster in front of the DynamoDB table and switch the application to the DAX client.",
+            "why": "DAX is API-compatible with DynamoDB, so the change is the client library and endpoint rather than a caching rewrite, and it serves eventually consistent reads from memory in microseconds. ElastiCache would work but forces you to write cache-aside logic, key management, and invalidation by hand."
+          },
+          "compare": {
+            "columns": [
+              "Feature",
+              "ElastiCache Redis/Valkey",
+              "ElastiCache Memcached",
+              "DAX"
+            ],
+            "rows": [
+              [
+                "Replication & automatic failover",
+                "Yes (Multi-AZ)",
+                "No",
+                "Yes — multi-node cluster with replicas"
+              ],
+              [
+                "Persistence / snapshots",
+                "Yes",
+                "No",
+                "No (cache only)"
+              ],
+              [
+                "Data structures",
+                "Rich (lists, sets, sorted sets, streams)",
+                "Strings/objects only",
+                "DynamoDB items and query/scan results"
+              ],
+              [
+                "Multi-threaded",
+                "Largely single-threaded per shard",
+                "Yes",
+                "N/A (managed)"
+              ],
+              [
+                "Horizontal write scaling",
+                "Cluster mode enabled (shards)",
+                "Add nodes, client-side sharding",
+                "Add nodes"
+              ],
+              [
+                "Application change",
+                "Cache-aside code you write",
+                "Cache-aside code you write",
+                "Swap in the DAX client — API compatible"
+              ],
+              [
+                "Backing store",
+                "Any (RDS, Aurora, anything)",
+                "Any",
+                "DynamoDB only"
+              ]
+            ]
+          },
+          "gotchas": [
+            "Memcached has no failover and no backup — a node failure is data loss for that shard by design.",
+            "DAX only accelerates eventually consistent reads; strongly consistent reads pass straight through to DynamoDB.",
+            "DAX is a write-through cache: writes go to DynamoDB and the cache, so write latency is not improved.",
+            "Redis cluster mode enabled requires a cluster-aware client and uses a configuration endpoint, not a primary endpoint.",
+            "maxmemory-policy noeviction turns a full cache into write errors; check the Evictions and DatabaseMemoryUsagePercentage metrics.",
+            "Scaling a Redis node type or adding shards is an operation with a brief failover; plan it in a window and rely on Multi-AZ."
+          ],
+          "numbers": [
+            "Redis cluster mode enabled: up to 500 shards; cluster mode disabled: 1 primary + up to 5 read replicas"
+          ]
+        },
+        {
+          "name": "When the cache hides the database problem",
+          "explain": "A cache raises the ceiling but also removes your visibility into the floor. Three failure shapes recur. Thundering herd / cache stampede: a popular key expires, thousands of concurrent requests miss simultaneously, and they all hit the database at once — the database CPU spikes at exactly the TTL boundary. Mitigations are staggered TTLs (jitter), a lock or single-flight so only one request repopulates, or pre-warming.\nCold cache after failover or scale: when a cache node is replaced, restarted, or a new shard is added, the hit ratio collapses and the database inherits full production load in one step. This is why 'we scaled ElastiCache during peak and the RDS instance fell over' is a plausible stem. Mitigations: scale off-peak, use Redis with replicas so a failover keeps warm data, or restore from a snapshot.\nMasked inefficiency: the cache hides a missing index, an N+1 query pattern, or an undersized instance. The signal is that database load is fine at 95% hit ratio but catastrophic at 80%. The operational response is to look at RDS Performance Insights DB load and top SQL rather than adding more cache. On the exam, when the stem says the cache hit ratio dropped and the database is now the bottleneck, the answer is usually about the database (read replicas, indexing, RDS Proxy for connection storms) not about a bigger cache.",
+          "exam_tests": "Trigger words: 'database CPU spikes every few minutes at regular intervals' (TTL expiry stampede), 'after the cache node was replaced, the database became overloaded' (cold cache), 'connections to RDS exhausted when the cache misses' (RDS Proxy). Discriminator: the exam wants you to name the underlying database remedy, not simply enlarge the cache, when cache misses are the trigger rather than the cause.",
+          "example": {
+            "scenario": "An application caches a popular dashboard query in ElastiCache with a fixed 300-second TTL. Every five minutes, RDS CPU spikes to 100% for about 20 seconds and application latency jumps, then recovers.",
+            "answer": "Add randomised jitter to the TTL (and repopulate the key with a single-flight lock or a background refresh) so misses do not align.",
+            "why": "A uniform TTL makes every cached copy expire at the same instant, so the whole request volume becomes a simultaneous cache miss against one query — the five-minute periodicity is the tell. Increasing the cache node size does not change the fact that all copies expire together, and adding a read replica just moves the same simultaneous burst."
+          },
+          "compare": {
+            "columns": [
+              "Symptom",
+              "Likely cause",
+              "Check",
+              "Fix"
+            ],
+            "rows": [
+              [
+                "DB CPU spikes on a fixed period",
+                "Synchronised TTL expiry / stampede",
+                "TTL value vs spike interval; CacheMisses metric",
+                "TTL jitter, single-flight repopulation, background refresh"
+              ],
+              [
+                "DB overload right after cache maintenance",
+                "Cold cache",
+                "ElastiCache events, CacheHitRate drop",
+                "Scale off-peak, use replicas, pre-warm or restore snapshot"
+              ],
+              [
+                "Hit ratio fine but latency creeping up",
+                "Underlying query inefficiency",
+                "RDS Performance Insights top SQL, DB load",
+                "Index, rewrite query, right-size instance"
+              ],
+              [
+                "Connection errors under miss storms",
+                "Connection exhaustion",
+                "DatabaseConnections, max_connections",
+                "RDS Proxy for pooling"
+              ],
+              [
+                "Writes to cache fail with OOM",
+                "Memory full with noeviction policy",
+                "DatabaseMemoryUsagePercentage, Evictions",
+                "Set an LRU eviction policy or scale the node/shards"
+              ]
+            ]
+          },
+          "gotchas": [
+            "Cache hit ratio is a leading indicator of database risk — alarm on it, not just on database CPU.",
+            "A uniform TTL across a hot key set guarantees synchronised misses; jitter is the standard fix.",
+            "Adding read replicas does not help a write-heavy stampede or a connection-count problem.",
+            "RDS Proxy solves connection storms and speeds failover, but does nothing for CPU-bound queries.",
+            "Scaling an ElastiCache cluster during peak transfers the whole load to the database for the duration of the cold-cache period.",
+            "Write-through caching keeps data fresh but adds write latency; lazy loading (cache-aside) is cheaper but always serves at least one stale-or-missing read per key."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "db-scaling",
+      "title": "Database scaling and throttling",
+      "summary": "Each engine has a different scale-out unit — replicas, ACUs, or capacity units — and a different downtime characteristic when you change it.",
+      "concepts": [
+        {
+          "name": "RDS read replicas, storage autoscaling, and instance class changes",
+          "explain": "RDS scales three ways and the exam separates them by downtime. Read replicas scale reads: asynchronous replication to up to 15 replicas (MySQL/MariaDB/PostgreSQL), each with its own endpoint that the application must be changed to use. Replicas can be in another AZ or Region and can be promoted to a standalone writer (promotion breaks replication and is not automatic — it is a manual DR step). ReplicaLag is the metric to alarm on; lag grows with write volume, long-running queries on the replica, and undersized replica instances.\nStorage autoscaling raises allocated storage automatically when free space stays below a threshold, up to a maximum you set, with no downtime. It never shrinks storage — you cannot reduce allocated storage on RDS at all, only migrate to a smaller instance via snapshot/restore or dump/load. There is also a cooldown of roughly six hours between storage modifications.\nChanging the instance class (scale up/down) requires a reboot and therefore downtime — but on a Multi-AZ instance deployment RDS applies the change to the standby first, then fails over, cutting the outage to roughly the failover time. Apply immediately versus during the maintenance window is the other tested lever. Static parameter group changes also need a reboot to take effect; dynamic ones apply immediately.",
+          "exam_tests": "Trigger words: 'reporting queries slow the production database' (read replica), 'FreeStorageSpace keeps dropping and we run out overnight' (storage autoscaling), 'resize the instance with minimum downtime' (Multi-AZ + modify, failover-based), 'parameter change had no effect' (static parameter needs reboot). Discriminator: read replicas need an application endpoint change; storage autoscaling is online and one-way (grow only).",
+          "example": {
+            "scenario": "An RDS for PostgreSQL Multi-AZ instance must move from db.m5.large to db.m5.2xlarge. The business allows only a short interruption.",
+            "answer": "Modify the instance class on the Multi-AZ deployment; RDS upgrades the standby, fails over, then upgrades the former primary.",
+            "why": "In a Multi-AZ instance deployment the modification is applied to the standby first and the outage is limited to the failover window rather than the full resize time, and the endpoint DNS name does not change. Creating a read replica and promoting it would change the endpoint and lose in-flight transactions; restoring a snapshot to a bigger instance is a far longer outage."
+          },
+          "compare": {
+            "columns": [
+              "Change",
+              "Downtime",
+              "Endpoint changes?",
+              "Reversible?"
+            ],
+            "rows": [
+              [
+                "Add read replica",
+                "None on primary",
+                "New endpoint for the replica",
+                "Yes — delete the replica"
+              ],
+              [
+                "Promote read replica",
+                "None on primary; replica restarts",
+                "Replica keeps its endpoint, becomes writer",
+                "No — replication is broken permanently"
+              ],
+              [
+                "Storage autoscaling grows storage",
+                "None",
+                "No",
+                "No — allocated storage cannot be reduced"
+              ],
+              [
+                "Modify instance class (Single-AZ)",
+                "Full restart outage",
+                "No",
+                "Yes — modify again"
+              ],
+              [
+                "Modify instance class (Multi-AZ instance)",
+                "Failover only (~60-120 s)",
+                "No",
+                "Yes"
+              ],
+              [
+                "Static parameter group change",
+                "Requires reboot to apply",
+                "No",
+                "Yes"
+              ]
+            ]
+          },
+          "gotchas": [
+            "Read replicas are asynchronous — never present them as a zero-RPO solution; alarm on ReplicaLag.",
+            "Promoting a read replica is manual and irreversible; it is a DR action, not an HA mechanism.",
+            "RDS allocated storage can only grow, never shrink; storage modifications have a roughly six-hour cooldown.",
+            "Applications must be changed to send reads to the replica endpoint — adding a replica alone changes nothing.",
+            "A backup retention period of 0 disables automated backups and also prevents creating read replicas on MySQL/MariaDB.",
+            "Static parameters (for example max_connections on some engines) need an explicit reboot; the parameter group shows 'pending-reboot'."
+          ],
+          "numbers": [
+            "Up to 15 read replicas per source (MySQL/MariaDB/PostgreSQL); 5 for SQL Server and Oracle in supported configurations",
+            "Storage modification cooldown ~6 hours"
+          ]
+        },
+        {
+          "name": "Aurora replicas, Aurora Auto Scaling, and Serverless v2 ACUs",
+          "explain": "Aurora separates compute from a shared, distributed storage layer that keeps six copies across three AZs. Aurora Replicas therefore do not copy data — they attach to the same volume, which is why replica lag is typically in the tens of milliseconds and why you can have up to 15 replicas. The cluster exposes a writer endpoint (always points to the current writer), a reader endpoint (load-balances across available readers), and optional custom endpoints for workload isolation. Aurora Auto Scaling adds and removes Aurora Replicas based on average CPU or average connections against a target — that is how you scale reads elastically, and the reader endpoint picks up the new replicas automatically.\nFailover in Aurora is fast (typically around 30 seconds, often quoted as under 35 s) because promotion is a metadata change on shared storage, not a data copy. Failover priority tiers (tier-0 through tier-15) decide who gets promoted: the lowest tier number wins, and among equal tiers Aurora picks the replica whose instance size is closest to the writer. Put your fully-sized replica in tier-0 and small reporting replicas in tier-15.\nAurora Serverless v2 scales compute in Aurora Capacity Units, in fine-grained 0.5-ACU increments, between a minimum and maximum you configure (from 0 or 0.5 ACU up to 256 ACU depending on configuration), in place and without dropping connections. One ACU is roughly 2 GiB of memory with matching CPU and network. It scales in seconds and is the answer for spiky or unpredictable workloads where provisioning for the peak is wasteful. If the workload hits the ceiling, the symptom is CPU saturation and queueing at max ACU — raise the maximum ACU.",
+          "exam_tests": "Trigger words: 'read traffic varies unpredictably' (Aurora Auto Scaling of replicas), 'which replica is promoted' (failover priority tier, lowest number wins), 'unpredictable spiky workload, avoid over-provisioning' (Serverless v2), 'failover took only ~30 seconds' (Aurora, versus 60-120 s for RDS Multi-AZ instance). Discriminator: Aurora replicas share storage, so adding one does not duplicate data or cost storage again.",
+          "example": {
+            "scenario": "An Aurora MySQL cluster has one writer and three replicas of different sizes. During a failover, a small db.t3.medium reporting replica was promoted and the application became unusably slow.",
+            "answer": "Set failover priority tiers so the appropriately sized replica is in tier-0 and the small reporting replica is in a high tier (for example tier-15).",
+            "why": "Aurora promotes the replica in the lowest-numbered tier, so leaving every replica at the same default tier makes promotion effectively arbitrary among them. Deleting the reporting replica would fix the symptom but throws away the read capacity it provides for reporting."
+          },
+          "compare": {
+            "columns": [
+              "Aspect",
+              "Aurora Replica",
+              "RDS Read Replica",
+              "Aurora Serverless v2"
+            ],
+            "rows": [
+              [
+                "Replication mechanism",
+                "Shared cluster storage (no data copy)",
+                "Asynchronous engine replication",
+                "N/A — compute scaling on one instance"
+              ],
+              [
+                "Typical lag",
+                "Tens of milliseconds",
+                "Seconds to minutes under load",
+                "N/A"
+              ],
+              [
+                "Max count",
+                "15 per cluster",
+                "15 (engine dependent)",
+                "N/A"
+              ],
+              [
+                "Automatic failover target",
+                "Yes — by priority tier",
+                "No — manual promotion",
+                "Yes, if in a Multi-AZ cluster"
+              ],
+              [
+                "Scaling trigger",
+                "Aurora Auto Scaling on CPU or connections",
+                "Manual",
+                "ACU scaling in 0.5-ACU steps, seconds"
+              ]
+            ]
+          },
+          "gotchas": [
+            "Aurora failover is roughly 30 seconds versus 60-120 seconds for an RDS Multi-AZ instance deployment — the exam uses this number to discriminate.",
+            "Lowest failover tier number wins; ties are broken by instance size closest to the writer.",
+            "The reader endpoint round-robins per new connection, not per query — long-lived pooled connections can stick to one replica.",
+            "Aurora Auto Scaling adds replicas only; it does not resize the writer.",
+            "Serverless v2 scales in place without dropping connections, but it cannot exceed the configured maximum ACU — saturation there looks exactly like an undersized provisioned instance.",
+            "Aurora storage grows automatically in 10 GiB increments up to 128 TiB; you never provision Aurora storage."
+          ],
+          "numbers": [
+            "Aurora failover typically ~30 s (<35 s)",
+            "Up to 15 Aurora Replicas",
+            "Serverless v2 scales in 0.5-ACU increments; 1 ACU ≈ 2 GiB memory",
+            "Aurora storage auto-grows to 128 TiB"
+          ]
+        },
+        {
+          "name": "DynamoDB capacity modes, auto scaling, throttling, and RDS Proxy",
+          "explain": "DynamoDB has two capacity modes. On-demand needs no capacity planning, charges per request, and absorbs traffic up to double the previous peak instantly (beyond that it needs a short warm-up), which makes it the answer for unpredictable or brand-new workloads. Provisioned mode sets RCUs and WCUs and is cheaper for steady, predictable traffic; Application Auto Scaling adjusts provisioned capacity toward a target utilisation, with 70% being the standard default target on the exam. You can switch modes, but only a limited number of times in a 24-hour window.\nThrottling shows as ThrottledRequests, ReadThrottleEvents/WriteThrottleEvents, and ProvisionedThroughputExceededException. Three distinct causes: (1) table-level capacity genuinely exhausted — raise capacity or enable auto scaling; (2) a hot partition — one partition key takes a disproportionate share, so the per-partition ceiling is hit while table-level consumption looks low. The fix is a better partition key or write sharding, and DAX or adaptive capacity mitigates but does not cure it. Use CloudWatch Contributor Insights for DynamoDB to identify the hot key; (3) a GSI with its own, separately provisioned capacity being throttled — a throttled GSI on a table throttles the base table's writes too, which is a favourite exam trap.\nRDS Proxy is the connection-layer analogue. It pools and multiplexes database connections, which fixes 'too many connections' errors from Lambda or containerised fleets that open a connection per invocation, and it reduces failover time by holding client connections open while it repoints to the new writer (often cutting failover impact by more than half). It supports RDS MySQL/PostgreSQL/MariaDB and Aurora, requires credentials in Secrets Manager, an IAM role to read them, and runs inside your VPC.",
+          "exam_tests": "Trigger words: 'ProvisionedThroughputExceededException while consumed capacity is well below provisioned' (hot partition), 'writes throttled after adding an index' (GSI capacity), 'unpredictable new workload' (on-demand), 'Lambda functions exhaust database connections' (RDS Proxy), 'reduce failover impact on the application' (RDS Proxy). Discriminator: table-level metrics looking healthy while requests throttle always points at partitioning or a GSI, never at raw table capacity.",
+          "example": {
+            "scenario": "A DynamoDB table in provisioned mode with auto scaling reports frequent write throttling. CloudWatch shows consumed write capacity at roughly 40% of provisioned. A global secondary index was added last week.",
+            "answer": "Increase the provisioned write capacity (or enable auto scaling) on the global secondary index.",
+            "why": "A GSI has its own provisioned throughput, and when the index throttles DynamoDB throttles writes to the base table as well — which is why the base table shows plenty of headroom while writes fail. Raising base table capacity or switching the table to on-demand without addressing the index leaves the same bottleneck in place."
+          },
+          "compare": {
+            "columns": [
+              "Mode / feature",
+              "Capacity planning",
+              "Cost shape",
+              "Handles sudden 10x spike?",
+              "Use when"
+            ],
+            "rows": [
+              [
+                "On-demand",
+                "None",
+                "Per request, higher unit price",
+                "Yes up to 2x previous peak instantly",
+                "Unpredictable, new, or spiky workloads"
+              ],
+              [
+                "Provisioned (fixed)",
+                "You set RCU/WCU",
+                "Cheapest for steady load",
+                "No — throttles",
+                "Flat, well-understood traffic"
+              ],
+              [
+                "Provisioned + auto scaling",
+                "Target utilisation (default 70%)",
+                "Cheap with headroom",
+                "Partially — scaling takes minutes",
+                "Predictable ramps, cost-sensitive"
+              ],
+              [
+                "DAX in front",
+                "Cache node sizing",
+                "Adds cache cost",
+                "Read spikes only",
+                "Read-heavy, hot keys, eventually consistent reads"
+              ],
+              [
+                "RDS Proxy (relational)",
+                "None",
+                "Per vCPU-hour of the DB instance",
+                "Connection spikes, not query load",
+                "Serverless/containers exhausting connections"
+              ]
+            ]
+          },
+          "gotchas": [
+            "DynamoDB auto scaling default target utilisation is 70%; it scales in minutes, not seconds, so it does not save you from an instant spike.",
+            "A throttled GSI throttles writes on the base table — check index metrics, not just table metrics.",
+            "Hot partitions throttle while table-level consumption looks low; Contributor Insights identifies the offending key.",
+            "Switching between on-demand and provisioned is limited to a small number of changes per 24 hours.",
+            "RDS Proxy requires the credentials in Secrets Manager and an IAM role; it does not reduce CPU load on the database.",
+            "RDS Proxy pinning (from session state such as temporary tables or SET statements) silently disables multiplexing — watch DatabaseConnectionsCurrentlySessionPinned."
+          ],
+          "numbers": [
+            "DynamoDB auto scaling default target 70%",
+            "On-demand absorbs up to 2x previous peak instantly",
+            "DynamoDB item size limit 400 KB"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "lb-dns-health",
+      "title": "Load balancer and DNS health",
+      "summary": "Every routing decision is downstream of a health check — learn what each health check can actually see, and read the 5xx code as a diagnosis.",
+      "concepts": [
+        {
+          "name": "Target group health checks and the 502/503/504/460 decision table",
+          "explain": "A target group health check is defined by protocol, path, port (traffic-port or an override), healthy threshold, unhealthy threshold, timeout, interval, and success matcher (the HTTP codes counted as healthy — default 200 for ALB, 200-399 for NLB HTTP checks). If the target's health page returns 302 to a login screen and your matcher says 200, every target is unhealthy even though the app is fine: widen the matcher or point the check at an unauthenticated path. The instance security group must allow inbound traffic from the load balancer's security group on the health check port — with a network ACL that is stateless, you also need the ephemeral return range.\nThe error code is a diagnosis. 503 means the load balancer had no healthy (or no registered) targets — it never reached your app. 504 means the target did not answer within the timeout; the ALB idle timeout default is 60 s, so a long query or a target that stopped responding produces 504. 502 means the target answered with something the load balancer could not parse: a connection reset, a malformed response, a target that closed the keep-alive connection early, or a Lambda target returning a bad payload or erroring. 460 is ALB-specific: the client closed the connection before the load balancer could respond (client-side timeout). 400 is a malformed client request. Read ELB access logs and the HTTPCode_ELB_5XX_Count versus HTTPCode_Target_5XX_Count metrics to tell whether the load balancer or the target produced the error.\nDeregistration delay (connection draining) defaults to 300 s: when a target deregisters or the ASG terminates it, the load balancer stops sending new requests but keeps in-flight ones alive for up to that long. Lower it for fast deployments; raise it for long-running requests. Cross-zone load balancing is on by default for ALB (and free between AZs for ALB) and off by default for NLB, where it also incurs inter-AZ data charges — an NLB with an uneven number of targets per AZ produces uneven load until you enable it. Sticky sessions (duration-based cookies on ALB/CLB, or application-based cookies on ALB) pin a client to a target, which breaks even distribution and complicates deployments.",
+          "exam_tests": "Trigger words: 'users receive HTTP 503', 'intermittent 502 after deploying a new version', 'requests fail after exactly 60 seconds' (504 / idle timeout), 'one AZ's instances get far more traffic' (NLB cross-zone off), 'requests are dropped during deployment' (deregistration delay too short). Discriminator: 503 = no healthy targets; 504 = target too slow; 502 = target replied badly.",
+          "example": {
+            "scenario": "After adding a new target group, all targets show as unhealthy with reason Health checks failed with these codes: [302]. The application itself responds correctly in a browser.",
+            "answer": "Change the health check success matcher to accept 302, or point the health check at a path that returns 200 without authentication.",
+            "why": "The default ALB matcher accepts only 200, so a redirect to a login page counts as a failure even though the target is serving correctly. Increasing the timeout, interval, or unhealthy threshold does nothing because the target is responding promptly with a code the matcher rejects."
+          },
+          "compare": {
+            "columns": [
+              "Code",
+              "Who produced it",
+              "Most likely cause",
+              "First thing to check"
+            ],
+            "rows": [
+              [
+                "503 Service Unavailable",
+                "Load balancer",
+                "No healthy or no registered targets in the AZ",
+                "Target group health status and reason string"
+              ],
+              [
+                "504 Gateway Timeout",
+                "Load balancer",
+                "Target exceeded the idle/response timeout (default 60 s)",
+                "Target latency, idle timeout, slow queries"
+              ],
+              [
+                "502 Bad Gateway",
+                "Load balancer",
+                "Target reset the connection, malformed response, or Lambda error",
+                "Target logs, keep-alive timeout vs ALB idle timeout, Lambda errors"
+              ],
+              [
+                "460",
+                "ALB",
+                "Client closed the connection before the ALB responded",
+                "Client-side timeout, very slow target"
+              ],
+              [
+                "400 Bad Request",
+                "Load balancer",
+                "Malformed client request or oversized headers",
+                "Client request format, header size limits"
+              ],
+              [
+                "Target 5xx (HTTPCode_Target_5XX_Count)",
+                "Your application",
+                "Application error",
+                "Application logs — not an ELB issue"
+              ]
+            ]
+          },
+          "gotchas": [
+            "Set the target's HTTP keep-alive timeout higher than the ALB idle timeout (default 60 s), otherwise the target closes connections first and you get intermittent 502s.",
+            "The ALB security group must permit the health check port to the target security group; without it every target is permanently unhealthy.",
+            "Deregistration delay default is 300 s — deployments appear to hang for five minutes if nobody changed it.",
+            "Cross-zone load balancing: ALB on by default (no inter-AZ charge), NLB off by default (enabling it adds inter-AZ data transfer cost).",
+            "NLB health checks that use TCP only prove the port is open — an app returning 500s stays 'healthy' unless you use an HTTP/HTTPS health check.",
+            "Sticky sessions defeat even distribution and can concentrate load on one target after a scale-out."
+          ],
+          "numbers": [
+            "ALB idle timeout default 60 s",
+            "Deregistration delay default 300 s (0-3600 s)",
+            "Default ALB health check: interval 30 s, timeout 5 s, healthy threshold 5, unhealthy threshold 2, matcher 200"
+          ]
+        },
+        {
+          "name": "Route 53 health checks, failover routing, and evaluate target health",
+          "explain": "Route 53 has three health check types. An endpoint health check has AWS's global fleet of health checkers probe an IP or domain name over HTTP/HTTPS/TCP — the checkers live on the public internet, so this only works for a publicly reachable endpoint, and you must allow the health checker IP ranges. A calculated health check combines the results of up to 256 child health checks with a threshold ('healthy if at least 2 of 3 children are healthy') — use it to express 'the Region is healthy only if the web tier and the API are both up'. A CloudWatch alarm health check derives health from a CloudWatch alarm state, which is the only way to health-check a private resource that Route 53's public checkers cannot reach, or to base health on a metric (queue depth, error rate) rather than an HTTP probe.\nDefaults you must know: failure threshold 3 (three consecutive failed checks flip the state), standard request interval 30 seconds, fast interval 10 seconds. So a standard endpoint check takes roughly 90 seconds to declare failure, a fast one roughly 30 seconds — then DNS TTL adds further delay before clients move. That is why 'failover took several minutes' is usually a TTL problem, not a health check problem.\nFailover routing uses a primary record and a secondary record, each associated with a health check; when the primary is unhealthy Route 53 answers with the secondary. Evaluate Target Health is the alias-record shortcut: an alias to an ALB, NLB, CloudFront distribution, S3 website endpoint, or another Route 53 record inherits the target's health without you creating and paying for a health check. For an ALB alias, evaluate target health returns unhealthy when the ALB has no healthy targets. Note that an alias to an S3 bucket or CloudFront cannot use evaluate target health meaningfully in the same way — for those you attach an explicit health check.",
+          "exam_tests": "Trigger words: 'the endpoint is in a private subnet' (CloudWatch alarm health check), 'health only if several components are up' (calculated), 'DNS failover did not happen even though the site was down' (missing health check on the primary record, or Evaluate Target Health not enabled), 'failover took 5 minutes' (TTL too long). Discriminator: Route 53 health checkers are public — they cannot reach private endpoints, full stop.",
+          "example": {
+            "scenario": "A company runs an internal application behind an internal ALB in private subnets and wants Route 53 failover to a secondary Region. The endpoint health check they created is permanently unhealthy.",
+            "answer": "Replace the endpoint health check with a CloudWatch alarm health check driven by an alarm on the internal ALB's healthy host count.",
+            "why": "Route 53's health checkers run on the public internet and cannot reach an internal ALB, so an endpoint health check on a private address always fails. A CloudWatch alarm health check evaluates the alarm state instead of probing the endpoint, which is the documented pattern for private resources."
+          },
+          "compare": {
+            "columns": [
+              "Health check type",
+              "What it observes",
+              "Works for private resources?",
+              "Typical use"
+            ],
+            "rows": [
+              [
+                "Endpoint",
+                "HTTP/HTTPS/TCP probe from public checkers",
+                "No",
+                "Public web endpoint or public IP"
+              ],
+              [
+                "Calculated",
+                "State of up to 256 child health checks",
+                "Inherits children's ability",
+                "Composite 'Region healthy' logic"
+              ],
+              [
+                "CloudWatch alarm",
+                "State of a CloudWatch alarm",
+                "Yes",
+                "Private endpoints, metric-based health (errors, queue depth)"
+              ],
+              [
+                "Evaluate Target Health (alias)",
+                "Health of the aliased AWS resource",
+                "Yes for internal ALB alias in the same account/zone",
+                "Zero-config failover between ALBs or records"
+              ]
+            ]
+          },
+          "gotchas": [
+            "Failure threshold default is 3; standard interval 30 s and fast interval 10 s — so detection takes roughly 90 s or 30 s respectively before DNS TTL is added.",
+            "A failover record with no health check on the primary never fails over — Route 53 has nothing to evaluate.",
+            "Long record TTLs dominate real recovery time; lower TTL (for example 60 s) ahead of any planned failover.",
+            "Health checkers must be allowed through security groups, NACLs, and WAF — a WAF rule blocking the checker ranges makes a healthy site look down.",
+            "A CloudWatch alarm health check treats INSUFFICIENT_DATA according to the setting you choose (healthy, unhealthy, or last known status) — pick deliberately.",
+            "Alias records at the zone apex are the correct answer versus CNAME, which is not allowed at the apex."
+          ],
+          "numbers": [
+            "Failure threshold default 3",
+            "Standard interval 30 s, fast interval 10 s",
+            "Calculated health check: up to 256 child checks"
+          ]
+        },
+        {
+          "name": "Application Recovery Controller: zonal shift, zonal autoshift, and readiness checks",
+          "explain": "Application Recovery Controller (ARC) is the exam's answer for 'a single Availability Zone is degraded and I need to get out of it fast'. Zonal shift lets you move traffic away from one AZ for a supported resource (Application Load Balancer, Network Load Balancer with cross-zone disabled, and other supported resource types) with a single API call, without changing DNS records, capacity, or code. You set an expiry (up to 3 days total, extendable) and traffic returns automatically when it expires or when you cancel. Zonal autoshift goes further: you authorise AWS to perform the shift for you automatically when AWS internal telemetry detects an impaired AZ, and AWS runs regular practice runs to verify your application can survive losing an AZ.\nReadiness checks are the pre-failover half: ARC continuously audits that your recovery Region or cell is actually ready — matching capacity, quotas, configuration, and resource sets — so you find out that the standby has half the ASG capacity before the disaster, not during it. Routing controls (with cluster and safety rules) are the on/off switches for failover, backed by a highly available data plane in five Regions, and they flip Route 53 health checks so DNS traffic moves.\nThe operational point: zonal shift is the fastest, lowest-risk response to a single-AZ problem in a Regional deployment. It does not fix an application that cannot run on the remaining AZs' capacity — which is exactly what readiness checks and pre-scaled capacity are for.",
+          "exam_tests": "Trigger words: 'one Availability Zone is impaired', 'shift traffic away from an AZ without changing DNS', 'verify the standby Region is ready to take over'. Discriminator: zonal shift = single AZ, minutes, no DNS change; Route 53 failover routing / ARC routing controls = Region-level failover; readiness checks = pre-event verification, not a failover action.",
+          "example": {
+            "scenario": "During a partial AZ impairment, an application behind an ALB serves elevated errors from targets in one AZ. The team must remove that AZ from service immediately with the least operational change.",
+            "answer": "Start an ARC zonal shift on the Application Load Balancer to move traffic away from the affected Availability Zone.",
+            "why": "Zonal shift is a single API call against the load balancer that stops sending traffic to that AZ and reverses automatically on expiry, with no DNS, capacity, or code change. Deregistering targets by hand or editing Route 53 records is slower, error-prone, and harder to reverse cleanly."
+          },
+          "compare": {
+            "columns": [
+              "ARC capability",
+              "What it does",
+              "Trigger",
+              "Scope"
+            ],
+            "rows": [
+              [
+                "Zonal shift",
+                "Moves traffic away from one AZ for a supported resource",
+                "You call the API/console",
+                "Single AZ, one resource"
+              ],
+              [
+                "Zonal autoshift",
+                "AWS shifts traffic automatically on detected AZ impairment, plus practice runs",
+                "AWS telemetry",
+                "Single AZ, authorised resources"
+              ],
+              [
+                "Readiness check",
+                "Audits capacity, quota, and config parity of recovery cells",
+                "Continuous",
+                "Region/cell readiness, pre-event"
+              ],
+              [
+                "Routing control",
+                "Manual on/off switch that drives Route 53 health checks",
+                "You flip it (with safety rules)",
+                "Regional or cell-level failover"
+              ]
+            ]
+          },
+          "gotchas": [
+            "Zonal shift requires cross-zone load balancing to be disabled on an NLB for the shift to have the intended effect on that resource type.",
+            "A zonal shift does not add capacity — if the remaining AZs cannot absorb the load, you trade errors for saturation.",
+            "Zonal shifts expire; extend them or the traffic returns to a still-impaired AZ.",
+            "Readiness checks report on parity but do not perform any failover action.",
+            "Routing controls have their own highly available data plane and should be operated through the cluster endpoints, not through the Route 53 console, during an event.",
+            "Zonal autoshift practice runs deliberately shift traffic on a schedule — expect them and make sure the application tolerates N-1 AZs."
+          ],
+          "numbers": [
+            "Zonal shift maximum duration 3 days (extendable while the impairment lasts)"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "multi-az",
+      "title": "Multi-AZ and fault tolerance",
+      "summary": "Multi-AZ is availability inside one Region with a specific failover time and a specific thing that does NOT change — the endpoint.",
+      "concepts": [
+        {
+          "name": "RDS Multi-AZ instance vs Multi-AZ DB cluster vs read replica",
+          "explain": "A Multi-AZ instance deployment keeps one synchronous standby in a second AZ. The standby serves no traffic — it exists purely for failover. Failover typically takes about 60 to 120 seconds and is triggered by an AZ failure, a primary instance failure, a storage failure, a manual reboot-with-failover, or an instance class change. Crucially the DB endpoint name does not change: AWS repoints the CNAME to the new primary. So if the application still fails after a successful failover, the cause is almost always DNS caching — a JVM with a permanent DNS TTL, or a connection pool holding stale connections. The fix is to lower the client-side DNS TTL and set the JVM networkaddress.cache.ttl, or to front the database with RDS Proxy.\nA Multi-AZ DB cluster deployment (MySQL and PostgreSQL) is different: one writer plus two readable standbys across three AZs, with semi-synchronous commit, failover typically under 35 seconds, and a reader endpoint you can actually use for reads. It is the middle ground between a Multi-AZ instance and Aurora.\nRead replicas are not a Multi-AZ feature. They are asynchronous, they serve reads, promotion is manual, and they are the tool for read scaling and cross-Region DR — not for automatic failover. The exam repeatedly contrasts these three, and 'Multi-AZ for availability, read replicas for scale' is the sentence to hold on to.",
+          "exam_tests": "Trigger words: 'automatic failover with no application endpoint change' (Multi-AZ), 'reduce read load' (read replica), 'application still cannot connect minutes after failover' (client DNS TTL / stale connection pool), 'failover in under 35 seconds and readable standbys' (Multi-AZ DB cluster). Discriminator: standby in a Multi-AZ instance deployment is NOT readable.",
+          "example": {
+            "scenario": "An RDS for MySQL Multi-AZ instance failed over successfully — the console shows the new AZ and the event log confirms completion — but the Java application kept throwing connection errors for about 15 minutes afterwards.",
+            "answer": "Reduce the client-side DNS caching (set the JVM networkaddress.cache.ttl to a low value) and recycle the connection pool after failover.",
+            "why": "The RDS endpoint name is unchanged and resolves to the new primary's address, so a client that caches the old IP address indefinitely keeps dialling the demoted instance. Creating a read replica or enabling Multi-AZ again does not touch the client-side resolver behaviour that caused the outage."
+          },
+          "compare": {
+            "columns": [
+              "Option",
+              "Sync?",
+              "Standby readable?",
+              "Automatic failover",
+              "Typical failover time",
+              "Endpoint after failover"
+            ],
+            "rows": [
+              [
+                "RDS Multi-AZ instance",
+                "Synchronous",
+                "No",
+                "Yes",
+                "~60-120 s",
+                "Unchanged (CNAME repointed)"
+              ],
+              [
+                "RDS Multi-AZ DB cluster",
+                "Semi-synchronous, 2 standbys",
+                "Yes (reader endpoint)",
+                "Yes",
+                "Usually <35 s",
+                "Unchanged"
+              ],
+              [
+                "RDS read replica",
+                "Asynchronous",
+                "Yes",
+                "No — manual promotion",
+                "Minutes (manual)",
+                "Replica keeps its own endpoint"
+              ],
+              [
+                "Aurora cluster with replicas",
+                "Shared storage",
+                "Yes (reader endpoint)",
+                "Yes, by priority tier",
+                "~30 s",
+                "Writer endpoint unchanged"
+              ]
+            ]
+          },
+          "gotchas": [
+            "The Multi-AZ standby cannot be read from or connected to — offering it as a read scaling solution is always wrong.",
+            "Failover does not change the endpoint; persistent client-side DNS caching is the usual reason an application stays broken.",
+            "Backups and maintenance in a Multi-AZ instance deployment are taken from the standby, so they do not impact primary I/O.",
+            "A reboot with failover is the supported way to test failover and to force a move to the other AZ.",
+            "Cross-Region read replicas give geographic DR but the RPO is whatever the replication lag is at the moment of failure.",
+            "Enabling Multi-AZ on an existing instance causes a brief performance impact while the standby is seeded, but no downtime."
+          ],
+          "numbers": [
+            "Multi-AZ instance failover ~60-120 s",
+            "Multi-AZ DB cluster failover usually <35 s",
+            "Aurora failover ~30 s"
+          ]
+        },
+        {
+          "name": "Multi-AZ everywhere else: ElastiCache, EFS, ALB, NAT gateways",
+          "explain": "Multi-AZ is a per-service setting and forgetting one component is what actually causes an AZ outage to take you down. ElastiCache for Redis with Multi-AZ and automatic failover promotes a replica in another AZ when the primary fails; without it you have a single point of failure and no automatic recovery. Memcached has no failover at all — spreading nodes across AZs limits blast radius but loses that node's cache.\nEFS comes in two storage classes of redundancy: Regional (formerly Standard) replicates across multiple AZs and survives an AZ loss; One Zone stores data in a single AZ, costs materially less, and is lost or unavailable if that AZ fails. Choosing One Zone for a production shared file system is a classic exam trap. Mount targets are per-AZ: create one in each AZ your instances run in, and the security group on the mount target must allow NFS (TCP 2049) from the client security group — 'mount hangs' is nearly always a missing mount target in that AZ or the missing 2049 rule.\nAn ALB must have at least two subnets in different AZs, and it only sends traffic into an AZ where it has a subnet. Adding instances in a third AZ without adding the ALB subnet means they receive nothing. NAT gateways are zonal: one NAT gateway in one public subnet is a single AZ dependency, and if that AZ fails, every private subnet routed to it loses internet egress — even subnets in healthy AZs. The resilient pattern is one NAT gateway per AZ with each private subnet's route table pointing at the NAT gateway in its own AZ, which also removes cross-AZ data transfer charges.",
+          "exam_tests": "Trigger words: 'when one AZ failed, instances in the other AZs also lost internet access' (single NAT gateway), 'EFS mount hangs from instances in a new AZ' (missing mount target or port 2049), 'cache primary failed and never recovered' (Multi-AZ / automatic failover not enabled), 'the file system data was lost when the AZ failed' (EFS One Zone). Discriminator: identify the one component that is still single-AZ.",
+          "example": {
+            "scenario": "A VPC has private subnets in three AZs, all routing 0.0.0.0/0 to a single NAT gateway in AZ-a. During an AZ-a impairment, instances in all three AZs lose outbound internet access.",
+            "answer": "Deploy a NAT gateway in each Availability Zone and point each private subnet's route table at the NAT gateway in its own AZ.",
+            "why": "A NAT gateway is a zonal resource, so every private subnet routed to the AZ-a gateway inherits AZ-a's fate regardless of where the instances are. Per-AZ NAT gateways remove that shared dependency and also eliminate the cross-AZ data transfer charges the single-gateway design was incurring."
+          },
+          "compare": {
+            "columns": [
+              "Component",
+              "Default resilience",
+              "What makes it multi-AZ",
+              "Failure symptom if left single-AZ"
+            ],
+            "rows": [
+              [
+                "ElastiCache Redis",
+                "Single node unless configured",
+                "Multi-AZ with automatic failover + replicas",
+                "Cache down until manual rebuild"
+              ],
+              [
+                "EFS",
+                "Regional class spans AZs",
+                "Choose Regional, not One Zone; mount target per AZ",
+                "One Zone: data unavailable on AZ failure; missing mount target: hung mount"
+              ],
+              [
+                "ALB",
+                "Requires ≥2 AZ subnets",
+                "Enable all AZs holding targets",
+                "Targets in an unmapped AZ receive no traffic"
+              ],
+              [
+                "NAT gateway",
+                "Zonal",
+                "One per AZ + per-AZ route tables",
+                "All private subnets lose egress when that AZ fails"
+              ],
+              [
+                "EBS volume",
+                "Single AZ always",
+                "Snapshots (Regional) or replicate at app level",
+                "Volume unavailable with the AZ"
+              ]
+            ]
+          },
+          "gotchas": [
+            "EFS One Zone is cheaper but is not a multi-AZ file system — never pick it for HA requirements.",
+            "EFS needs a mount target in every AZ where clients run, and the mount target security group must allow TCP 2049.",
+            "An ALB will not route into an AZ where it has no subnet, no matter how healthy the targets there are.",
+            "A single NAT gateway is a hidden single-AZ dependency for every private subnet routed to it, plus a cross-AZ data charge.",
+            "EBS volumes are AZ-scoped: an instance cannot attach a volume from another AZ; you must snapshot and restore.",
+            "ElastiCache Multi-AZ automatic failover requires at least one replica; enabling the setting with zero replicas does nothing."
+          ],
+          "numbers": [
+            "EFS/NFS port TCP 2049",
+            "ALB requires subnets in at least 2 AZs"
+          ]
+        },
+        {
+          "name": "Multi-AZ versus multi-Region: choosing the blast radius",
+          "explain": "Multi-AZ protects against the loss of a data centre or an AZ inside one Region. It is cheap, mostly a configuration flag, keeps a single endpoint, and has sub-minute to low-minutes failover. It does not protect against a Regional service event, a Region-wide control plane problem, a bad deployment that you replicated everywhere, or a data-corruption bug — those need either multi-Region or point-in-time recovery.\nMulti-Region costs materially more: duplicated infrastructure, cross-Region data transfer, replication lag (so a non-zero RPO unless you use a globally replicated data layer), more complex deployments, and DNS or Global Accelerator on top for traffic steering. The data layer decides what is feasible: Aurora Global Database gives typically sub-second cross-Region replication with roughly a one-minute RTO for a managed planned failover and cross-Region read scaling; DynamoDB global tables give multi-active writes with last-writer-wins conflict resolution; S3 Cross-Region Replication is asynchronous with S3 Replication Time Control offering a 15-minute SLA; RDS cross-Region read replicas and cross-Region automated backup replication are the cheaper, higher-RPO options.\nFor the exam, map the requirement to the smallest sufficient blast radius. 'Survive an AZ failure' → Multi-AZ. 'Survive a Region failure' → multi-Region plus a DR strategy chosen for the stated RTO/RPO. 'Survive accidental deletion or corruption' → versioning, PITR, backups, and Vault Lock — not more replicas, because replication faithfully copies the corruption.",
+          "exam_tests": "Trigger words: 'RPO of seconds and RTO of minutes across Regions' (Aurora Global Database), 'writes in multiple Regions' (DynamoDB global tables), 'protect against accidental deletion' (versioning/PITR/backup, NOT replication), 'the cheapest way to survive an AZ outage' (Multi-AZ). Discriminator: replication protects against infrastructure loss; backups protect against human and application error.",
+          "example": {
+            "scenario": "An engineer proposes enabling S3 Cross-Region Replication as the company's protection against a developer accidentally deleting production objects.",
+            "answer": "Enable S3 Versioning (with MFA Delete or Object Lock as appropriate) rather than relying on replication.",
+            "why": "Replication propagates the change, so a delete marker or overwrite is faithfully copied to the destination and the 'backup' is destroyed alongside the original. Versioning preserves prior object versions in place and Object Lock or MFA Delete prevents permanent removal, which is what protects against human error."
+          },
+          "compare": {
+            "columns": [
+              "Threat",
+              "Multi-AZ",
+              "Multi-Region",
+              "Backup / versioning"
+            ],
+            "rows": [
+              [
+                "Single AZ or data centre loss",
+                "Covered",
+                "Covered (overkill)",
+                "Slow recovery"
+              ],
+              [
+                "Regional service event",
+                "Not covered",
+                "Covered",
+                "Only if backups are copied cross-Region"
+              ],
+              [
+                "Accidental deletion or corruption",
+                "Not covered",
+                "Not covered — replicated",
+                "Covered"
+              ],
+              [
+                "Ransomware / malicious admin",
+                "Not covered",
+                "Not covered",
+                "Covered with Vault Lock / Object Lock / cross-account copy"
+              ],
+              [
+                "Typical cost",
+                "Roughly 2x database compute",
+                "Full duplicate stack + transfer",
+                "Storage only"
+              ]
+            ]
+          },
+          "gotchas": [
+            "Replication is not backup: deletes and corruption replicate too.",
+            "Aurora Global Database secondary Regions are read-only until you fail over; a managed planned failover is different from an unplanned detach-and-promote.",
+            "DynamoDB global tables resolve conflicts last-writer-wins — the application must tolerate that.",
+            "Cross-Region replication of encrypted data requires a KMS key in the destination Region and permissions to use it.",
+            "S3 Cross-Region Replication only replicates objects created after replication is enabled; use S3 Batch Replication for existing objects.",
+            "Multi-Region designs still need per-Region quotas, AMIs, and IAM in place — this is exactly what ARC readiness checks audit."
+          ],
+          "numbers": [
+            "Aurora Global Database: typically <1 s cross-Region lag, ~1 min RTO for managed planned failover",
+            "S3 Replication Time Control SLA: 15 minutes for 99.99% of objects"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "backup-restore",
+      "title": "Backup, restore, and DR patterns",
+      "summary": "Know what each backup mechanism covers, how long it is retained, and — the part that gets tested — what the restore actually produces.",
+      "concepts": [
+        {
+          "name": "AWS Backup: plans, vaults, Vault Lock, and cross-Region/cross-account copy",
+          "explain": "AWS Backup is the centralised, policy-driven backup service and it is the default 'least operational overhead' answer whenever the stem involves multiple services or multiple accounts. A backup plan contains rules; each rule sets a schedule (cron or frequency), a backup window with a start-window and completion-window, a lifecycle (transition to cold storage after N days, delete after N days — note cold storage requires a minimum 90-day retention, so the delete-after must be at least transition-to-cold plus 90), a target vault, and optionally a copy action to another vault in another Region or account. Resources are attached to the plan by resource assignment, and assigning by tag is the pattern the exam wants for 'automatically include new resources' — you tag the resource and it is picked up on the next run, with no plan edit.\nBackup vaults hold recovery points and are encrypted with a KMS key. Vault Lock makes retention immutable: governance mode allows users with explicit permissions to remove the lock, while compliance mode is irreversible once the cooling-off period (a grace window of at least 3 days) elapses — nobody, including the root user and AWS, can delete recovery points before their retention expires. Compliance mode is the answer to WORM and ransomware-protection requirements.\nAdditional features tested: continuous backup enables point-in-time restore for supported resources (RDS, Aurora, S3, SAP HANA, DynamoDB via PITR) rather than only discrete snapshots; cross-account copy requires AWS Organizations and a destination vault policy; restore testing runs scheduled automated restores and reports whether they succeed and how long they take, which is how you prove RTO; and Backup Audit Manager evaluates controls (are all tagged resources backed up? is retention at least N days? is cross-Region copy configured?) and produces compliance reports.",
+          "exam_tests": "Trigger words: 'centrally manage backups across accounts and services', 'automatically include newly created resources' (tag-based assignment), 'backups must not be deletable even by an administrator' (Vault Lock compliance mode), 'prove that our restores work' (restore testing), 'report on backup compliance' (Backup Audit Manager). Discriminator: tag-based resource assignment for automatic inclusion; compliance mode for irreversible immutability.",
+          "example": {
+            "scenario": "A regulator requires that database backups cannot be deleted before seven years, by anyone, including account administrators and the root user.",
+            "answer": "Store the recovery points in an AWS Backup vault with Vault Lock in compliance mode and a seven-year retention.",
+            "why": "Compliance mode becomes immutable after the cooling-off period, so no principal — including root — can shorten retention or delete recovery points before they expire. Governance mode can be removed by a sufficiently privileged principal, and an SCP or bucket policy can be changed by whoever holds the permission to change it."
+          },
+          "compare": {
+            "columns": [
+              "Vault Lock mode",
+              "Can the lock be removed?",
+              "Cooling-off period",
+              "Use when"
+            ],
+            "rows": [
+              [
+                "Governance",
+                "Yes — by principals with explicit permission",
+                "None required",
+                "Internal policy enforcement, room for correction"
+              ],
+              [
+                "Compliance",
+                "No — irreversible after the cooling-off period",
+                "Minimum 3 days",
+                "Regulatory WORM, ransomware protection"
+              ],
+              [
+                "No lock",
+                "N/A",
+                "N/A",
+                "Non-regulated workloads"
+              ]
+            ]
+          },
+          "gotchas": [
+            "Tag-based resource assignment picks up new resources automatically; listing resources by ARN does not.",
+            "Cold storage transition requires a minimum 90-day retention, so retention must be at least transition days + 90.",
+            "Compliance-mode Vault Lock cannot be undone after the cooling-off period — test in governance mode first.",
+            "Cross-account copy requires AWS Organizations and a vault access policy on the destination; cross-Region copy needs a KMS key usable in the destination Region.",
+            "The backup start window is when the job may start, not when it must finish; jobs that do not start within the window are marked failed or expired.",
+            "AWS Backup can restore an EC2 instance from a backup of the instance (AMI plus volumes), but restoring a single EBS volume produces a new volume you must attach yourself."
+          ],
+          "numbers": [
+            "Cold storage minimum retention 90 days",
+            "Vault Lock compliance cooling-off minimum 3 days"
+          ]
+        },
+        {
+          "name": "EBS snapshots, DLM, Fast Snapshot Restore, AMIs, and RDS backups vs snapshots vs PITR",
+          "explain": "EBS snapshots are incremental and stored in S3 in an AWS-managed account: only changed blocks are stored after the first snapshot, and deleting an intermediate snapshot never breaks later ones because AWS re-parents the blocks. Snapshots are Regional; copying a snapshot to another Region (or re-encrypting with a different KMS key) is a separate copy action. A restored volume is lazily loaded from S3, so the first read of each block is slow — Fast Snapshot Restore (FSR) pre-provisions the volume so it delivers full performance immediately, at an hourly per-snapshot-per-AZ charge. Data Lifecycle Manager (DLM) automates snapshot and AMI creation and retention by tag, and is the lightweight alternative to AWS Backup for EBS-only estates. An AMI is a snapshot set plus launch metadata; sharing an encrypted AMI across accounts requires sharing the customer managed KMS key too, because the default aws/ebs key cannot be shared.\nRDS gives you three restore-shaped things and the exam loves to separate them. Automated backups run daily in the backup window plus continuous transaction logs, with a retention period of 0 to 35 days (0 disables backups) — they enable point-in-time recovery to any second within retention, typically to within about five minutes of the present. Automated backups are deleted when you delete the instance unless you take a final snapshot or use retained automated backups. Manual snapshots persist until you explicitly delete them, and can be copied cross-Region and shared. Cross-Region automated backup replication replicates the automated backups (and PITR capability) to a second Region.\nThe most-tested fact: restoring an RDS snapshot or performing a point-in-time restore always creates a NEW DB instance with a NEW endpoint. It never restores in place. So the runbook is: restore → verify → repoint the application (change the connection string, or better, use a CNAME you control or RDS Proxy) → adjust security groups and parameter groups, which do not always carry over as you expect. Aurora additionally offers Backtrack (MySQL-compatible), which rewinds the existing cluster in place to a point in time within the backtrack window, typically in minutes, with no new cluster and no endpoint change — the right answer when a bad migration script must be undone quickly.",
+          "exam_tests": "Trigger words: 'after the point-in-time restore the application still fails' (new endpoint), 'undo a bad update quickly without a new cluster' (Aurora Backtrack), 'restored volume performance is poor initially' (Fast Snapshot Restore), 'share an encrypted AMI with another account' (share the CMK too), 'automate daily EBS snapshots by tag' (DLM). Discriminator: RDS restore always produces a new instance; Backtrack is the only in-place rewind.",
+          "example": {
+            "scenario": "A bad deployment corrupted data in an RDS for MySQL database at 14:05. The team performed a point-in-time restore to 14:00, the restore completed successfully, but the application continues to serve corrupted data.",
+            "answer": "Repoint the application to the restored instance's new endpoint (and update security groups and parameter group as needed).",
+            "why": "A point-in-time restore always creates a new DB instance with a new endpoint DNS name; the original instance is untouched and still serving the corrupted data. Re-running the restore or extending the backup retention changes nothing because the restore itself already succeeded."
+          },
+          "compare": {
+            "columns": [
+              "Mechanism",
+              "Scope",
+              "Retention",
+              "What the restore produces",
+              "Cost note"
+            ],
+            "rows": [
+              [
+                "RDS automated backups + PITR",
+                "One DB instance",
+                "0-35 days",
+                "New DB instance, new endpoint",
+                "Free up to DB size"
+              ],
+              [
+                "RDS manual snapshot",
+                "One DB instance",
+                "Until deleted",
+                "New DB instance, new endpoint",
+                "Charged per GB stored"
+              ],
+              [
+                "Aurora Backtrack (MySQL-compatible)",
+                "Existing cluster",
+                "Backtrack window (up to 72 h)",
+                "Same cluster rewound in place, same endpoint",
+                "Charged per change record"
+              ],
+              [
+                "EBS snapshot",
+                "One volume",
+                "Until deleted (or DLM policy)",
+                "New volume you must attach",
+                "Incremental storage"
+              ],
+              [
+                "AMI",
+                "Instance image + volumes",
+                "Until deregistered",
+                "New instance",
+                "Snapshot storage"
+              ],
+              [
+                "DynamoDB PITR",
+                "One table",
+                "35 days",
+                "New table (restore to a new table name)",
+                "Per GB of backup"
+              ],
+              [
+                "DynamoDB on-demand backup",
+                "One table",
+                "Until deleted",
+                "New table",
+                "Per GB stored"
+              ],
+              [
+                "AWS Backup recovery point",
+                "Many services",
+                "Per plan lifecycle",
+                "New resource of the same type",
+                "Vault storage + copy transfer"
+              ]
+            ]
+          },
+          "gotchas": [
+            "RDS PITR and snapshot restores create a new instance with a new endpoint — always include the repointing step.",
+            "Deleting an RDS instance deletes its automated backups (unless retained); manual snapshots survive.",
+            "Backup retention of 0 disables automated backups and PITR entirely.",
+            "DynamoDB PITR restores to a NEW table; it cannot overwrite the existing table, and it does not restore auto scaling settings, IAM policies, or CloudWatch alarms.",
+            "EBS snapshot restores are lazily loaded — first-touch reads are slow unless Fast Snapshot Restore is enabled (which is charged per snapshot per AZ per hour).",
+            "Sharing an encrypted snapshot or AMI requires a customer managed KMS key shared with the target account; the default aws/ebs key cannot be shared.",
+            "Aurora Backtrack is MySQL-compatible only, must be enabled before you need it, and does not exist for Aurora PostgreSQL."
+          ],
+          "numbers": [
+            "RDS automated backup retention 0-35 days",
+            "DynamoDB PITR 35 days",
+            "Aurora Backtrack window up to 72 hours",
+            "RDS PITR granularity ~5 minutes behind current time"
+          ]
+        },
+        {
+          "name": "S3 and FSx durability controls, and choosing a DR pattern by RPO/RTO",
+          "explain": "S3 protects data with layered controls. Versioning keeps every version and turns a delete into a delete marker — it is the baseline defence against accidental overwrite and deletion, and it cannot be disabled once enabled, only suspended. MFA Delete (configurable only by the bucket owner's root user, using the CLI) requires an MFA code to permanently delete a version or change versioning state. Object Lock provides WORM in governance mode (bypassable with a specific permission) or compliance mode (nobody, including root, can delete before the retention date), plus legal holds with no expiry; Object Lock requires versioning and must be enabled at bucket creation for the standard flow. Replication (same-Region SRR or cross-Region CRR) copies new objects asynchronously and requires versioning on both buckets; existing objects need S3 Batch Replication. S3 Replication Time Control adds a 15-minute replication SLA with metrics. FSx (Windows File Server, Lustre, NetApp ONTAP, OpenZFS) takes automatic daily backups with a configurable retention plus user-initiated backups, and Windows/ONTAP/OpenZFS also expose file-level snapshots (shadow copies) for self-service restore.\nDR patterns are ranked by RPO/RTO against cost, and the exam expects the ordering and the operational steps. Backup and restore: backups copied cross-Region, nothing running; RPO hours, RTO hours to a day; cheapest; failover means provisioning infrastructure from IaC then restoring data. Pilot light: data continuously replicated and core services (database, AMIs, IaC) present but application tier switched off; RPO minutes, RTO tens of minutes; failover means scaling up compute and switching DNS. Warm standby: a scaled-down but fully functional copy running all the time; RPO seconds to minutes, RTO minutes; failover means scaling out and switching DNS. Multi-site active/active: full capacity in both Regions serving live traffic; RPO near zero, RTO near zero; most expensive; 'failover' is removing one Region from the routing.",
+          "exam_tests": "Trigger words: 'RTO of 4 hours, lowest cost' (backup and restore or pilot light), 'RTO of minutes, must not run full capacity' (pilot light or warm standby), 'zero downtime, serve from both Regions' (active/active), 'objects must be immutable for compliance' (Object Lock compliance mode), 'a user permanently deleted an object' (versioning + MFA Delete). Discriminator: match the stated RTO/RPO number to the pattern, then pick the cheapest pattern that meets it.",
+          "example": {
+            "scenario": "A company needs an RTO of about 20 minutes and an RPO of about 5 minutes for a three-tier application in a second Region, while keeping standby costs low. Database data is already replicated cross-Region.",
+            "answer": "Implement a pilot light: keep the replicated database and the AMIs/IaC in the second Region with the application tier stopped, and on failover launch the application tier and switch Route 53 to the secondary.",
+            "why": "The replicated data satisfies the 5-minute RPO while leaving the compute tier switched off satisfies the cost constraint, and launching a pre-baked application tier from IaC fits inside a 20-minute RTO. Backup and restore cannot meet a 20-minute RTO because infrastructure and data must both be rebuilt, and warm standby or active/active pays for running capacity the requirement does not need."
+          },
+          "compare": {
+            "columns": [
+              "DR pattern",
+              "Typical RPO",
+              "Typical RTO",
+              "What runs in the DR Region",
+              "Failover steps",
+              "Relative cost"
+            ],
+            "rows": [
+              [
+                "Backup & restore",
+                "Hours",
+                "Hours to a day",
+                "Nothing but backups/snapshots",
+                "Deploy IaC, restore data, repoint DNS",
+                "$"
+              ],
+              [
+                "Pilot light",
+                "Minutes",
+                "Tens of minutes",
+                "Database/data replicated; compute off",
+                "Start/scale compute, repoint DNS",
+                "$$"
+              ],
+              [
+                "Warm standby",
+                "Seconds to minutes",
+                "Minutes",
+                "Scaled-down full stack, live",
+                "Scale out, repoint DNS",
+                "$$$"
+              ],
+              [
+                "Multi-site active/active",
+                "Near zero",
+                "Near zero",
+                "Full capacity serving traffic",
+                "Remove the failed Region from routing",
+                "$$$$"
+              ]
+            ]
+          },
+          "gotchas": [
+            "Versioning cannot be turned off once enabled — only suspended, and existing versions remain.",
+            "MFA Delete can only be enabled by the bucket owner's root account using the CLI or API, not the console.",
+            "S3 replication requires versioning on both source and destination and only covers objects written after it is enabled — use S3 Batch Replication to backfill.",
+            "Object Lock compliance mode blocks deletion by every principal including root until the retention date passes.",
+            "A DR plan that is never tested has an unknown RTO — AWS Backup restore testing and ARC readiness checks are the tested ways to prove it.",
+            "Pilot light and warm standby both still need per-Region service quotas, AMIs, and IAM roles pre-created, or the failover fails on the day.",
+            "Cross-Region copies of KMS-encrypted data need a KMS key in the destination Region and grants for the copying principal.",
+            "Requirement phrase mapping: 'least operational overhead' = managed service or tag-based automation; 'without changing the application' = DAX / RDS Proxy / Multi-AZ / CloudFront; 'cannot be deleted by anyone' = Vault Lock or Object Lock compliance mode; 'react within seconds' = Serverless v2, on-demand capacity, or a warm pool.",
+            "Eliminate by mechanism first: a Multi-AZ standby cannot serve reads, Route 53 public health checkers cannot probe a private IP, ECS service auto scaling cannot add EC2 instances, and replication cannot protect against deletion."
+          ],
+          "numbers": [
+            "S3 Replication Time Control SLA 15 minutes",
+            "FSx automatic daily backup retention configurable (commonly 0-90 days)"
+          ]
+        }
+      ]
+    }
+  ],
+  "end_of_domain_checklist": [
+    "I can state the default ASG cooldown (300 s), health check grace period (300 s), and deregistration delay (300 s) without hesitating.",
+    "I can explain why an ASG with health check type EC2 never replaces an instance that returns HTTP 500.",
+    "I can recite the default termination policy order: AZ imbalance, then oldest launch template/configuration, then closest to next billing hour.",
+    "I can say which scaling policy fits a smooth metric, a proportional response, a calendar event, and a recurring daily cycle.",
+    "I can explain the difference between cooldown and instance warm-up and which policy types use each.",
+    "I can choose between an instance refresh and a warm pool for a stated problem, and say why.",
+    "I can tell which loop is broken when ECS tasks sit in PROVISIONING or EKS pods sit in Pending.",
+    "I can name the cache-key elements that destroy CloudFront hit ratio and the fix that keeps the header reaching the origin.",
+    "I can pick between ElastiCache Redis, Memcached, and DAX from a one-sentence requirement.",
+    "I can diagnose DynamoDB throttling as table capacity, hot partition, or GSI capacity from the metrics described.",
+    "I can map ALB 502, 503, 504, and 460 to their causes and name the first thing I would check for each.",
+    "I can say why Route 53 endpoint health checks cannot monitor a private ALB and what to use instead.",
+    "I can quote Route 53 failure threshold 3 and intervals 30 s / 10 s, and explain why TTL dominates real failover time.",
+    "I can compare RDS Multi-AZ instance, Multi-AZ DB cluster, read replica, and Aurora on failover time, readability, and endpoint behaviour.",
+    "I can explain why an application still fails after a successful RDS failover and name two fixes.",
+    "I can list the components that stay single-AZ by default and silently break an AZ-failure design (NAT gateway, EFS One Zone, ALB subnets, EBS).",
+    "I can choose between Vault Lock governance and compliance mode from a compliance requirement.",
+    "I can state that RDS PITR and snapshot restores always produce a new instance with a new endpoint, and name the follow-up steps.",
+    "I can say which restore mechanism rewinds a cluster in place (Aurora Backtrack) and its limits.",
+    "I can rank backup-and-restore, pilot light, warm standby, and active/active by RPO, RTO, and cost, and describe the failover steps for each.",
+    "I can explain why cross-Region replication is not protection against accidental deletion and what is.",
+    "I can describe when to use an ARC zonal shift instead of a Regional failover."
+  ]
+}
