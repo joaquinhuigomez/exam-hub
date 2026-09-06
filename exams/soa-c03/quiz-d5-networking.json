@@ -1,0 +1,433 @@
+{
+  "domain": "D5",
+  "title": "Networking and Content Delivery",
+  "questions": [
+    {
+      "id": "D5-Q001",
+      "type": "single_choice",
+      "difficulty": "easy",
+      "tags": ["vpc", "subnet-sizing", "cidr"],
+      "scenario": "A CloudOps engineer creates a 10.0.4.0/28 subnet in a VPC for a batch fleet that must run 14 EC2 instances, each with a single private IPv4 address. The Auto Scaling group launches 11 instances and then reports InsufficientFreeAddressesInSubnet for every subsequent launch. The subnet has no other resources attached.",
+      "stem": "What explains this behavior, and what should the engineer do?",
+      "options": [
+        {"letter": "A", "text": "The subnet has run out of Elastic IP addresses. Request an Elastic IP quota increase for the Region.", "correct": false, "why": "Instances in this fleet use private IPv4 addresses only; Elastic IPs are a separate, account-level public IPv4 resource and are not consumed by private addressing."},
+        {"letter": "B", "text": "Amazon EC2 enforces a hard limit of 11 instances per subnet. Spread the Auto Scaling group across additional subnets.", "correct": false, "why": "There is no per-subnet instance limit in EC2; the constraint is the number of assignable IP addresses in the subnet CIDR."},
+        {"letter": "C", "text": "A subnet CIDR must be /24 or larger to support EC2. Recreate the subnet as a 10.0.4.0/24.", "correct": false, "why": "The allowed subnet size range is /28 (smallest) to /16 (largest); /28 is valid for EC2, so the stated rule is false even though a larger CIDR would incidentally fix the capacity problem."},
+        {"letter": "D", "text": "AWS reserves 5 IP addresses in every subnet, so a /28 yields only 11 usable addresses. Recreate the subnet with at least a /27 CIDR and update the Auto Scaling group.", "correct": true, "why": "16 addresses minus the 5 reserved (network address, VPC router, Amazon DNS, future use, broadcast) leaves 11 usable; a /27 gives 32 minus 5 = 27 usable, which covers 14 instances plus growth."}
+      ],
+      "knowledge_point": "Usable IPs in a subnet = 2^(32-prefix) - 5. Subnet size range is /28 to /16. A subnet CIDR cannot be resized after creation, so sizing errors require a new subnet.",
+      "trap_alert": "Subtracting only 2 addresses (network + broadcast) the way on-premises networking does. AWS reserves 5, and a /28 therefore gives 11, not 14.",
+      "mnemonic": "Five for AWS, the rest for you: .0 network, .1 router, .2 DNS, .3 reserved, .255 broadcast.",
+      "doc_refs": ["https://docs.aws.amazon.com/vpc/latest/userguide/subnet-sizing.html"]
+    },
+    {
+      "id": "D5-Q002",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["route-tables", "internet-gateway", "public-subnet"],
+      "scenario": "An engineer builds a new subnet in an existing VPC, launches an EC2 instance with an auto-assigned public IPv4 address, and attaches a security group that allows all outbound traffic. The internet gateway is attached to the VPC. The engineer created a custom route table containing 0.0.0.0/0 to the internet gateway. The instance still cannot reach the internet, and the subnet's Route table column in the console shows the VPC main route table.",
+      "stem": "What is the MOST likely cause of the failure?",
+      "options": [
+        {"letter": "A", "text": "The local route for the VPC CIDR is overriding the default route. The local route must be replaced with the internet gateway route.", "correct": false, "why": "The local route cannot be deleted or modified, and it only matches the VPC CIDR; longest-prefix matching means 0.0.0.0/0 still applies to all other destinations."},
+        {"letter": "B", "text": "An egress-only internet gateway is required in addition to the internet gateway for IPv4 outbound traffic.", "correct": false, "why": "Egress-only internet gateways serve IPv6 only. IPv4 outbound from a public subnet uses the internet gateway."},
+        {"letter": "C", "text": "The subnet was never associated with the custom route table, so it still uses the main route table, which has no internet gateway route.", "correct": true, "why": "A subnet that is not explicitly associated with a route table implicitly uses the VPC main route table; the console confirms this, so the internet gateway route is never evaluated for this subnet."},
+        {"letter": "D", "text": "The instance needs an Elastic IP address because auto-assigned public IPv4 addresses do not work with an internet gateway.", "correct": false, "why": "An auto-assigned public IPv4 address is functionally sufficient for internet gateway NAT; Elastic IPs only add persistence across stop/start."}
+      ],
+      "knowledge_point": "A subnet is public only when its associated route table has 0.0.0.0/0 pointing to an internet gateway AND the instance has a public IPv4 address. Unassociated subnets fall back to the main route table.",
+      "trap_alert": "Creating the right route table but never associating the subnet. Always check which route table the subnet actually uses, not which one you edited.",
+      "doc_refs": ["https://docs.aws.amazon.com/vpc/latest/userguide/VPC_Route_Tables.html"]
+    },
+    {
+      "id": "D5-Q003",
+      "type": "multiple_response",
+      "difficulty": "medium",
+      "tags": ["nat-gateway", "private-subnet", "routing"],
+      "scenario": "Application servers run in private subnets and must download operating system patches from vendor repositories on the internet. Inbound connections from the internet to these servers must remain impossible. The VPC already has an internet gateway and one public subnet per Availability Zone.",
+      "stem": "Which two actions should the CloudOps engineer take to provide the required outbound connectivity? (Choose two.)",
+      "options": [
+        {"letter": "A", "text": "Create a public NAT gateway with an Elastic IP address in a public subnet whose route table sends 0.0.0.0/0 to the internet gateway.", "correct": true, "why": "A public NAT gateway must live in a subnet that itself has a default route to the internet gateway; that is what gives the NAT gateway its own path out."},
+        {"letter": "B", "text": "Create the NAT gateway inside one of the private subnets so it is closest to the application servers.", "correct": false, "why": "A NAT gateway placed in a subnet without an internet gateway route has no upstream path, so all translated traffic is black-holed."},
+        {"letter": "C", "text": "Add a route for 0.0.0.0/0 pointing to the internet gateway in the private subnet route tables.", "correct": false, "why": "This converts the private subnets to public routing, but instances without public IPv4 addresses still cannot reach the internet, and it removes the inbound-isolation guarantee."},
+        {"letter": "D", "text": "Add a route for 0.0.0.0/0 pointing to the NAT gateway in the route tables associated with the private subnets.", "correct": true, "why": "The private subnets need an explicit default route to the NAT gateway ID; without it the instances have no path off the VPC."},
+        {"letter": "E", "text": "Associate an Elastic IP address with each application server so outbound traffic is source-NATed.", "correct": false, "why": "Assigning Elastic IPs makes the instances directly addressable from the internet once a default route exists, which violates the inbound-isolation requirement."}
+      ],
+      "knowledge_point": "NAT gateway goes in a PUBLIC subnet; the default route to it goes in the PRIVATE subnet route table. NAT allows outbound-initiated flows and their return traffic only.",
+      "trap_alert": "Placing the NAT gateway in the subnet that needs internet access. The NAT gateway sits on the public side of the boundary, not the private side.",
+      "mnemonic": "NAT lives where the IGW route is; the route to NAT lives where the private instances are.",
+      "doc_refs": ["https://docs.aws.amazon.com/vpc/latest/userguide/vpc-nat-gateway.html"]
+    },
+    {
+      "id": "D5-Q004",
+      "type": "single_choice",
+      "difficulty": "easy",
+      "tags": ["ipv6", "egress-only-igw"],
+      "scenario": "A fleet of instances in private subnets is configured with IPv6 addresses only. The instances must be able to initiate outbound connections to IPv6 endpoints on the internet for package updates, but hosts on the internet must never be able to initiate connections to the instances. IPv6 addresses in AWS are globally routable by design.",
+      "stem": "Which solution meets these requirements?",
+      "options": [
+        {"letter": "A", "text": "Create an egress-only internet gateway and add a ::/0 route to it in the private subnet route tables.", "correct": true, "why": "An egress-only internet gateway is a horizontally scaled, stateful gateway that permits outbound IPv6 traffic and the corresponding return traffic while blocking internet-initiated inbound connections."},
+        {"letter": "B", "text": "Create a NAT gateway and add a ::/0 route to it in the private subnet route tables.", "correct": false, "why": "A NAT gateway translates IPv4 and can perform NAT64 for IPv6 sources reaching IPv4 destinations; it is not the mechanism for outbound-only IPv6-to-IPv6 internet access."},
+        {"letter": "C", "text": "Attach an internet gateway and rely on network ACL rules that deny all inbound IPv6 traffic.", "correct": false, "why": "This works only as long as the ACL rules are correct and never drift; the exam-preferred, purpose-built control that enforces outbound-only IPv6 at the gateway is different."},
+        {"letter": "D", "text": "Attach a virtual private gateway and route ::/0 to it.", "correct": false, "why": "A virtual private gateway terminates Site-to-Site VPN and AWS Direct Connect traffic to on-premises networks; it provides no internet egress."}
+      ],
+      "knowledge_point": "IPv6 outbound-only internet access = egress-only internet gateway with a ::/0 route. IPv4 outbound-only = NAT gateway with a 0.0.0.0/0 route.",
+      "trap_alert": "Reaching for a NAT gateway out of IPv4 habit. There is no IPv6-to-IPv6 NAT in a VPC.",
+      "mnemonic": "Colon-colon-zero goes to EIGW; quad-zero goes to NAT.",
+      "doc_refs": ["https://docs.aws.amazon.com/vpc/latest/userguide/egress-only-internet-gateway.html"]
+    },
+    {
+      "id": "D5-Q005",
+      "type": "multiple_response",
+      "difficulty": "hard",
+      "tags": ["nacl", "security-groups", "ephemeral-ports"],
+      "scenario": "Web servers sit in a subnet with a custom network ACL. The ACL has inbound rule 100 ALLOW TCP 443 from 0.0.0.0/0 and outbound rule 100 ALLOW TCP 443 to 0.0.0.0/0, followed by the implicit rule that denies everything else. The security group allows inbound TCP 443 and all outbound traffic. Browser requests to the web servers hang and eventually time out, and the server access logs show the requests arriving.",
+      "stem": "Which two statements and actions correctly resolve the problem? (Choose two.)",
+      "options": [
+        {"letter": "A", "text": "Add an outbound rule to the security group that allows TCP 1024-65535, because the security group is dropping the HTTP response.", "correct": false, "why": "Security groups are stateful and the group already allows all outbound traffic; response packets for an allowed inbound flow are permitted automatically."},
+        {"letter": "B", "text": "Network ACLs are stateless, so the response traffic is evaluated against the outbound rules and is denied because it leaves from port 443 to the client's ephemeral port.", "correct": true, "why": "Stateless evaluation means each direction is checked independently; the response's destination is the client ephemeral port, which no outbound ALLOW rule covers, so the implicit deny drops it."},
+        {"letter": "C", "text": "Replace the custom network ACL with the default network ACL, which denies all traffic until rules are added.", "correct": false, "why": "The default network ACL allows all inbound and outbound traffic; it is a newly created CUSTOM ACL that denies everything until rules are added. The stated behavior is inverted."},
+        {"letter": "D", "text": "Add an inbound network ACL rule allowing TCP 1024-65535 from 0.0.0.0/0 so the clients' ephemeral ports are permitted.", "correct": false, "why": "Inbound ephemeral allowance is what a client-side subnet needs for responses to its own outbound requests; here the missing rule is on the outbound side of the server subnet."},
+        {"letter": "E", "text": "Add an outbound network ACL rule allowing TCP 1024-65535 to 0.0.0.0/0, numbered lower than any conflicting DENY rule.", "correct": true, "why": "Network ACL rules are evaluated in ascending rule-number order and the first match wins, so the ephemeral-range ALLOW must be numbered before any DENY that would otherwise match."}
+      ],
+      "knowledge_point": "Security groups are stateful (return traffic implicit). Network ACLs are stateless: every reply needs an explicit rule in the opposite direction, typically the ephemeral range 1024-65535, and rules are matched in ascending number order.",
+      "trap_alert": "Assuming the default network ACL and a custom network ACL behave the same. Default = allow all; new custom = deny all.",
+      "mnemonic": "SG remembers, NACL forgets. NACL forgets in both directions and reads its rules lowest number first.",
+      "doc_refs": ["https://docs.aws.amazon.com/vpc/latest/userguide/vpc-network-acls.html"]
+    },
+    {
+      "id": "D5-Q006",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["vpc-endpoints", "cost-optimization", "s3"],
+      "scenario": "An analytics fleet in private subnets writes about 20 TB per month to an Amazon S3 bucket in the same Region. All of that traffic currently egresses through a NAT gateway, and the monthly bill shows NAT gateway data processing as the largest single line item in the VPC. The team wants to cut this cost without changing application code.",
+      "stem": "What should the CloudOps engineer do?",
+      "options": [
+        {"letter": "A", "text": "Create an interface VPC endpoint for Amazon S3 and enable private DNS for the endpoint.", "correct": false, "why": "Interface endpoints work but bill an hourly charge per endpoint per Availability Zone plus a per-GB data processing charge, so 20 TB per month still incurs significant per-GB cost."},
+        {"letter": "B", "text": "Create a gateway VPC endpoint for Amazon S3 and add the endpoint to the route tables associated with the private subnets.", "correct": true, "why": "Gateway endpoints for S3 and DynamoDB carry no hourly or per-GB charge, and adding the prefix-list route sends S3 traffic off the NAT gateway with no application change."},
+        {"letter": "C", "text": "Replace the NAT gateway with a NAT instance running on a larger instance type.", "correct": false, "why": "This shifts cost to EC2 and adds self-managed patching, high availability, and source/destination check administration while still processing every byte."},
+        {"letter": "D", "text": "Enable S3 Transfer Acceleration on the bucket and point the application at the accelerate endpoint.", "correct": false, "why": "Transfer Acceleration is for long-distance internet uploads over the CloudFront edge network, adds a per-GB fee, and would not remove the NAT gateway from the path for in-Region traffic."}
+      ],
+      "knowledge_point": "Gateway endpoints (S3, DynamoDB) are free and route-table based. Interface endpoints (everything else) cost per hour per AZ plus per GB and use an ENI with a security group and private DNS.",
+      "trap_alert": "Both endpoint types can reach S3. The discriminator on cost questions is that gateway endpoints have no data processing charge and no hourly charge.",
+      "mnemonic": "Gateway = free and in the route table. Interface = ENI, SG, and a meter running.",
+      "doc_refs": ["https://docs.aws.amazon.com/vpc/latest/privatelink/gateway-endpoints.html"]
+    },
+    {
+      "id": "D5-Q007",
+      "type": "single_choice",
+      "difficulty": "hard",
+      "tags": ["privatelink", "nlb", "endpoint-service"],
+      "scenario": "A company runs a multi-tenant API on EC2 instances in its own VPC. Hundreds of customer VPCs, some owned by other AWS accounts and some using CIDR ranges that overlap the provider's VPC, must consume the API privately without traversing the public internet. Customers must not gain network reachability to any other resource in the provider's VPC.",
+      "stem": "Which solution meets these requirements?",
+      "options": [
+        {"letter": "A", "text": "Create a VPC peering connection from the provider VPC to each customer VPC and add routes on both sides.", "correct": false, "why": "Peering fails outright when CIDR ranges overlap, exposes broad network reachability rather than a single service, is non-transitive, and does not scale to hundreds of connections."},
+        {"letter": "B", "text": "Attach the provider VPC and all customer VPCs to a transit gateway and use a shared route table.", "correct": false, "why": "A transit gateway also cannot route overlapping CIDRs without additional NAT, and it grants IP-level reachability into the provider VPC instead of publishing a single service endpoint."},
+        {"letter": "C", "text": "Place the EC2 instances behind a Network Load Balancer, create a VPC endpoint service for that load balancer, and have each customer create an interface VPC endpoint to it.", "correct": true, "why": "AWS PrivateLink endpoint services are fronted by a Network Load Balancer (or Gateway Load Balancer); consumers connect through an ENI in their own VPC, so overlapping CIDRs are irrelevant and only the published service is reachable."},
+        {"letter": "D", "text": "Publish the API through an internet-facing Application Load Balancer and restrict access with a security group referencing each customer's Elastic IP address.", "correct": false, "why": "This routes traffic over the public internet, which the requirement forbids, and maintaining Elastic IP allow lists for hundreds of tenants is unmanageable."}
+      ],
+      "knowledge_point": "PrivateLink service exposure: provider creates an NLB (or GWLB) plus a VPC endpoint service; consumers create interface endpoints. Traffic is unidirectional consumer-to-provider, so overlapping CIDRs never matter.",
+      "trap_alert": "Choosing an Application Load Balancer for the endpoint service. Endpoint services require an NLB or GWLB; an ALB can only sit behind the NLB as a target.",
+      "mnemonic": "PrivateLink = NLB in front, ENI on the other side.",
+      "doc_refs": ["https://docs.aws.amazon.com/vpc/latest/privatelink/create-endpoint-service.html"]
+    },
+    {
+      "id": "D5-Q008",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["dns-firewall", "waf", "network-firewall", "shield"],
+      "scenario": "During a security review in a single AWS account, malware on an EC2 instance was found beaconing to command-and-control domains. The CloudOps engineer must block outbound DNS resolution of a maintained list of malicious domains for every instance in the VPC, and must log which instance attempted each blocked lookup, with the least operational overhead.",
+      "stem": "Which service should the engineer configure?",
+      "options": [
+        {"letter": "A", "text": "AWS WAF with a managed rule group attached to the VPC.", "correct": false, "why": "AWS WAF inspects inbound HTTP and HTTPS requests for CloudFront, Application Load Balancer, API Gateway, AppSync, and Cognito; it cannot be attached to a VPC and does not evaluate DNS."},
+        {"letter": "B", "text": "AWS Shield Advanced with proactive engagement enabled.", "correct": false, "why": "Shield Advanced provides DDoS detection, mitigation, and cost protection for internet-facing resources; it has no outbound DNS filtering capability."},
+        {"letter": "C", "text": "AWS Network Firewall with a stateful rule group that drops packets to the malicious domains.", "correct": false, "why": "Network Firewall can inspect traffic including DNS, but it requires firewall subnets and route table redesign to insert into the data path, which is materially more overhead than the DNS-native control."},
+        {"letter": "D", "text": "Route 53 Resolver DNS Firewall with a domain list rule group associated with the VPC, using the BLOCK action and Resolver query logging.", "correct": true, "why": "DNS Firewall filters queries at the VPC's Route 53 Resolver, supports AWS-managed and custom domain lists with ALLOW, ALERT, and BLOCK actions, and needs only an association with the VPC; Resolver query logs record the source instance for each query."}
+      ],
+      "knowledge_point": "Match the control to the layer: DNS Firewall = outbound DNS queries from a VPC; Network Firewall = stateful and stateless packet inspection inline in the VPC; WAF = layer 7 HTTP on supported edge and regional resources; Shield = DDoS.",
+      "trap_alert": "Network Firewall is technically capable, which makes it the trap. When the stem says least operational overhead and the traffic is DNS, DNS Firewall wins.",
+      "doc_refs": ["https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/resolver-dns-firewall.html"]
+    },
+    {
+      "id": "D5-Q009",
+      "type": "single_choice",
+      "difficulty": "hard",
+      "tags": ["route53-resolver", "hybrid-dns", "inbound-endpoint"],
+      "scenario": "A company connects its data center to a VPC over AWS Direct Connect. Applications running on on-premises servers must resolve records in a Route 53 private hosted zone named internal.example.com that is associated with the VPC. On-premises DNS servers currently return NXDOMAIN for those names. EC2 instances in the VPC resolve the same names correctly.",
+      "stem": "What should the CloudOps engineer do to enable on-premises resolution?",
+      "options": [
+        {"letter": "A", "text": "Create a Route 53 Resolver inbound endpoint in the VPC and configure the on-premises DNS servers to conditionally forward internal.example.com to the endpoint IP addresses.", "correct": true, "why": "An inbound endpoint places Resolver ENIs with reachable private IPs in the VPC so that DNS queries originating on premises can be forwarded into AWS and answered from the private hosted zone."},
+        {"letter": "B", "text": "Create a Route 53 Resolver outbound endpoint and a forwarding rule for internal.example.com that targets the on-premises DNS servers.", "correct": false, "why": "Outbound endpoints and forwarding rules handle the opposite direction, sending queries that originate inside the VPC to on-premises resolvers."},
+        {"letter": "C", "text": "Convert internal.example.com to a public hosted zone so that on-premises resolvers can look it up on the internet.", "correct": false, "why": "This publishes internal records to the public DNS namespace, which is an unnecessary data exposure and changes the security posture rather than solving the routing of queries."},
+        {"letter": "D", "text": "Associate the on-premises network with the private hosted zone by adding its CIDR range to the hosted zone's authorized networks.", "correct": false, "why": "Private hosted zones are associated with VPCs, not with arbitrary CIDR ranges or on-premises networks; there is no such association type."}
+      ],
+      "knowledge_point": "Direction is everything: INBOUND endpoint = on-premises resolvers query into the VPC. OUTBOUND endpoint plus forwarding rules = VPC resources query out to on-premises. Both are billed per ENI per hour and need at least two IPs in different AZs.",
+      "trap_alert": "Reading the endpoint name from the AWS side rather than the query's point of origin. Name the endpoint after where the query is coming FROM.",
+      "mnemonic": "Queries coming IN from on-prem need the INbound endpoint.",
+      "doc_refs": ["https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/resolver-forwarding-inbound-queries.html"]
+    },
+    {
+      "id": "D5-Q010",
+      "type": "multiple_response",
+      "difficulty": "medium",
+      "tags": ["private-hosted-zone", "dns-attributes", "route53"],
+      "scenario": "An engineer creates a Route 53 private hosted zone for db.internal and associates it with the application VPC. EC2 instances in that VPC cannot resolve db.internal and receive SERVFAIL, while public names such as amazon.com resolve normally from the same instances. The VPC was created from a custom CloudFormation template.",
+      "stem": "Which two configuration items must be verified or corrected for private hosted zone resolution to work? (Choose two.)",
+      "options": [
+        {"letter": "A", "text": "The VPC attribute enableDnsSupport must be set to true.", "correct": true, "why": "enableDnsSupport is what activates the Amazon-provided DNS server at the VPC base plus two address, which is the resolver that answers private hosted zone queries."},
+        {"letter": "B", "text": "A Route 53 Resolver outbound endpoint must exist in the VPC.", "correct": false, "why": "Outbound endpoints forward queries to external resolvers such as on-premises DNS; they play no part in resolving a private hosted zone associated with the same VPC."},
+        {"letter": "C", "text": "The VPC attribute enableDnsHostnames must be set to true.", "correct": true, "why": "Route 53 requires both enableDnsSupport and enableDnsHostnames to be true on a VPC before private hosted zone records resolve inside it."},
+        {"letter": "D", "text": "The record TTL must be lowered to 0 so that instances do not cache a negative response.", "correct": false, "why": "Negative caching is a symptom at most, not the cause of SERVFAIL, and a TTL of 0 is not a supported fix for a resolution path that never worked."},
+        {"letter": "E", "text": "The DHCP option set must be changed to use a custom DNS server instead of AmazonProvidedDNS.", "correct": false, "why": "Pointing instances at a custom DNS server would break private hosted zone resolution rather than fix it, because only the Amazon-provided resolver is authoritative for the zone."}
+      ],
+      "knowledge_point": "Private hosted zone checklist: zone associated with the VPC, enableDnsSupport = true, enableDnsHostnames = true, and instances using AmazonProvidedDNS. Cross-account association requires CreateVPCAssociationAuthorization in the zone owner account followed by AssociateVPCWithHostedZone in the VPC owner account.",
+      "trap_alert": "Enabling only one of the two DNS attributes. CloudFormation defaults differ from console defaults, so custom templates commonly ship with enableDnsHostnames false.",
+      "doc_refs": ["https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/hosted-zones-private.html"]
+    },
+    {
+      "id": "D5-Q011",
+      "type": "single_choice",
+      "difficulty": "easy",
+      "tags": ["route53", "alias", "apex"],
+      "scenario": "A company must serve its website at the zone apex example.com from an Application Load Balancer. The engineer attempts to create a CNAME record for example.com and Route 53 rejects it. The load balancer DNS name changes are outside the company's control.",
+      "stem": "What should the engineer create instead?",
+      "options": [
+        {"letter": "A", "text": "A CNAME record for www.example.com plus an HTTP redirect from example.com hosted on an EC2 instance.", "correct": false, "why": "This adds an instance to maintain and still leaves the apex unresolved by DNS; Route 53 solves the apex case natively."},
+        {"letter": "B", "text": "An alias A record for example.com that targets the Application Load Balancer.", "correct": true, "why": "Alias records are a Route 53 extension that can exist at the zone apex, resolve to the target's current IP addresses automatically, and incur no charge for queries answered by an alias to an AWS resource."},
+        {"letter": "C", "text": "An A record for example.com containing the current IPv4 addresses of the load balancer nodes.", "correct": false, "why": "Application Load Balancer node IP addresses change as the load balancer scales, so a static A record will break without warning."},
+        {"letter": "D", "text": "An NS record for example.com that delegates to the load balancer's DNS name.", "correct": false, "why": "NS records delegate a subdomain to other name servers; a load balancer is not a name server and cannot answer authoritative queries."}
+      ],
+      "knowledge_point": "DNS forbids a CNAME at the zone apex. Route 53 alias records solve this for ELB, CloudFront, S3 website endpoints, API Gateway, Global Accelerator, and other Route 53 records, and support Evaluate Target Health.",
+      "trap_alert": "Alias records are shown as type A or AAAA, not as CNAME. Looking for a CNAME option means missing the correct answer.",
+      "mnemonic": "Apex hates CNAME, apex loves alias.",
+      "doc_refs": ["https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/resource-record-sets-choosing-alias-non-alias.html"]
+    },
+    {
+      "id": "D5-Q012",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["route53", "routing-policy", "health-checks", "failover"],
+      "scenario": "A company runs an active-passive disaster recovery topology. The primary stack is an Application Load Balancer in eu-west-1 and the standby stack is an identical Application Load Balancer in us-east-1 that must receive zero traffic while the primary is healthy. When the primary becomes unhealthy, clients must be sent to the standby automatically with no human action.",
+      "stem": "Which Route 53 configuration meets these requirements?",
+      "options": [
+        {"letter": "A", "text": "Two weighted alias records with weights 255 and 0, adjusted manually during an incident.", "correct": false, "why": "Weighted routing with a zero weight does send all traffic to the primary, but changing weights during an incident is a manual action, which the requirement forbids."},
+        {"letter": "B", "text": "Two latency alias records, one per Region, with no health checks.", "correct": false, "why": "Latency routing distributes users to the lowest-latency Region continuously, so the standby would receive production traffic while the primary is healthy."},
+        {"letter": "C", "text": "A multivalue answer record set containing both load balancers with health checks attached.", "correct": false, "why": "Multivalue answer returns up to eight healthy records at once for simple client-side load spreading, which again sends traffic to the standby during normal operation."},
+        {"letter": "D", "text": "A failover record set with the eu-west-1 alias as PRIMARY with Evaluate Target Health enabled and the us-east-1 alias as SECONDARY.", "correct": true, "why": "Failover routing is the active-passive policy: Route 53 answers with the secondary only when the primary's health check or evaluated target health fails, and the switch is automatic."}
+      ],
+      "knowledge_point": "Routing policy by intent: simple, weighted (A/B and blue-green), latency (performance), failover (active-passive DR), geolocation and geoproximity (user location and bias), multivalue (client-side spread over healthy records), IP-based (CIDR blocks such as ISP ranges).",
+      "trap_alert": "Failover speed still depends on record TTL plus the health check failure threshold (3 observations by default, 30-second standard interval). Lower TTLs before a planned failover.",
+      "doc_refs": ["https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/routing-policy-failover.html"]
+    },
+    {
+      "id": "D5-Q013",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["query-logging", "route53-resolver", "audit"],
+      "scenario": "A compliance team requires a searchable record of every DNS query made by EC2 instances in a production VPC, including queries for internal private hosted zone names and for public internet domains, along with the query name, type, response code, and the instance that made the query. The team already receives VPC Flow Logs and CloudTrail management events.",
+      "stem": "What should the CloudOps engineer configure?",
+      "options": [
+        {"letter": "A", "text": "Enable query logging on the public hosted zone and send logs to CloudWatch Logs in us-east-1.", "correct": false, "why": "Public hosted zone query logging captures only queries that public DNS resolvers forward to Route 53 for that zone; it sees neither internal names nor the VPC instance that originated a lookup."},
+        {"letter": "B", "text": "Add a second VPC Flow Logs subscription that captures port 53 traffic and query it with Athena.", "correct": false, "why": "Flow logs record connection metadata such as addresses, ports, and byte counts; they never contain the DNS query name or response code."},
+        {"letter": "C", "text": "Create a Route 53 Resolver query logging configuration and associate it with the VPC, sending logs to CloudWatch Logs, Amazon S3, or Amazon Data Firehose.", "correct": true, "why": "Resolver query logging captures every query that VPC resources send to the Amazon-provided resolver, for both public and private names, and records the query name, type, response code, and the source instance ID and IP."},
+        {"letter": "D", "text": "Enable CloudTrail data events for Route 53 and analyze them in CloudTrail Lake.", "correct": false, "why": "CloudTrail records API calls such as ChangeResourceRecordSets, not data-plane DNS resolution performed by instances."}
+      ],
+      "knowledge_point": "Two different DNS logs: Route 53 public hosted zone query logging (queries reaching Route 53 for your public zone, CloudWatch Logs in us-east-1) versus Route 53 Resolver query logging (queries originating in your VPCs, including DNS Firewall verdicts).",
+      "trap_alert": "Flow logs and DNS query logs answer different questions. Flow logs tell you who talked to whom; query logs tell you what name was looked up.",
+      "doc_refs": ["https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/resolver-query-logs.html"]
+    },
+    {
+      "id": "D5-Q014",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["cloudfront", "geo-restriction", "content-delivery"],
+      "scenario": "A media company distributes video through a CloudFront distribution with an Amazon S3 origin secured by origin access control. A new licensing agreement means the catalog may only be served to viewers in Canada, Japan, and Germany. Viewers elsewhere must receive an HTTP 403 response from the edge, and the company wants the simplest configuration with no additional per-request charge.",
+      "stem": "What should the CloudOps engineer configure?",
+      "options": [
+        {"letter": "A", "text": "A CloudFront geographic restriction using an allow list containing Canada, Japan, and Germany.", "correct": true, "why": "CloudFront geo restriction is a built-in distribution setting that uses the GeoIP database to return 403 at the edge for countries outside the allow list, at no extra charge."},
+        {"letter": "B", "text": "An AWS WAF web ACL with a geographic match rule associated with the distribution.", "correct": false, "why": "A WAF geo match rule achieves the same blocking but adds web ACL and request charges and additional configuration, so it is the right choice only when geo logic must combine with other WAF rules."},
+        {"letter": "C", "text": "Route 53 geolocation routing that returns the distribution only for the three permitted countries.", "correct": false, "why": "Geolocation routing changes which DNS answer a resolver receives; a viewer who obtains the distribution domain name by any other means can still fetch the content."},
+        {"letter": "D", "text": "An S3 bucket policy with an aws:SourceIp condition listing the CIDR ranges of the three countries.", "correct": false, "why": "The bucket is reached only by CloudFront through origin access control, so the source IP seen by S3 is CloudFront's, not the viewer's, and country CIDR lists are unmaintainable."}
+      ],
+      "knowledge_point": "CloudFront geo restriction blocks by country at the edge for free. Use AWS WAF geo match when you need finer granularity, counting mode, or combination with rate limiting and managed rules. Signed URLs and signed cookies control WHO may access, not WHERE from.",
+      "trap_alert": "Confusing routing with blocking. Route 53 geolocation directs traffic; it does not deny access.",
+      "doc_refs": ["https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/georestrictions.html"]
+    },
+    {
+      "id": "D5-Q015",
+      "type": "single_choice",
+      "difficulty": "easy",
+      "tags": ["global-accelerator", "static-ip", "failover"],
+      "scenario": "A trading platform runs behind Application Load Balancers in two Regions. Enterprise clients must add the platform's IP addresses to their corporate firewall allow lists, so those addresses must never change. When a Region becomes unhealthy, client traffic must shift to the healthy Region within seconds, and clients are known to cache DNS answers aggressively.",
+      "stem": "Which solution meets these requirements?",
+      "options": [
+        {"letter": "A", "text": "Create a Route 53 failover record set with a 10-second TTL that points at each load balancer.", "correct": false, "why": "DNS gives no static addresses and depends on clients honoring TTLs; aggressive client caching is exactly the failure mode described."},
+        {"letter": "B", "text": "Create an AWS Global Accelerator standard accelerator with two static anycast IP addresses and an endpoint group in each Region containing the Application Load Balancer.", "correct": true, "why": "Global Accelerator provides two static anycast IPv4 addresses that never change, continuously health checks endpoints, and reroutes at the AWS edge without relying on DNS propagation."},
+        {"letter": "C", "text": "Allocate an Elastic IP address and associate it with each Application Load Balancer.", "correct": false, "why": "Elastic IP association is supported for Network Load Balancers, not for Application Load Balancers, and it would not provide cross-Region failover."},
+        {"letter": "D", "text": "Create a CloudFront distribution with both load balancers as origins and configure origin failover.", "correct": false, "why": "CloudFront is optimized for cacheable HTTP content and exposes a rotating set of edge IPs, so it does not satisfy a fixed IP allow-list requirement."}
+      ],
+      "knowledge_point": "Global Accelerator = 2 static anycast IPs, TCP/UDP, sub-minute health-check-driven failover, traffic entering the AWS backbone at the nearest edge. CloudFront = caching and content delivery. Route 53 = DNS-level steering bound by TTL.",
+      "trap_alert": "If the stem mentions firewall allow lists or static IPs, DNS-based answers are out regardless of how low the TTL is.",
+      "doc_refs": ["https://docs.aws.amazon.com/global-accelerator/latest/dg/what-is-global-accelerator.html"]
+    },
+    {
+      "id": "D5-Q016",
+      "type": "single_choice",
+      "difficulty": "easy",
+      "tags": ["reachability-analyzer", "troubleshooting"],
+      "scenario": "An application EC2 instance cannot open a connection to an Amazon RDS instance in another subnet of the same VPC. The environment has several nested security groups, two custom network ACLs, and multiple route tables. The engineer must identify the exact component that blocks the path and must do so without generating test traffic, because the production change freeze forbids launching test instances or running connectivity tests from the application host.",
+      "stem": "Which tool should the engineer use?",
+      "options": [
+        {"letter": "A", "text": "VPC Flow Logs filtered for REJECT records on the RDS port.", "correct": false, "why": "Flow logs are a record of traffic that actually occurred, so they require sending the very packets the change freeze forbids, and a REJECT does not name which security group or ACL rule caused it."},
+        {"letter": "B", "text": "Amazon CloudWatch Internet Monitor.", "correct": false, "why": "Internet Monitor measures availability and performance between your AWS-hosted applications and internet end users; it does not analyze intra-VPC configuration."},
+        {"letter": "C", "text": "Network Access Analyzer with a scope that includes the VPC.", "correct": false, "why": "Network Access Analyzer finds unintended network access paths against a defined scope for governance purposes; it is not the point-to-point path diagnostic for a single failing connection."},
+        {"letter": "D", "text": "VPC Reachability Analyzer with the instance ENI as the source and the RDS ENI as the destination.", "correct": true, "why": "Reachability Analyzer performs static configuration analysis of the path and, when the destination is not reachable, names the exact blocking component such as a specific security group, network ACL entry, or missing route, without sending any packets."}
+      ],
+      "knowledge_point": "Reachability Analyzer = static, hop-by-hop analysis between two resources; returns the blocking component by ID. Network Access Analyzer = scope-based audit of which paths exist. Flow Logs = evidence of traffic that already flowed.",
+      "trap_alert": "No packets means no flow logs. When a stem forbids generating traffic, the answer is a configuration analyzer, not a log.",
+      "doc_refs": ["https://docs.aws.amazon.com/vpc/latest/reachability/what-is-reachability-analyzer.html"]
+    },
+    {
+      "id": "D5-Q017",
+      "type": "single_choice",
+      "difficulty": "easy",
+      "tags": ["site-to-site-vpn", "tunnels", "hybrid"],
+      "scenario": "A monitoring dashboard shows that one of the two tunnels of an AWS Site-to-Site VPN connection has been in the DOWN state for several hours. Traffic between the data center and the VPC continues to flow normally over the other tunnel. The on-premises customer gateway device was configured from a downloaded configuration file, but only the first tunnel's parameters were applied.",
+      "stem": "What should the CloudOps engineer do?",
+      "options": [
+        {"letter": "A", "text": "Configure the customer gateway device with the second tunnel's IKE and BGP parameters so both tunnels come up, because each Site-to-Site VPN connection provides two tunnels for redundancy and AWS performs maintenance on one tunnel at a time.", "correct": true, "why": "Both tunnels terminate on separate AWS endpoints in different Availability Zones; leaving one unconfigured means a single AWS-side maintenance event or endpoint failure takes the whole connection down."},
+        {"letter": "B", "text": "Delete and recreate the Site-to-Site VPN connection to obtain a working pair of tunnels.", "correct": false, "why": "Recreating the connection issues new tunnel outside IP addresses and pre-shared keys and causes an outage, without addressing the unapplied configuration on the customer gateway."},
+        {"letter": "C", "text": "Ignore the alarm, because a Site-to-Site VPN connection is designed to run on a single tunnel and the second tunnel is only used during failover testing.", "correct": false, "why": "The second tunnel is an active redundancy path, not a test facility; running on one tunnel means there is no redundancy at all."},
+        {"letter": "D", "text": "Replace the Site-to-Site VPN connection with AWS Direct Connect to remove the tunnel state dependency.", "correct": false, "why": "Direct Connect is a separate, long-lead connectivity product; provisioning it does not address a configuration omission that can be fixed on the customer gateway today."}
+      ],
+      "knowledge_point": "Every Site-to-Site VPN connection has two tunnels to two AWS endpoints. Configure both on the customer gateway. Monitor the TunnelState CloudWatch metric per tunnel and alarm when fewer than two tunnels are up.",
+      "trap_alert": "A DOWN tunnel with traffic still flowing looks harmless. It means redundancy is already gone, and AWS tunnel maintenance will then cause a full outage.",
+      "doc_refs": ["https://docs.aws.amazon.com/vpn/latest/s2svpn/VPNTunnels.html"]
+    },
+    {
+      "id": "D5-Q018",
+      "type": "single_choice",
+      "difficulty": "hard",
+      "tags": ["vpc-endpoints", "endpoint-policy", "s3", "troubleshooting"],
+      "scenario": "EC2 instances in private subnets access Amazon S3 through a gateway VPC endpoint. After a security review last week hardened the environment, the instances can still list and read objects in the two original buckets, but every request to a newly created bucket returns an immediate HTTP 403 AccessDenied. The instance role includes s3:* on all resources, and the new bucket's own policy is empty.",
+      "stem": "What is the MOST likely cause?",
+      "options": [
+        {"letter": "A", "text": "The private subnet route table is missing the prefix list route to the gateway endpoint for the new bucket.", "correct": false, "why": "A route table entry covers the whole S3 service prefix list, not individual buckets, and a missing route produces a connection timeout rather than an immediate AccessDenied."},
+        {"letter": "B", "text": "The security group attached to the gateway endpoint does not allow HTTPS to the new bucket.", "correct": false, "why": "Gateway endpoints have no elastic network interface and therefore no security group; only interface endpoints have one."},
+        {"letter": "C", "text": "The VPC endpoint policy allows only the ARNs of the two original buckets, so requests to the new bucket are denied at the endpoint.", "correct": true, "why": "An endpoint policy is an additional resource policy evaluated on every request through the endpoint; if it enumerates specific bucket ARNs, access to any bucket not listed is denied even when IAM and the bucket policy permit it."},
+        {"letter": "D", "text": "The instance profile's session credentials expired and must be refreshed by restarting the instances.", "correct": false, "why": "Expired credentials would fail for every bucket, not only the new one, and the instance metadata service renews role credentials automatically."}
+      ],
+      "knowledge_point": "Access through a VPC endpoint must be allowed by the IAM identity policy, the resource policy, AND the endpoint policy. The default endpoint policy is full access; any customized policy becomes a hard allow list that must be updated when new resources are added.",
+      "trap_alert": "AccessDenied means policy; timeout means path. Timeouts point at routes, security groups, or DNS; 403 points at IAM, the bucket policy, or the endpoint policy.",
+      "mnemonic": "403 = policy. Timeout = plumbing.",
+      "doc_refs": ["https://docs.aws.amazon.com/vpc/latest/privatelink/vpc-endpoints-access.html"]
+    },
+    {
+      "id": "D5-Q019",
+      "type": "multiple_response",
+      "difficulty": "medium",
+      "tags": ["vpc-peering", "routing", "security-groups"],
+      "scenario": "VPC A (10.10.0.0/16) and VPC B (10.20.0.0/16) are in the same Region and same account. A VPC peering connection between them shows status Active. An application instance in VPC A cannot open TCP 3306 to a database instance in VPC B. The engineer added 10.20.0.0/16 pointing to the peering connection in the VPC A subnet route table.",
+      "stem": "Which two actions are required to make the connection work? (Choose two.)",
+      "options": [
+        {"letter": "A", "text": "Enable route propagation on the peering connection so that both VPCs learn each other's CIDR automatically.", "correct": false, "why": "Route propagation applies to virtual private gateways and transit gateway route tables; VPC peering requires manually added static routes."},
+        {"letter": "B", "text": "Add a route for 10.10.0.0/16 pointing to the peering connection in the route table associated with the database subnet in VPC B.", "correct": true, "why": "Peering routing is not automatic and not one-sided; the return path needs its own explicit route or the reply packets are dropped in VPC B."},
+        {"letter": "C", "text": "Re-create the peering connection with overlapping CIDR ranges so the two VPCs share an address space.", "correct": false, "why": "Peering requires non-overlapping CIDR blocks and the request is rejected outright when they overlap."},
+        {"letter": "D", "text": "Update the database instance's security group to allow inbound TCP 3306 from 10.10.0.0/16 or from the application security group ID.", "correct": true, "why": "Security groups still evaluate peered traffic; in the same Region, a security group rule can reference a peer VPC security group ID directly, otherwise the peer CIDR must be allowed."},
+        {"letter": "E", "text": "Create a transit VPC and route the traffic through it, because peering does not support database ports.", "correct": false, "why": "Peering is protocol- and port-agnostic; there is no port restriction, and adding a transit hop introduces cost and complexity for no benefit."}
+      ],
+      "knowledge_point": "VPC peering checklist: non-overlapping CIDRs, routes on BOTH sides, security groups and network ACLs allowing the peer CIDR, and no transitive routing (A-B and B-C never gives A-C; use a transit gateway for that).",
+      "trap_alert": "An Active peering status only means the request was accepted. It says nothing about routes, security groups, or network ACLs.",
+      "mnemonic": "Peering is a handshake, not a highway. You still pave both lanes.",
+      "doc_refs": ["https://docs.aws.amazon.com/vpc/latest/peering/vpc-peering-routing.html"]
+    },
+    {
+      "id": "D5-Q020",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["flow-logs", "nacl", "diagnosis"],
+      "scenario": "Clients report that HTTPS requests to an EC2 web server hang. The engineer inspects VPC Flow Logs for the server's elastic network interface and finds paired records for the same 5-tuple: one record with srcaddr set to the client, dstport 443, and action ACCEPT, and a second record with srcaddr set to the server, srcport 443, dstaddr set to the client, and action REJECT.",
+      "stem": "What does this flow log pattern indicate?",
+      "options": [
+        {"letter": "A", "text": "The security group attached to the instance is denying the outbound response.", "correct": false, "why": "Security groups are stateful, so the response to an accepted inbound flow is permitted automatically and cannot appear as an outbound REJECT."},
+        {"letter": "B", "text": "The subnet's network ACL is missing an outbound rule for the client's ephemeral port range, so the stateless return traffic is denied.", "correct": true, "why": "An inbound ACCEPT paired with an outbound REJECT for the same flow is the signature of a stateless network ACL: the request matched an inbound rule but the response found no matching outbound rule."},
+        {"letter": "C", "text": "The route table has no path back to the client, so the packets are dropped.", "correct": false, "why": "A missing route produces no flow log record for the return traffic at all rather than an explicit REJECT, because REJECT is recorded when a security group or network ACL denies the packet."},
+        {"letter": "D", "text": "The instance's operating system firewall is dropping the response.", "correct": false, "why": "VPC Flow Logs are captured at the elastic network interface before the OS firewall, so an OS-level drop produces no REJECT record."}
+      ],
+      "knowledge_point": "Flow log decision rule: inbound REJECT means a security group or network ACL blocked the request; inbound ACCEPT plus outbound REJECT means a network ACL blocked the stateless return traffic. NODATA means no traffic during the window; SKIPDATA means records were skipped during an internal capacity constraint.",
+      "trap_alert": "Flow logs never name which rule denied the packet. Use the ACCEPT/REJECT direction pattern to decide whether to look at security groups or network ACLs, then confirm with Reachability Analyzer.",
+      "mnemonic": "In ACCEPT, out REJECT: blame the NACL.",
+      "doc_refs": ["https://docs.aws.amazon.com/vpc/latest/userguide/flow-log-records.html"]
+    },
+    {
+      "id": "D5-Q021",
+      "type": "multiple_response",
+      "difficulty": "medium",
+      "tags": ["cloudfront", "cache-hit-ratio", "cache-policy", "ttl"],
+      "scenario": "A CloudFront distribution in front of an Application Load Balancer shows a cache hit ratio of 8 percent, and origin CPU is saturated. The cache behavior uses legacy cache settings that forward all headers, all query strings, and all cookies to the origin. Origin responses carry no Cache-Control header, and the behavior leaves the default TTL at 24 hours with a minimum TTL of 0.",
+      "stem": "Which two changes will MOST improve the cache hit ratio? (Choose two.)",
+      "options": [
+        {"letter": "A", "text": "Continue forwarding all headers, query strings, and cookies but increase the maximum TTL to 365 days.", "correct": false, "why": "Every distinct header, query string, and cookie combination creates a separate cache key entry, so raising the maximum TTL does nothing while the key space remains effectively unbounded."},
+        {"letter": "B", "text": "Create a scheduled invalidation of /* every night to keep the cache fresh.", "correct": false, "why": "Invalidations purge cached objects and force the next requests back to the origin, which lowers the hit ratio and incurs invalidation charges beyond the free tier."},
+        {"letter": "C", "text": "Attach a cache policy whose cache key includes only the headers, query strings, and cookies the application actually varies on, and use an origin request policy to forward the rest without caching on them.", "correct": true, "why": "Narrowing the cache key collapses many near-duplicate objects into one cacheable object, while the origin request policy still delivers the values the origin needs."},
+        {"letter": "D", "text": "Change the price class to include all edge locations worldwide.", "correct": false, "why": "Price class controls which edge locations serve the distribution and affects cost and latency; it does not change how objects are keyed or how long they are retained."},
+        {"letter": "E", "text": "Have the origin return Cache-Control: max-age headers for cacheable responses, and set a minimum TTL greater than 0 in the cache behavior.", "correct": true, "why": "CloudFront honors origin Cache-Control directives within the minimum and maximum TTL bounds; with no Cache-Control and a minimum TTL of 0, objects can be revalidated on nearly every request."}
+      ],
+      "knowledge_point": "Cache hit ratio is governed by cache key cardinality and TTL. Keep the cache key minimal (cache policy) and forward extra values without caching on them (origin request policy). Effective TTL is derived from Cache-Control clamped between the behavior's minimum and maximum TTL.",
+      "trap_alert": "Invalidation feels like a cache fix. It is a correctness tool for stale content and always reduces the hit ratio; use versioned object paths instead.",
+      "mnemonic": "Cache policy = what goes in the key. Origin request policy = what goes to the origin.",
+      "doc_refs": ["https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/cache-hit-ratio.html"]
+    },
+    {
+      "id": "D5-Q022",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["cloudfront", "oac", "s3", "403"],
+      "scenario": "An engineer migrates a CloudFront distribution's S3 origin from a legacy origin access identity to origin access control. Immediately afterward, every request through the distribution returns HTTP 403 AccessDenied, including requests for objects that are known to exist. The bucket has S3 Block Public Access fully enabled and its bucket policy still contains only the statement granting the old origin access identity.",
+      "stem": "What should the engineer do to restore access?",
+      "options": [
+        {"letter": "A", "text": "Disable S3 Block Public Access and make the objects publicly readable.", "correct": false, "why": "Public objects defeat the purpose of origin access control and expose the bucket directly; CloudFront can read a private bucket when the policy is correct."},
+        {"letter": "B", "text": "Create a CloudFront invalidation for /* so the edge caches re-fetch the objects.", "correct": false, "why": "The 403 comes from the origin authorization decision, not from stale cached content, so purging the cache changes nothing."},
+        {"letter": "C", "text": "Change the viewer protocol policy to Redirect HTTP to HTTPS and enable the origin protocol policy HTTPS Only.", "correct": false, "why": "Protocol policies govern how viewers and CloudFront negotiate TLS; they have no bearing on whether S3 authorizes the request."},
+        {"letter": "D", "text": "Update the S3 bucket policy to allow s3:GetObject for the cloudfront.amazonaws.com service principal with an AWS:SourceArn condition matching the distribution ARN.", "correct": true, "why": "Origin access control signs origin requests with SigV4 as the CloudFront service principal, so the bucket policy must grant that principal and scope it to the distribution ARN; the old origin access identity statement no longer matches."}
+      ],
+      "knowledge_point": "Origin access control requires a bucket policy granting cloudfront.amazonaws.com with a condition on AWS:SourceArn of the distribution. With SSE-KMS objects, the same principal also needs kms:Decrypt on the key.",
+      "trap_alert": "From an S3 origin, CloudFront returns 403 rather than 404 for a missing object unless the principal has s3:ListBucket. A blanket 403 on known-good objects points at the bucket policy, not at missing keys.",
+      "doc_refs": ["https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/private-content-restricting-access-to-s3.html"]
+    },
+    {
+      "id": "D5-Q023",
+      "type": "single_choice",
+      "difficulty": "hard",
+      "tags": ["transit-gateway", "route-propagation", "troubleshooting"],
+      "scenario": "A company migrates from a mesh of VPC peering connections to a transit gateway. A new spoke VPC attachment shows state Available, and the spoke's subnet route tables already contain 10.0.0.0/8 pointing to the transit gateway. Instances in the spoke still cannot reach any other spoke. The engineer opens the transit gateway route table used by the other spokes and sees no route entry for the new VPC's CIDR.",
+      "stem": "What should the engineer do?",
+      "options": [
+        {"letter": "A", "text": "Associate the new attachment with the transit gateway route table and enable route propagation from that attachment into the route table used by the other spokes.", "correct": true, "why": "A transit gateway attachment must be associated with a route table to decide how its traffic is routed, and its CIDR appears in other route tables only through propagation or a static route; without that the transit gateway has no entry for the new VPC."},
+        {"letter": "B", "text": "Add a 0.0.0.0/0 route to the internet gateway in the spoke's subnet route tables.", "correct": false, "why": "Spoke-to-spoke traffic stays inside the AWS network; a default route to an internet gateway sends the traffic to the internet instead of the transit gateway."},
+        {"letter": "C", "text": "Create VPC peering connections between the new spoke and each existing spoke as a supplement to the transit gateway.", "correct": false, "why": "This reintroduces the mesh the migration was meant to remove and does not correct the transit gateway routing configuration."},
+        {"letter": "D", "text": "Enable DNS support and appliance mode on the transit gateway attachment.", "correct": false, "why": "DNS support governs cross-VPC resolution of public hostnames to private IPs, and appliance mode ensures flow symmetry through inspection appliances; neither creates a missing route entry."}
+      ],
+      "knowledge_point": "Transit gateway routing has two independent knobs per attachment: ASSOCIATION (which route table the attachment's outbound traffic uses) and PROPAGATION (which route tables learn the attachment's CIDRs). Both must be set, and default association and propagation only apply if enabled on the transit gateway.",
+      "trap_alert": "An attachment in Available state and correct VPC route tables are only half the path. Always check the transit gateway route table itself for the destination CIDR. Also confirm the attachment has a subnet in every Availability Zone that hosts workloads.",
+      "mnemonic": "Association = which map I read. Propagation = which maps I appear on.",
+      "doc_refs": ["https://docs.aws.amazon.com/vpc/latest/tgw/tgw-route-tables.html"]
+    },
+    {
+      "id": "D5-Q024",
+      "type": "single_choice",
+      "difficulty": "hard",
+      "tags": ["nat-gateway", "cloudwatch-metrics", "port-allocation"],
+      "scenario": "A batch fleet in private subnets opens a very large number of short-lived HTTPS connections to a single third-party API endpoint through one NAT gateway. During peak windows, connections fail intermittently. CloudWatch shows the NAT gateway's ErrorPortAllocation metric rising above zero and PacketsDropCount increasing, while BytesOutToDestination remains well under the gateway's throughput capability and there are no NAT gateway error logs about bandwidth.",
+      "stem": "What should the CloudOps engineer do to resolve the failures?",
+      "options": [
+        {"letter": "A", "text": "Increase the NAT gateway's bandwidth allocation in the console.", "correct": false, "why": "NAT gateway bandwidth is not a configurable setting; it scales automatically up to 100 Gbps, and the metrics already show throughput is not the constraint."},
+        {"letter": "B", "text": "Replace the NAT gateway with NAT instances on a larger instance type and disable the source/destination check.", "correct": false, "why": "This trades a managed service for self-managed capacity and patching, and a single NAT instance faces the same per-destination port exhaustion while adding a single point of failure."},
+        {"letter": "C", "text": "Distribute the outbound traffic across additional NAT gateways, because a NAT gateway supports approximately 55,000 simultaneous connections to each unique destination address, port, and protocol combination.", "correct": true, "why": "ErrorPortAllocation means the gateway could not allocate a source port for a new connection to that destination; spreading the workload over more NAT gateways (or more source addresses) multiplies the available port pool."},
+        {"letter": "D", "text": "Raise the MTU on the batch instances to 9001 to reduce the number of packets traversing the NAT gateway.", "correct": false, "why": "Jumbo frames affect packet count, not the count of simultaneous connections, and traffic leaving the VPC toward the internet is limited to 1500 bytes anyway."}
+      ],
+      "knowledge_point": "ErrorPortAllocation on a NAT gateway means source-port exhaustion toward one destination, at roughly 55,000 concurrent connections per unique destination IP, port, and protocol. Remedies: add NAT gateways and split the traffic, assign secondary IPv4 addresses to the NAT gateway to enlarge the port pool, or make the application reuse connections.",
+      "trap_alert": "ErrorPortAllocation is a connection-count problem, not a bandwidth problem. Check IdleTimeoutCount and ErrorPortAllocation before assuming throughput limits.",
+      "mnemonic": "One NAT, one destination, about 55K doors. Add gateways or add addresses to add doors.",
+      "doc_refs": ["https://docs.aws.amazon.com/vpc/latest/userguide/nat-gateway-troubleshooting.html"]
+    }
+  ]
+}
