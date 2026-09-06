@@ -1,0 +1,363 @@
+{
+  "domain": "D4",
+  "title": "Security and Compliance",
+  "questions": [
+    {
+      "id": "D4-Q001",
+      "type": "single_choice",
+      "difficulty": "easy",
+      "tags": ["iam", "mfa", "policy-conditions", "task-4.1"],
+      "scenario": "A security audit requires that every IAM user in a production account must present MFA before performing any action other than managing their own credentials. All users already have virtual MFA devices registered, and several job-function policies (EC2, S3, CloudWatch) are attached to their groups. Testing shows that a user who signs in with only a password can still call ec2:DescribeInstances and s3:ListBucket successfully.",
+      "stem": "What should the CloudOps engineer do to enforce the MFA requirement across all of the users' existing permissions?",
+      "options": [
+        {"letter": "A", "text": "Attach a policy to the users' group that contains a Deny statement for all actions (with a NotAction carve-out for the self-service credential actions) using the condition \"BoolIfExists\": {\"aws:MultiFactorAuthPresent\": \"false\"}.", "correct": true, "why": "An explicit Deny overrides every Allow in every other attached policy, so one statement covers all existing permissions; BoolIfExists is used so requests made with credential types that never carry the key are still evaluated correctly."},
+        {"letter": "B", "text": "Configure the account password policy to require a 14-character minimum, symbols, and 90-day rotation.", "correct": false, "why": "The password policy governs password strength and expiry only. It has no relationship to whether MFA was used on a request."},
+        {"letter": "C", "text": "Add \"Condition\": {\"Bool\": {\"aws:MultiFactorAuthPresent\": \"true\"}} to the Allow statement in the EC2 job-function policy and leave the other attached policies unchanged.", "correct": false, "why": "A condition on one Allow statement only narrows that statement. The S3 and CloudWatch policies still allow their actions without MFA, so the requirement is not met account-wide."},
+        {"letter": "D", "text": "Create an SCP that denies all actions unless aws:MultiFactorAuthPresent is true and attach it to the OU that contains the account.", "correct": false, "why": "An SCP applies to every principal in the account, including service roles and automation roles that never authenticate with MFA, which breaks running workloads. MFA enforcement for human users belongs in an identity policy."}
+      ],
+      "knowledge_point": "To enforce MFA over permissions that are already granted elsewhere, use an explicit Deny with BoolIfExists on aws:MultiFactorAuthPresent — explicit Deny beats every Allow in the evaluation chain.",
+      "trap_alert": "Password policy and MFA are separate controls; strengthening the password policy never satisfies an MFA requirement.",
+      "mnemonic": "Deny-if-not-MFA beats Allow-if-MFA: one Deny covers every policy you forgot about.",
+      "doc_refs": ["https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_condition-keys.html", "https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_mfa_configure-api-require.html"]
+    },
+    {
+      "id": "D4-Q002",
+      "type": "single_choice",
+      "difficulty": "easy",
+      "tags": ["iam-roles", "ec2", "access-keys", "task-4.1"],
+      "scenario": "An application running on EC2 instances in an Auto Scaling group reads from Amazon S3 and writes to DynamoDB. The credentials are an IAM user's access key ID and secret key baked into the AMI's configuration file. Trusted Advisor has raised an exposed access key alert after a developer pasted the config into a public repository, and the security team wants the finding to stop recurring.",
+      "stem": "What is the MOST secure way to give the application access to S3 and DynamoDB?",
+      "options": [
+        {"letter": "A", "text": "Move the access keys into Systems Manager Parameter Store as a SecureString and have the application read them at startup.", "correct": false, "why": "This hides the keys but they remain long-lived static credentials for an IAM user, so exposure and manual rotation risk both persist."},
+        {"letter": "B", "text": "Keep the access keys in the AMI but create a Lambda function that rotates them every 90 days and rebuilds the AMI.", "correct": false, "why": "Rotation shortens the exposure window but the credentials still live on disk in every instance and the rebuild pipeline adds operational overhead."},
+        {"letter": "C", "text": "Create an IAM role with the required S3 and DynamoDB permissions, attach it to the instances through an instance profile in the launch template, and delete the IAM user's access keys.", "correct": true, "why": "The SDK retrieves temporary, automatically rotated credentials from the Instance Metadata Service, so there is no static secret to leak, store, or rotate."},
+        {"letter": "D", "text": "Store the access keys in Secrets Manager and enable rotation, then have the application call GetSecretValue at runtime.", "correct": false, "why": "Secrets Manager is the right home for credentials AWS cannot issue itself (such as database passwords), but for AWS API access an instance role removes the credential entirely, which is strictly stronger."}
+      ],
+      "knowledge_point": "Compute that runs inside AWS (EC2, Lambda, ECS tasks) should always use an IAM role, never a stored access key — roles deliver short-lived credentials that AWS rotates for you.",
+      "trap_alert": "Parameter Store and Secrets Manager options look 'more secure' because they mention encryption, but they still leave a long-lived IAM user key in existence.",
+      "doc_refs": ["https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_use_switch-role-ec2.html", "https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html"]
+    },
+    {
+      "id": "D4-Q003",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["scp", "organizations", "access-denied", "aws-requestedregion", "task-4.1"],
+      "scenario": "A CloudOps engineer assumes a role that has the AWS managed AdministratorAccess policy attached. Calls to ec2:RunInstances in eu-west-1 succeed, but the identical call in ap-south-1 fails immediately with an AccessDenied error. CloudTrail in ap-south-1 records the event with errorCode AccessDenied and shows the same assumed-role principal. The account is a member account in AWS Organizations.",
+      "stem": "What is the MOST likely cause of the failure?",
+      "options": [
+        {"letter": "A", "text": "The role's trust policy does not include the engineer's principal.", "correct": false, "why": "A trust policy problem fails at sts:AssumeRole, not at ec2:RunInstances, and it would fail in every Region rather than just one."},
+        {"letter": "B", "text": "ap-south-1 is an opt-in Region that has not been enabled for the account.", "correct": false, "why": "Calls into a Region that is not enabled fail with an opt-in or authorization failure at the endpoint, and ap-south-1 is enabled by default; the error here is a policy evaluation denial."},
+        {"letter": "C", "text": "The role is missing a permissions boundary, so its effective permissions are empty.", "correct": false, "why": "A permissions boundary only ever restricts; a role with no boundary keeps the full permissions of its identity policies."},
+        {"letter": "D", "text": "A service control policy attached to the account's OU denies all actions when aws:RequestedRegion is not in the approved Region list.", "correct": true, "why": "An SCP Deny is evaluated before identity policies and cannot be overridden by AdministratorAccess, and the Region-specific pattern of the failure matches an aws:RequestedRegion condition exactly."}
+      ],
+      "knowledge_point": "AccessDenied on a principal that holds AdministratorAccess points at something outside the identity policy: an SCP, a permissions boundary, a session policy, or a resource policy deny.",
+      "trap_alert": "The tell is that only one Region fails. Region-scoped AccessDenied on an admin principal is an SCP with aws:RequestedRegion until proven otherwise.",
+      "mnemonic": "Admin + AccessDenied = look up (SCP) or sideways (boundary/resource policy), never down at the identity policy.",
+      "doc_refs": ["https://docs.aws.amazon.com/organizations/latest/userguide/orgs_manage_policies_scps_examples_general.html", "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_evaluation-logic.html"]
+    },
+    {
+      "id": "D4-Q004",
+      "type": "multiple_response",
+      "difficulty": "medium",
+      "tags": ["troubleshooting", "cloudtrail", "policy-simulator", "access-denied", "task-4.1"],
+      "scenario": "An internal application that assumes an IAM role reports intermittent AccessDenied errors when it calls s3:PutObject against a shared bucket. The application team insists the role's policy grants the action. The CloudOps engineer must determine which policy is producing the denial before changing anything.",
+      "stem": "Which two actions should the engineer take to identify the source of the denial? (Choose two.)",
+      "options": [
+        {"letter": "A", "text": "Search CloudTrail for the PutObject events and inspect the errorCode, errorMessage, and userIdentity fields to see which principal was used and which policy type produced the denial.", "correct": true, "why": "CloudTrail records the failed API call with an explicit errorCode and an errorMessage that names the policy type responsible (identity policy, SCP, boundary, or resource policy) along with the exact principal ARN."},
+        {"letter": "B", "text": "Enable VPC Flow Logs on the application's subnet and look for REJECT records.", "correct": false, "why": "Flow logs describe network-layer accept and reject decisions. An AccessDenied is an authorization decision made by IAM after the connection succeeded."},
+        {"letter": "C", "text": "Enable S3 server access logging on the bucket and look for HTTP 5xx responses.", "correct": false, "why": "Server access logs are delivered on a best-effort, delayed basis, and an authorization failure is a 403, not a 5xx; the log entry still would not name the denying policy."},
+        {"letter": "D", "text": "Run the IAM policy simulator against the role for the s3:PutObject action on the bucket and object ARNs to evaluate identity policies, permissions boundaries, and SCPs together.", "correct": true, "why": "The policy simulator evaluates the full chain and reports which statement in which policy allows or denies the action, without making a live API call."},
+        {"letter": "E", "text": "Generate an IAM credential report for the account and review it.", "correct": false, "why": "The credential report lists credential state such as password age, key age, and MFA status for users. It says nothing about authorization decisions for a role."}
+      ],
+      "knowledge_point": "The standard AccessDenied workflow is CloudTrail (what actually happened, which principal, which policy type) plus the IAM policy simulator (what the policy chain evaluates to).",
+      "trap_alert": "Network-layer logs and credential reports are attractive because they are security tools, but neither one can attribute an authorization denial to a policy.",
+      "doc_refs": ["https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_testing-policies.html", "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_access-denied-messages.html"]
+    },
+    {
+      "id": "D4-Q005",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["cross-account", "resource-policy", "s3", "task-4.1"],
+      "scenario": "Account B runs an analytics job under an IAM role whose identity policy allows s3:GetObject and s3:ListBucket on a bucket owned by Account A. The job fails with AccessDenied on every object. Account A's bucket has Block Public Access enabled, Object Ownership set to bucket owner enforced, and default SSE-S3 encryption.",
+      "stem": "What should the CloudOps engineer do to allow the analytics job to read the objects?",
+      "options": [
+        {"letter": "A", "text": "In Account A, grant the Account B role read permission through the bucket ACL.", "correct": false, "why": "With Object Ownership set to bucket owner enforced, ACLs are disabled and have no effect; ACLs are also the legacy access mechanism AWS no longer recommends."},
+        {"letter": "B", "text": "In Account A, add a bucket policy statement that allows s3:GetObject and s3:ListBucket for the Account B role ARN as Principal.", "correct": true, "why": "Cross-account access requires an Allow on both sides: the identity policy in the trusted account and a resource policy in the resource-owning account. Only the bucket policy is missing."},
+        {"letter": "C", "text": "In Account B, attach the AmazonS3FullAccess managed policy to the analytics role.", "correct": false, "why": "An identity policy in one account can never grant access to a resource owned by another account; it only removes restrictions on its own side."},
+        {"letter": "D", "text": "In Account A, disable Block Public Access on the bucket.", "correct": false, "why": "Block Public Access governs public and anonymous access. It does not affect access granted to a named cross-account principal, and disabling it weakens the bucket for no benefit."}
+      ],
+      "knowledge_point": "Cross-account access to an S3 bucket, KMS key, SQS queue, or Lambda function needs an Allow in the identity policy AND an Allow in the resource policy; either one alone results in AccessDenied.",
+      "trap_alert": "If the bucket used SSE-KMS with a customer managed key, the key policy would need the Account B role too — check both the resource policy and the key policy.",
+      "mnemonic": "Cross-account = two keys in the lock: identity policy + resource policy.",
+      "doc_refs": ["https://docs.aws.amazon.com/AmazonS3/latest/userguide/example-walkthroughs-managing-access-example2.html", "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_evaluation-logic-cross-account.html"]
+    },
+    {
+      "id": "D4-Q006",
+      "type": "single_choice",
+      "difficulty": "hard",
+      "tags": ["policy-conditions", "aws-principalorgid", "aws-securetransport", "s3", "task-4.1"],
+      "scenario": "A shared artifact bucket is read by workloads in 40 accounts belonging to one AWS organization. The bucket policy lists all 40 account IDs in its Principal element, and the platform team must edit it every time an account is added or removed. An audit has also flagged that the bucket accepts requests over HTTP.",
+      "stem": "Which change meets the audit requirements with the LEAST ongoing maintenance?",
+      "options": [
+        {"letter": "A", "text": "Replace the account list with a condition on aws:SourceIp that matches the corporate NAT gateway CIDR blocks, and add a Deny for requests from other addresses.", "correct": false, "why": "Source IP proves network location, not organization membership, and it breaks requests that traverse VPC endpoints or come from AWS services. It also does nothing about HTTP."},
+        {"letter": "B", "text": "Replace the account list with a condition on aws:PrincipalAccount using a wildcard that matches the organization's account ID prefix.", "correct": false, "why": "aws:PrincipalAccount matches a specific account ID and account IDs share no meaningful prefix, so this either enumerates accounts again or matches nothing."},
+        {"letter": "C", "text": "Replace the account list with a condition \"StringEquals\": {\"aws:PrincipalOrgID\": \"o-xxxxxxxxxx\"} and add a separate Deny statement for requests where aws:SecureTransport is false.", "correct": true, "why": "aws:PrincipalOrgID matches any principal in the organization, so account churn requires no policy edit, and the aws:SecureTransport Deny rejects plaintext HTTP requests at the bucket."},
+        {"letter": "D", "text": "Attach an SCP to the organization root that denies s3:* when aws:SecureTransport is false, and leave the bucket policy as it is.", "correct": false, "why": "An SCP only constrains principals inside the organization, so it cannot secure the bucket against outside callers, and it leaves the 40-account list in the bucket policy untouched."}
+      ],
+      "knowledge_point": "aws:PrincipalOrgID scopes a resource policy to an entire organization without listing accounts; a Deny on aws:SecureTransport false is the standard way to require TLS on a bucket.",
+      "trap_alert": "SCPs and resource policies solve different halves of this: SCPs restrict your principals, resource policies restrict access to your resource including callers you do not control.",
+      "mnemonic": "OrgID for who, SecureTransport for how.",
+      "doc_refs": ["https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_condition-keys.html#condition-keys-principalorgid", "https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html"]
+    },
+    {
+      "id": "D4-Q007",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["scp", "organizations", "management-account", "task-4.1"],
+      "scenario": "An organization applies a service control policy at the organization root that denies all actions when aws:RequestedRegion is not eu-west-1 or eu-central-1, with exceptions for global services. A month later, a compliance scan finds new EC2 instances running in us-east-2. CloudTrail shows they were launched by an administrator role in the organization's management account.",
+      "stem": "Why did the SCP fail to block the launches, and what should the CloudOps engineer do?",
+      "options": [
+        {"letter": "A", "text": "SCPs never apply to the management account. Move the workload into a member account inside an OU, and restrict the management account's principals with IAM policies or permissions boundaries.", "correct": true, "why": "The management account is exempt from all SCPs regardless of where they are attached, which is why AWS recommends running no workloads in it; restricting it requires identity-based controls."},
+        {"letter": "B", "text": "The SCP must be attached to each OU individually rather than to the organization root.", "correct": false, "why": "Attaching at the root already applies the policy to every OU and member account beneath it. Attachment point is not the issue here."},
+        {"letter": "C", "text": "The SCP has no Allow statement, so it grants nothing and is ignored. Add an Allow for the approved Regions.", "correct": false, "why": "SCPs never grant permissions; they are filters. A Deny SCP takes effect on its own alongside the default FullAWSAccess policy."},
+        {"letter": "D", "text": "Apply a permissions boundary to the roles in each member account so the Region restriction is enforced.", "correct": false, "why": "Permissions boundaries only affect the identities they are attached to, and applying them to member accounts does nothing about launches originating in the management account."}
+      ],
+      "knowledge_point": "SCPs affect only member accounts. The management account is exempt, so keep workloads out of it and control it with IAM policies instead.",
+      "trap_alert": "SCPs also do not grant permissions and do not apply to service-linked roles — three exemptions worth memorizing together.",
+      "mnemonic": "SCP: filters, not faucets — and the management account is behind the filter.",
+      "doc_refs": ["https://docs.aws.amazon.com/organizations/latest/userguide/orgs_manage_policies_scps.html", "https://docs.aws.amazon.com/organizations/latest/userguide/orgs_best-practices_mgmt-acct.html"]
+    },
+    {
+      "id": "D4-Q008",
+      "type": "single_choice",
+      "difficulty": "easy",
+      "tags": ["identity-center", "federation", "permission-sets", "task-4.1"],
+      "scenario": "A company runs 25 AWS accounts under AWS Organizations. Each account contains individually created IAM users with long-lived access keys for the same 60 engineers. Offboarding regularly misses accounts, and an audit found active keys belonging to two people who left months ago. Corporate identities live in an external SAML identity provider.",
+      "stem": "What should the CloudOps engineer implement to centralize workforce access with the LEAST operational overhead?",
+      "options": [
+        {"letter": "A", "text": "Keep the per-account IAM users and build a scheduled Lambda function that deactivates access keys older than 90 days in every account.", "correct": false, "why": "This mitigates key age but leaves 25 copies of every identity to create, update, and delete, so offboarding gaps remain."},
+        {"letter": "B", "text": "Enable IAM Identity Center with the external IdP as the identity source, define permission sets for each job function, and assign IdP groups to accounts.", "correct": true, "why": "Identity Center provisions the roles into each account automatically, issues short-term credentials on sign-in, and revokes access everywhere the moment the user is removed from the group in the IdP."},
+        {"letter": "C", "text": "Create one cross-account IAM role per account and distribute the role ARNs plus a shared set of access keys for a hub account IAM user.", "correct": false, "why": "This still depends on long-lived keys for a shared IAM user and requires manual role creation and maintenance in every account."},
+        {"letter": "D", "text": "Use service control policies to grant each engineering group the permissions it needs in the appropriate accounts.", "correct": false, "why": "SCPs cannot grant permissions and are not an authentication mechanism; they only set the maximum permissions an account's principals can have."}
+      ],
+      "knowledge_point": "IAM Identity Center plus permission sets is the standard multi-account workforce access pattern: one identity source, roles provisioned automatically, temporary credentials only.",
+      "trap_alert": "Watch for options that automate the maintenance of IAM users. Reducing the pain of a bad pattern is not the same as removing the pattern.",
+      "doc_refs": ["https://docs.aws.amazon.com/singlesignon/latest/userguide/permissionsetsconcept.html", "https://docs.aws.amazon.com/singlesignon/latest/userguide/manage-your-identity-source-idp.html"]
+    },
+    {
+      "id": "D4-Q009",
+      "type": "single_choice",
+      "difficulty": "easy",
+      "tags": ["trusted-advisor", "support-plans", "eventbridge", "task-4.1"],
+      "scenario": "A company on the AWS Basic Support plan wants to use Trusted Advisor to review the complete Security category, including checks such as security group rules for specific ports, IAM access key rotation, and CloudFront certificate expiry. Today only a small subset of security checks is visible. The team also wants an automatic notification whenever a check moves to a warning or error state.",
+      "stem": "What should the CloudOps engineer do to meet both requirements?",
+      "options": [
+        {"letter": "A", "text": "Enable AWS Security Hub with the Foundational Security Best Practices standard instead, because it replaces Trusted Advisor.", "correct": false, "why": "Security Hub is a valid complementary control but it does not unlock Trusted Advisor's check set, and the requirement is explicitly for the full Trusted Advisor Security category."},
+        {"letter": "B", "text": "Enable AWS Trusted Advisor Priority in the console.", "correct": false, "why": "Trusted Advisor Priority surfaces prioritized recommendations curated by the account team and is available only with Enterprise Support, so it is not something that can simply be enabled on Basic."},
+        {"letter": "C", "text": "Turn on the core security checks in the Trusted Advisor console, which are included with every support plan.", "correct": false, "why": "The core checks are already available and require no activation; they are exactly the small subset the team is seeing and do not include the full Security category."},
+        {"letter": "D", "text": "Upgrade the account to Business or Enterprise Support to unlock all Trusted Advisor checks, then create an EventBridge rule on the Trusted Advisor check-status events that targets an SNS topic.", "correct": true, "why": "The complete set of Trusted Advisor checks requires Business or Enterprise Support, and Trusted Advisor emits check-item refresh status events to EventBridge in us-east-1 that can be routed to SNS for notification."}
+      ],
+      "knowledge_point": "Basic and Developer Support get only the core security checks plus service quota checks; the full Trusted Advisor check set requires Business or Enterprise Support. Trusted Advisor status changes are consumable through EventBridge.",
+      "trap_alert": "The free core security checks (S3 bucket permissions, unrestricted specific ports, root MFA, IAM use, exposed access keys, public EBS/RDS snapshots) are frequently confused with the full Security category.",
+      "doc_refs": ["https://docs.aws.amazon.com/awssupport/latest/user/trusted-advisor-check-reference.html", "https://docs.aws.amazon.com/awssupport/latest/user/cloudwatch-events-ta.html"]
+    },
+    {
+      "id": "D4-Q010",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["config", "auto-remediation", "ssm-automation", "security-groups", "task-4.1"],
+      "scenario": "The AWS Config managed rule restricted-ssh reports several security groups as NON_COMPLIANT because they allow inbound TCP 22 from 0.0.0.0/0. Developers keep recreating these rules during troubleshooting. The security team wants the offending ingress rule removed automatically within minutes of detection, without a human opening a ticket.",
+      "stem": "What should the CloudOps engineer configure?",
+      "options": [
+        {"letter": "A", "text": "Create an EventBridge rule that matches Config compliance change events and sends an SNS email to the security group's owner tag.", "correct": false, "why": "Notification is not remediation. The non-compliant ingress rule stays in place until somebody acts on the email."},
+        {"letter": "B", "text": "Replace the managed rule with a custom Config rule backed by a Lambda function that revokes the ingress rule during evaluation.", "correct": false, "why": "A custom rule's Lambda function is an evaluator: it returns COMPLIANT or NON_COMPLIANT. Using it to mutate resources conflates detection with remediation and is not the supported pattern."},
+        {"letter": "C", "text": "Attach a remediation action to the restricted-ssh rule that runs the AWS-DisablePublicAccessForSecurityGroup Systems Manager Automation document, set it to automatic, and grant the automation assume role permission to modify security groups.", "correct": true, "why": "AWS Config remediation actions invoke SSM Automation documents against the non-compliant resource, and automatic remediation fires on the compliance change without human involvement."},
+        {"letter": "D", "text": "Attach an SCP to the OU that denies ec2:AuthorizeSecurityGroupIngress.", "correct": false, "why": "A blanket deny blocks all legitimate security group changes, and it does nothing to fix the security groups that are already non-compliant."}
+      ],
+      "knowledge_point": "AWS Config detects; Systems Manager Automation remediates. Wire them together with a remediation action on the rule (set to automatic) and an IAM role the automation can assume.",
+      "trap_alert": "Automatic remediation fails silently if the remediation role lacks permissions on the target resource — check the automation execution history, not just the rule.",
+      "mnemonic": "Config finds it, SSM fixes it.",
+      "doc_refs": ["https://docs.aws.amazon.com/config/latest/developerguide/remediation.html", "https://docs.aws.amazon.com/config/latest/developerguide/restricted-ssh.html"]
+    },
+    {
+      "id": "D4-Q011",
+      "type": "multiple_response",
+      "difficulty": "hard",
+      "tags": ["organizations", "scp", "config-aggregator", "conformance-packs", "task-4.1"],
+      "scenario": "A regulated company operates 60 accounts in AWS Organizations and is permitted to run resources only in eu-west-1 and eu-central-1. Auditors require two things: technical prevention of resource creation in any other Region, and a single consolidated view showing every non-compliant resource across all accounts and both Regions.",
+      "stem": "Which two actions should the CloudOps engineer take? (Choose two.)",
+      "options": [
+        {"letter": "A", "text": "Attach an IAM policy with a Deny on aws:RequestedRegion to every IAM user in every account.", "correct": false, "why": "Identity policies must be attached to each principal, they miss roles assumed by services and federated sessions, and maintaining them across 60 accounts does not scale."},
+        {"letter": "B", "text": "Disable the unapproved Regions from each account's account settings page.", "correct": false, "why": "Only opt-in Regions can be enabled or disabled. Regions that are enabled by default, such as us-east-1, cannot be turned off this way."},
+        {"letter": "C", "text": "Attach a service control policy to the organization root that denies all actions when aws:RequestedRegion is not in the approved list, with NotAction exceptions for global services such as IAM, Organizations, CloudFront, Route 53, and Support.", "correct": true, "why": "An SCP Deny cannot be overridden by any identity policy in a member account, and the global-service exceptions prevent breaking services whose endpoints live in us-east-1."},
+        {"letter": "D", "text": "Enable AWS Trusted Advisor in each account and review the service limits category weekly.", "correct": false, "why": "Trusted Advisor does not evaluate Region restrictions and provides no cross-account consolidated compliance view."},
+        {"letter": "E", "text": "Create an AWS Config aggregator in a delegated administrator account that collects data from the whole organization, and deploy an organization conformance pack so compliance results from every account and Region appear in one place.", "correct": true, "why": "An organization aggregator plus an organization conformance pack gives a single pane of compliance results across all accounts and Regions, which is exactly the audit evidence requirement."}
+      ],
+      "knowledge_point": "Region restriction is a two-part control: prevent with an SCP on aws:RequestedRegion (with global-service carve-outs), and evidence with a Config organization aggregator plus conformance packs.",
+      "trap_alert": "Forgetting the global-service NotAction exceptions in a Region-deny SCP breaks IAM, CloudFront, Route 53, and Support because those APIs are served from us-east-1.",
+      "doc_refs": ["https://docs.aws.amazon.com/organizations/latest/userguide/orgs_manage_policies_scps_examples_general.html", "https://docs.aws.amazon.com/config/latest/developerguide/aggregate-data.html"]
+    },
+    {
+      "id": "D4-Q012",
+      "type": "single_choice",
+      "difficulty": "easy",
+      "tags": ["macie", "data-classification", "s3", "tagging", "task-4.2"],
+      "scenario": "A company has more than 800 S3 buckets accumulated across several teams. A new data governance policy requires each bucket to be labelled with a sensitivity tag, but nobody knows which buckets currently hold personally identifiable information such as names, national ID numbers, and credit card data.",
+      "stem": "What should the CloudOps engineer do to discover the sensitive data so the buckets can be classified?",
+      "options": [
+        {"letter": "A", "text": "Enable Amazon Macie for the account, allow automated sensitive data discovery to profile the buckets, and use the findings to apply sensitivity tags.", "correct": true, "why": "Macie is the AWS managed service that inspects S3 object content with managed and custom data identifiers and reports which buckets contain sensitive data types."},
+        {"letter": "B", "text": "Enable S3 server access logging on every bucket and analyze the logs with Athena.", "correct": false, "why": "Access logs record who requested which object. They contain no information about the content of the objects."},
+        {"letter": "C", "text": "Enable GuardDuty S3 Protection and review the findings.", "correct": false, "why": "GuardDuty S3 Protection detects anomalous or malicious access patterns against buckets; it does not classify object content."},
+        {"letter": "D", "text": "Deploy the AWS Config managed rule s3-bucket-public-read-prohibited across the accounts.", "correct": false, "why": "That rule evaluates bucket configuration posture. It says nothing about whether the bucket holds sensitive data."}
+      ],
+      "knowledge_point": "Data classification in S3 = Macie for discovery of the content, then tags for the classification label. Config and GuardDuty answer configuration and behaviour questions, not content questions.",
+      "trap_alert": "Every option here is a real security service. The discriminator is whether the service reads object content — only Macie does.",
+      "doc_refs": ["https://docs.aws.amazon.com/macie/latest/user/discovery-asdd.html", "https://docs.aws.amazon.com/macie/latest/user/data-identifiers.html"]
+    },
+    {
+      "id": "D4-Q013",
+      "type": "single_choice",
+      "difficulty": "hard",
+      "tags": ["kms", "ebs-snapshot", "cross-account", "key-policy", "task-4.2"],
+      "scenario": "A CloudOps engineer must give a partner company's AWS account access to an encrypted EBS snapshot so the partner can restore a volume. The snapshot was created from a volume encrypted with the default aws/ebs AWS managed key. The engineer's attempt to add the partner account to the key's policy is rejected, and after sharing the snapshot the partner receives an access error when copying it.",
+      "stem": "What should the engineer do to let the partner account use the snapshot?",
+      "options": [
+        {"letter": "A", "text": "Add the partner account as a principal in the aws/ebs key policy and re-share the snapshot.", "correct": false, "why": "AWS managed keys such as aws/ebs have key policies that AWS controls; you cannot edit them, which is precisely why the attempt was rejected."},
+        {"letter": "B", "text": "Copy the snapshot and re-encrypt the copy with a customer managed KMS key, grant the partner account kms:DescribeKey, kms:Decrypt, kms:ReEncrypt*, and kms:CreateGrant in that key's policy, then share the snapshot copy with the partner account ID.", "correct": true, "why": "Sharing an encrypted snapshot requires a customer managed key because only its key policy can be modified to authorize an external account, and the partner needs those KMS actions to copy and restore from it."},
+        {"letter": "C", "text": "Change the snapshot's permissions to public so any account can copy it.", "correct": false, "why": "Encrypted snapshots cannot be made public. They can only be shared with specific account IDs."},
+        {"letter": "D", "text": "Copy the snapshot without encryption and share the unencrypted copy.", "correct": false, "why": "A copy of an encrypted snapshot is always encrypted; there is no option to decrypt during the copy operation. It would also defeat the encryption requirement."}
+      ],
+      "knowledge_point": "Anything encrypted with an AWS managed key cannot be shared cross-account, because AWS managed key policies are not editable. Re-encrypt with a customer managed key and share both the resource and the key.",
+      "trap_alert": "Sharing the snapshot without also granting KMS permissions on the CMK produces a confusing failure at copy time rather than at share time.",
+      "mnemonic": "Share the snapshot, share the key — and the key must be yours (CMK).",
+      "doc_refs": ["https://docs.aws.amazon.com/ebs/latest/userguide/ebs-modifying-snapshot-permissions.html", "https://docs.aws.amazon.com/kms/latest/developerguide/key-policy-modifying-external-accounts.html"]
+    },
+    {
+      "id": "D4-Q014",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["ebs-encryption", "kms", "snapshot-copy", "task-4.2"],
+      "scenario": "An AWS Config rule reports that the data volume attached to a long-running production EC2 instance is NON_COMPLIANT because it is unencrypted. The volume holds 400 GB of application data. The team must bring the volume into compliance using a customer managed KMS key and can accept a short maintenance window.",
+      "stem": "Which sequence of actions will encrypt the existing data?",
+      "options": [
+        {"letter": "A", "text": "Call ModifyVolume on the existing volume and set the encryption parameter to true.", "correct": false, "why": "ModifyVolume changes size, volume type, and IOPS/throughput. There is no parameter that turns encryption on for an existing volume."},
+        {"letter": "B", "text": "Enable EBS encryption by default in the Region and wait for the next Config evaluation.", "correct": false, "why": "EBS encryption by default applies only to newly created volumes in that Region. Existing volumes are never converted."},
+        {"letter": "C", "text": "Enable EBS encryption by default in the Region, then stop and start the instance so the volume is re-created encrypted.", "correct": false, "why": "Stopping and starting an instance does not re-create its EBS volumes, so the existing unencrypted volume is preserved as-is."},
+        {"letter": "D", "text": "Take a snapshot of the volume, copy the snapshot with encryption enabled and the customer managed key selected, create a new volume from the encrypted copy, then stop the instance, detach the old volume, and attach the new one at the same device name.", "correct": true, "why": "Snapshot copy is the supported conversion path: the copy operation is where an unencrypted snapshot becomes encrypted under a chosen KMS key, and the new volume created from it is encrypted."}
+      ],
+      "knowledge_point": "Encryption state of an EBS volume is immutable. To encrypt existing data: snapshot, copy the snapshot with encryption on, create a volume from the copy, swap it in.",
+      "trap_alert": "EBS encryption by default is a per-Region, per-account setting for new volumes only — it is never the remediation for an existing unencrypted volume.",
+      "mnemonic": "Encryption changes only at copy time: snapshot, copy-with-key, restore.",
+      "doc_refs": ["https://docs.aws.amazon.com/ebs/latest/userguide/EBSEncryption.html", "https://docs.aws.amazon.com/ebs/latest/userguide/ebs-copy-snapshot.html"]
+    },
+    {
+      "id": "D4-Q015",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["kms", "throttling", "s3-bucket-key", "sse-kms", "task-4.2"],
+      "scenario": "A data pipeline writes several thousand small objects per second to an S3 bucket configured with SSE-KMS using a customer managed key, which compliance requires. Since the traffic increase, the pipeline logs frequent ThrottlingException errors from AWS KMS, and the monthly KMS request charges have risen sharply. Compliance will not accept a change of key type.",
+      "stem": "What should the CloudOps engineer do to resolve the throttling with the LEAST operational overhead?",
+      "options": [
+        {"letter": "A", "text": "Open a support case to raise the KMS request rate quota and add exponential backoff with jitter to the pipeline's retry logic.", "correct": false, "why": "Backoff and a quota increase treat the symptom but leave one KMS API call per object, so the cost problem and the ceiling both remain."},
+        {"letter": "B", "text": "Change the bucket's default encryption to SSE-S3 so KMS is no longer in the request path.", "correct": false, "why": "This removes the throttling but violates the stated compliance requirement to keep using the customer managed key."},
+        {"letter": "C", "text": "Enable S3 Bucket Keys on the bucket so S3 uses a short-lived bucket-level data key instead of calling KMS for every object.", "correct": true, "why": "An S3 Bucket Key reduces KMS GenerateDataKey and Decrypt requests by up to roughly 99 percent while keeping SSE-KMS and the same customer managed key, eliminating both the throttling and most of the cost."},
+        {"letter": "D", "text": "Create a separate customer managed key for each S3 prefix so the request rate is spread across keys.", "correct": false, "why": "KMS request quotas are shared per account and Region, not per key, so sharding keys does not raise the effective limit and adds significant key management overhead."}
+      ],
+      "knowledge_point": "SSE-KMS ThrottlingException on high-volume S3 workloads is solved by S3 Bucket Keys, which cut per-object KMS calls while preserving the same KMS key.",
+      "trap_alert": "KMS request quotas are per account and per Region. Splitting traffic across more keys does not buy more throughput.",
+      "mnemonic": "Many objects, one Bucket Key.",
+      "doc_refs": ["https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucket-key.html", "https://docs.aws.amazon.com/kms/latest/developerguide/requests-per-second.html"]
+    },
+    {
+      "id": "D4-Q016",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["acm", "certificate-renewal", "dns-validation", "task-4.2"],
+      "scenario": "An Application Load Balancer in eu-west-1 began serving expired certificate warnings this morning. In ACM the certificate shows a status of Expired, and its validation method is Email. The company's DNS is hosted in Amazon Route 53 and the operations mailbox that previously received validation mail was decommissioned during a migration.",
+      "stem": "What should the CloudOps engineer do to restore HTTPS and prevent the problem from recurring?",
+      "options": [
+        {"letter": "A", "text": "Request a new ACM certificate for the same domain using DNS validation, create the ACM CNAME record in the Route 53 hosted zone and leave it in place, then update the ALB HTTPS listener to the new certificate.", "correct": true, "why": "ACM renews DNS-validated certificates automatically as long as the validation CNAME record stays published and the certificate is associated with an integrated resource, which removes the human step that failed here."},
+        {"letter": "B", "text": "Export the private key from the expired ACM certificate, renew it with the external CA, and import the renewed certificate into ACM.", "correct": false, "why": "ACM does not allow export of the private key for ACM-issued public certificates, and imported certificates never auto-renew, so this reintroduces the same manual expiry risk."},
+        {"letter": "C", "text": "Enable automatic renewal for the existing certificate in the ACM console.", "correct": false, "why": "There is no automatic renewal toggle. Managed renewal is inherent to ACM-issued certificates but email-validated certificates still require a domain owner to act on the renewal email."},
+        {"letter": "D", "text": "Request the replacement certificate in us-east-1 so ACM can renew it globally, then attach it to the ALB.", "correct": false, "why": "Only CloudFront requires certificates in us-east-1. An ALB can only use a certificate issued in its own Region, so this certificate could not be attached at all."}
+      ],
+      "knowledge_point": "ACM auto-renews only certificates that are DNS-validated with the CNAME still present and in use by an integrated service. Email validation and imported certificates both require manual action.",
+      "trap_alert": "Deleting the ACM validation CNAME after issuance silently breaks future renewals — the certificate keeps working until the day it expires.",
+      "mnemonic": "DNS-validated + in use = renews itself. Email or imported = your calendar's problem.",
+      "doc_refs": ["https://docs.aws.amazon.com/acm/latest/userguide/dns-validation.html", "https://docs.aws.amazon.com/acm/latest/userguide/managed-renewal.html"]
+    },
+    {
+      "id": "D4-Q017",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": ["secrets-manager", "parameter-store", "rotation", "rds", "task-4.2"],
+      "scenario": "An application reads an Amazon RDS for PostgreSQL master password from a Systems Manager Parameter Store SecureString parameter. Security policy requires the password to change every 30 days. Today an engineer changes it in the database and then updates the parameter by hand, and twice this quarter the two steps drifted apart and caused an outage.",
+      "stem": "What should the CloudOps engineer implement to meet the rotation requirement with the LEAST operational overhead?",
+      "options": [
+        {"letter": "A", "text": "Keep the SecureString parameter and add an EventBridge scheduled rule that invokes a custom Lambda function to change the database password and update the parameter.", "correct": false, "why": "Parameter Store has no native rotation, so the team must write, test, and maintain the rotation function and its failure handling themselves."},
+        {"letter": "B", "text": "Move the credential into AWS Secrets Manager as a secret attached to the RDS database, enable rotation on a 30-day schedule using the AWS-provided rotation function for the database engine, and have the application call GetSecretValue.", "correct": true, "why": "Secrets Manager rotation for supported RDS engines uses an AWS-provided rotation function that changes the password in the database and updates the secret atomically, eliminating the drift that caused the outages."},
+        {"letter": "C", "text": "Store the password as a KMS-encrypted object in S3 and have the application download it at startup.", "correct": false, "why": "This adds encryption but no rotation mechanism and no versioned staging, so the same manual two-step drift remains."},
+        {"letter": "D", "text": "Pass the password to the application as a KMS-encrypted environment variable and redeploy the application whenever it changes.", "correct": false, "why": "Rotation would require a deployment every 30 days, which increases operational overhead and still couples the credential change to a release."}
+      ],
+      "knowledge_point": "Parameter Store SecureString stores secrets but never rotates them. Secrets Manager provides managed rotation, and for RDS, Redshift, and DocumentDB the rotation function is supplied by AWS.",
+      "trap_alert": "Secrets Manager rotation uses staged versions (AWSCURRENT and AWSPENDING). Applications that cache the secret indefinitely still break on rotation — they must refresh on authentication failure.",
+      "mnemonic": "Parameter Store parks it, Secrets Manager rotates it.",
+      "doc_refs": ["https://docs.aws.amazon.com/secretsmanager/latest/userguide/rotating-secrets.html", "https://docs.aws.amazon.com/systems-manager/latest/userguide/systems-manager-parameter-store.html"]
+    },
+    {
+      "id": "D4-Q018",
+      "type": "single_choice",
+      "difficulty": "hard",
+      "tags": ["guardduty", "eventbridge", "suppression-rules", "remediation", "task-4.2"],
+      "scenario": "Amazon GuardDuty is enabled in a production account. It generates dozens of UnauthorizedAccess:EC2/SSHBruteForce findings per day, all originating from the IP address of an approved third-party vulnerability scanner, which is drowning out real signals. Separately, the security team wants any high-severity finding against an EC2 instance to trigger automatic network isolation of that instance within minutes.",
+      "stem": "What should the CloudOps engineer do to meet both requirements?",
+      "options": [
+        {"letter": "A", "text": "Disable GuardDuty in the Region where the scanner runs and rely on VPC Flow Logs analysis instead.", "correct": false, "why": "Disabling GuardDuty removes all detection in that Region, including the high-severity findings the team wants to act on."},
+        {"letter": "B", "text": "Write a scheduled Lambda function that calls the GuardDuty API to archive the scanner findings each hour, and review high-severity findings manually in the console each morning.", "correct": false, "why": "Archiving after the fact is custom code that GuardDuty already provides natively, and daily manual review does not meet the requirement to isolate instances within minutes."},
+        {"letter": "C", "text": "Create an EventBridge rule that matches all GuardDuty findings and sends every one to an SNS topic that the security team subscribes to.", "correct": false, "why": "This forwards the noise as well as the signal and performs no isolation, so neither requirement is satisfied."},
+        {"letter": "D", "text": "Create a GuardDuty suppression rule that auto-archives findings matching the SSHBruteForce finding type and the scanner's IP address, and create an EventBridge rule that matches GuardDuty findings with severity 7.0 or higher and invokes a Lambda function that replaces the instance's security groups with an isolation security group.", "correct": true, "why": "Suppression rules auto-archive known benign findings so they never reach downstream consumers, and GuardDuty findings are published to EventBridge, letting a Lambda target perform the isolation automatically."}
+      ],
+      "knowledge_point": "GuardDuty noise management is done with suppression rules (auto-archive by filter criteria), and remediation is done by routing findings through EventBridge to Lambda or Systems Manager Automation.",
+      "trap_alert": "Suppressed findings are archived, not deleted, and they are excluded from the findings sent to EventBridge and Security Hub — which is exactly why suppression, not a downstream filter, is the right place to handle known-benign activity.",
+      "mnemonic": "Suppress the known, EventBridge the unknown.",
+      "doc_refs": ["https://docs.aws.amazon.com/guardduty/latest/ug/findings_suppression-rule.html", "https://docs.aws.amazon.com/guardduty/latest/ug/guardduty_findings_cloudwatch.html"]
+    },
+    {
+      "id": "D4-Q019",
+      "type": "multiple_response",
+      "difficulty": "hard",
+      "tags": ["security-hub", "asff", "delegated-administrator", "automation-rules", "task-4.2"],
+      "scenario": "A company runs 40 accounts in AWS Organizations across three Regions. The security team needs one place to see all failed AWS Foundational Security Best Practices and CIS controls for every account and Region, and new accounts must be onboarded without manual steps. One FSBP control has a documented risk acceptance in the development accounts and should not appear as an active finding there.",
+      "stem": "Which two actions should the CloudOps engineer take? (Choose two.)",
+      "options": [
+        {"letter": "A", "text": "Enable Security Hub separately in each account and have analysts sign in to each account and Region to review findings.", "correct": false, "why": "This provides no consolidation and no automatic onboarding, which are both explicit requirements."},
+        {"letter": "B", "text": "Designate a Security Hub delegated administrator in AWS Organizations, enable Security Hub for the organization with auto-enable for new accounts, and configure a finding aggregation Region to consolidate findings from all linked Regions.", "correct": true, "why": "Organization integration plus auto-enable onboards new accounts automatically, and cross-Region finding aggregation brings findings from every linked Region into a single aggregation Region."},
+        {"letter": "C", "text": "Stream all findings to Amazon S3 through Amazon Data Firehose and query them with Amazon Athena instead of using the Security Hub console.", "correct": false, "why": "This is a useful reporting add-on but it does not centrally manage the accounts, and it cannot change the workflow state of a finding to represent the risk acceptance."},
+        {"letter": "D", "text": "Create an AWS Config aggregator in the security account and use it in place of Security Hub for the standards reporting.", "correct": false, "why": "A Config aggregator reports Config rule compliance. It does not produce Security Hub standards findings in ASFF with severity, control ID, and workflow state."},
+        {"letter": "E", "text": "Create a Security Hub automation rule that matches the accepted control ID together with the development account IDs and automatically sets the finding's workflow status to SUPPRESSED.", "correct": true, "why": "Automation rules evaluate incoming findings in the delegated administrator account and can update ASFF fields such as workflow status and severity, which is the supported way to record a risk acceptance without disabling the control everywhere."}
+      ],
+      "knowledge_point": "Multi-account Security Hub = delegated administrator + auto-enable + a finding aggregation Region; per-account exceptions are handled with automation rules that set workflow status, not by disabling controls.",
+      "trap_alert": "Disabling a control disables it for the whole standard in that account. Suppressing via an automation rule keeps the control evaluated and auditable while removing the noise.",
+      "doc_refs": ["https://docs.aws.amazon.com/securityhub/latest/userguide/finding-aggregation.html", "https://docs.aws.amazon.com/securityhub/latest/userguide/automation-rules.html"]
+    },
+    {
+      "id": "D4-Q020",
+      "type": "multiple_response",
+      "difficulty": "medium",
+      "tags": ["inspector", "vulnerability-scanning", "ssm-agent", "ecr", "lambda", "task-4.2"],
+      "scenario": "A company must continuously scan for software vulnerabilities across three workload types: EC2 instances running Amazon Linux, container images stored in Amazon ECR, and Lambda functions. Amazon Inspector has been activated in the account, but the Inspector coverage page lists many EC2 instances as unmanaged, and no findings appear for the container images or the functions.",
+      "stem": "Which two actions should the CloudOps engineer take to achieve full coverage? (Choose two.)",
+      "options": [
+        {"letter": "A", "text": "Make the EC2 instances Systems Manager managed nodes by installing or repairing the SSM Agent, attaching an instance profile with AmazonSSMManagedInstanceCore, and providing a network path to the SSM endpoints, or alternatively enable Inspector agentless scanning for them.", "correct": true, "why": "Inspector's EC2 scanning depends on Systems Manager to inventory software on the instance, so an unmanaged node is invisible to it; agentless scanning via EBS snapshot is the supported alternative when the agent cannot be used."},
+        {"letter": "B", "text": "Deploy the GuardDuty Runtime Monitoring agent to the EC2 instances so Inspector can read the package inventory.", "correct": false, "why": "The GuardDuty runtime agent feeds GuardDuty runtime threat detection. Inspector does not use it for vulnerability assessment."},
+        {"letter": "C", "text": "Enable the Amazon ECR and AWS Lambda scanning types in Inspector so images are scanned on push and rescanned continuously, and Lambda function code and dependencies are assessed.", "correct": true, "why": "Inspector scan types are enabled per resource type; ECR and Lambda scanning must be turned on explicitly, after which Inspector rescans as new CVE data arrives."},
+        {"letter": "D", "text": "Run Amazon Macie against the instances' EBS volumes to identify vulnerable packages.", "correct": false, "why": "Macie discovers sensitive data in Amazon S3. It does not inspect EBS volumes and does not detect software vulnerabilities."},
+        {"letter": "E", "text": "Enable only ECR basic scanning on the repositories, which is sufficient for continuous CVE coverage.", "correct": false, "why": "Basic scanning is an on-push scan of operating system packages only. Inspector enhanced scanning adds programming language package coverage and continuous rescanning as new CVEs are published."}
+      ],
+      "knowledge_point": "Inspector EC2 coverage requires SSM managed-node prerequisites (agent, instance profile, network path) or agentless scanning; ECR and Lambda scanning are separate scan types that must be enabled.",
+      "trap_alert": "'Unmanaged' in the Inspector coverage page is a Systems Manager problem, not an Inspector problem — fix the agent, instance profile, and endpoint reachability first.",
+      "mnemonic": "No SSM, no Inspector: agent + instance profile + endpoint.",
+      "doc_refs": ["https://docs.aws.amazon.com/inspector/latest/user/scanning-ec2.html", "https://docs.aws.amazon.com/inspector/latest/user/enable-disable-scanning-ecr.html"]
+    }
+  ]
+}
