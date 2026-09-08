@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MLA + DEA Study Guide — SageMaker Deep Dive</title>
+<style>
+:root{
+  --bg:#f6f6f8; --surface:#ffffff; --surface-2:#f0f0f4; --surface-3:#e9e9ef;
+  --text:#1a1a2e; --text-2:#4a4a68; --muted:#8888a0; --border:#e2e2ea;
+  --accent:#3f6fd8; --accent-soft:rgba(63,111,216,0.12);
+  --good:#16803c; --good-soft:rgba(22,128,60,0.12);
+  --bad:#b4472c; --bad-soft:rgba(180,71,44,0.12);
+  --warn:#a35a06; --warn-soft:rgba(163,90,6,0.12);
+  --radius:12px; --radius-sm:8px;
+  --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,'SF Mono',Menlo,Consolas,monospace;
+  --shadow:0 1px 2px rgba(16,16,32,0.06),0 4px 14px rgba(16,16,32,0.05);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0f0f15; --surface:#191921; --surface-2:#22222c; --surface-3:#2c2c38;
+    --text:#ececf2; --text-2:#b6b6c8; --muted:#82829a; --border:#2e2e3a;
+    --accent:#6d9bff; --accent-soft:rgba(109,155,255,0.16);
+    --good:#4ade80; --good-soft:rgba(74,222,128,0.14);
+    --bad:#f0846a; --bad-soft:rgba(240,132,106,0.14);
+    --warn:#f2b559; --warn-soft:rgba(242,181,89,0.14);
+    --shadow:0 1px 2px rgba(0,0,0,0.4),0 4px 14px rgba(0,0,0,0.3);
+  }
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:var(--sans);background:var(--bg);color:var(--text);line-height:1.6;font-size:16px;padding-bottom:3rem;}
+.wrap{max-width:880px;margin:0 auto;padding:1.5rem 1rem 3rem;}
+a{color:var(--accent);}
+.hdr{position:sticky;top:0;background:var(--bg);border-bottom:1px solid var(--border);padding:0.9rem 0;margin-bottom:1.5rem;z-index:10;}
+.hdr .wrap{padding-top:0;padding-bottom:0;display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;}
+.hdr h1{font-size:1.05rem;}
+.hdr a.back{font-size:0.85rem;color:var(--muted);text-decoration:none;}
+.callout{background:var(--warn-soft);border:1px solid var(--warn);border-radius:var(--radius);padding:1rem 1.2rem;margin:1rem 0 1.8rem;}
+.callout h2{color:var(--warn);font-size:1rem;margin-bottom:0.5rem;}
+section{margin-bottom:2.2rem;}
+h2{font-size:1.4rem;border-bottom:2px solid var(--accent);padding-bottom:0.3rem;margin-bottom:0.9rem;}
+h3{font-size:1.1rem;color:var(--accent);margin:1.2rem 0 0.5rem;}
+p{margin-bottom:0.7rem;color:var(--text-2);}
+strong{color:var(--text);}
+table{width:100%;border-collapse:collapse;margin:0.8rem 0 1.2rem;font-size:0.92rem;background:var(--surface);border-radius:var(--radius-sm);overflow:hidden;box-shadow:var(--shadow);}
+th,td{padding:0.55rem 0.7rem;text-align:left;border-bottom:1px solid var(--border);}
+th{background:var(--surface-2);color:var(--text);font-weight:700;font-size:0.8rem;text-transform:uppercase;letter-spacing:.03em;}
+tr:last-child td{border-bottom:none;}
+td strong{color:var(--accent);}
+ul,ol{margin:0.4rem 0 0.8rem 1.3rem;color:var(--text-2);}
+li{margin-bottom:0.35rem;}
+code{font-family:var(--mono);background:var(--surface-3);padding:0.1rem 0.35rem;border-radius:4px;font-size:0.88em;color:var(--text);}
+.hook{background:var(--accent-soft);border-left:3px solid var(--accent);border-radius:0 var(--radius-sm) var(--radius-sm) 0;padding:0.7rem 1rem;margin:0.8rem 0;font-size:0.93rem;}
+.hook strong{color:var(--accent);}
+.pipeline{font-family:var(--mono);background:var(--surface-3);border-radius:var(--radius-sm);padding:0.9rem 1rem;text-align:center;font-size:0.95rem;margin:0.8rem 0 1.2rem;overflow-x:auto;white-space:nowrap;}
+.src{font-size:0.8rem;color:var(--muted);margin-top:0.4rem;}
+.src a{color:var(--muted);}
+.toc{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem 1.3rem;margin-bottom:2rem;box-shadow:var(--shadow);}
+.toc h2{border:none;font-size:1rem;margin-bottom:0.6rem;padding:0;}
+.toc ol{margin-left:1.2rem;}
+.toc a{text-decoration:none;}
+.badge{display:inline-block;font-size:0.68rem;padding:2px 8px;border-radius:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;background:var(--bad-soft);color:var(--bad);vertical-align:middle;margin-left:0.4rem;}
+</style>
+</head>
+<body>
+<div class="hdr"><div class="wrap"><h1>🧠 AWS ML Engineer + Data Engineer Associate — Study Guide</h1><a class="back" href="../../index.html">← Exam Hub</a></div></div>
+<div class="wrap">
+
+<div class="callout">
+<h2>⏰ Time-sensitive — read first</h2>
+<p><strong>MLA-C01 retires Sept 28, 2026.</strong> MLA-C02 beta registration opens Sept 1, 2026, adding generative AI (RAG, foundation model customization), agentic AI orchestration, and expanded Amazon Bedrock coverage on the same 4-domain structure. Given the career-pivot direction toward AI/product-technical roles, waiting for C02 is likely the better long-term signal — but if you're already 70%+ ready on classic ML content, rushing C01 in the next ~3 weeks is lower-risk and narrower in scope. <strong>DEA-C01 is unaffected</strong> — proceed on it normally.</p>
+</div>
+
+<div class="toc">
+<h2>Contents</h2>
+<ol>
+<li><a href="#facts">Exam facts at a glance</a></li>
+<li><a href="#framework">Master mental framework</a></li>
+<li><a href="#sagemaker">SageMaker deep dive</a> — Studio · Training · HyperPod/HPC · Hyperparameter tuning · Inference · MLOps · Security</li>
+<li><a href="#dea">Data Engineering Associate</a></li>
+<li><a href="#tricks">Cross-cutting memorization tricks</a></li>
+<li><a href="#resources">Resources</a></li>
+<li><a href="#exercises">Hands-on exercises (100→400 level)</a></li>
+</ol>
+</div>
+
+<section id="facts">
+<h2>1. Exam facts at a glance</h2>
+<table>
+<tr><th></th><th>MLA-C01 → C02</th><th>DEA-C01</th></tr>
+<tr><td>Domains</td><td>4</td><td>4</td></tr>
+<tr><td>D1</td><td>Data Prep for ML — <strong>28%</strong></td><td>Data Ingestion &amp; Transformation — <strong>34%</strong></td></tr>
+<tr><td>D2</td><td>ML Model Development — <strong>26%</strong></td><td>Data Store Management — <strong>26%</strong></td></tr>
+<tr><td>D3</td><td>Deployment &amp; Orchestration — <strong>22%</strong></td><td>Data Operations &amp; Support — <strong>22%</strong></td></tr>
+<tr><td>D4</td><td>Monitoring, Maintenance, Security — <strong>24%</strong></td><td>Data Security &amp; Governance — <strong>18%</strong></td></tr>
+<tr><td>Format</td><td>~65 Q, MCQ/MRQ</td><td>65 Q, 130 min</td></tr>
+<tr><td>Score</td><td>100–1000, pass 720</td><td>100–1000, pass 720</td></tr>
+</table>
+<div class="hook"><strong>Memorization hook:</strong> both exams front-load Domain 1 — a wrong data foundation invalidates everything downstream. DEA leans hardest into ingestion (over a third of the exam).</div>
+</section>
+
+<section id="framework">
+<h2>2. Master mental framework</h2>
+<p>Every AWS ML/data question maps onto this pipeline. When stuck, ask "where in this pipeline am I?"</p>
+<div class="pipeline">INGEST → STORE → TRANSFORM → TRAIN/PROCESS → SERVE/OPERATE → SECURE/GOVERN (cross-cutting)</div>
+<p>For <strong>answer selection</strong>, apply AWS's own bias, in priority order:</p>
+<ol>
+<li><strong>Managed &gt; self-managed</strong> (SageMaker built-in &gt; custom container; Glue &gt; self-hosted Spark on EC2)</li>
+<li><strong>Serverless &gt; provisioned</strong> when traffic is unpredictable (Serverless Inference, Redshift Serverless, Aurora Serverless)</li>
+<li><strong>Least privilege always wins</strong> security questions — narrower IAM/VPC scope is correct</li>
+<li><strong>Cost-scored questions:</strong> Spot &gt; On-Demand for training; Savings Plans &gt; Spot for steady-state inference</li>
+<li>"With minimal operational overhead" → pick the managed/serverless service</li>
+</ol>
+<p>This single framework resolves ~40% of scenario questions on both exams without needing deep service knowledge.</p>
+</section>
+
+<section id="sagemaker">
+<h2>3. SageMaker deep dive (core focus)</h2>
+
+<h3>3.1 The mental map of SageMaker AI</h3>
+<table>
+<tr><th>Layer</th><th>Purpose</th><th>Key services/features</th></tr>
+<tr><td><strong>Studio (IDE)</strong></td><td>Where you work</td><td>SageMaker Studio (Unified), Studio Classic (legacy), JupyterLab spaces, Code Editor, RStudio</td></tr>
+<tr><td><strong>Prep</strong></td><td>Get data ML-ready</td><td>Data Wrangler, Feature Store, Processing Jobs, Clarify, Ground Truth</td></tr>
+<tr><td><strong>Train</strong></td><td>Fit the model</td><td>Training Jobs, built-ins, Script Mode, Distributed Training Libraries, Debugger, Experiments, <strong>HyperPod</strong></td></tr>
+<tr><td><strong>Tune</strong></td><td>Optimize hyperparameters</td><td>Automatic Model Tuning (AMT)</td></tr>
+<tr><td><strong>Serve</strong></td><td>Get predictions in prod</td><td>Real-time, Serverless, Async, Batch Transform, Multi-Model/Container endpoints, Inference Recommender, Neo</td></tr>
+<tr><td><strong>Operate (MLOps)</strong></td><td>Automate + govern</td><td>Pipelines, Model Registry, Model Monitor, Projects</td></tr>
+</table>
+<div class="hook"><strong>Mnemonic:</strong> "I Prep, Train, Tune, Serve, Operate" — this order <em>is</em> the exam's domain structure (D1=Prep, D2=Train/Tune, D3=Deploy/Orchestrate, D4=Monitor/Secure).</div>
+
+<h3>3.2 SageMaker Studio — what's new in 2026</h3>
+<p><strong>SageMaker Unified Studio</strong> is the strategic direction: merges SageMaker, Redshift, Glue, Athena, EMR, and Bedrock into one workspace with a shared project/permissions model (built on Amazon DataZone) — the link between the ML and Data Engineering certs. As of May 2026, it added guided getting-started tutorials and in-product release notes.</p>
+<p><strong>Studio Classic</strong> is legacy, being sunset in favor of Unified Studio. Assume Unified Studio unless a question is explicitly about legacy migration.</p>
+<p><strong>Exam angle:</strong> "collaborate in one governed workspace with row/column-level permissions" → SageMaker Unified Studio + Lake Formation permissions, not shared admin IAM.</p>
+
+<h3>3.3 Training — core concepts + worked example</h3>
+<p><strong>Built-in vs Script Mode vs BYOC:</strong> Built-in (XGBoost, Linear Learner, k-means) wins on "least development effort" questions when the algorithm fits. Script Mode = your <code>train.py</code> in a managed framework container (PyTorch/TensorFlow/HuggingFace). BYOC = full custom Docker image — only when the framework/runtime isn't supported at all.</p>
+<p><strong>Worked example:</strong> <em>"Fine-tune a HuggingFace transformer with custom loss logic on a single GPU, minimize infra work."</em> → Script Mode with the HuggingFace DLC. Not built-in (no built-in covers custom transformers/loss). Not BYOC (HF has a managed container already).</p>
+<h3 style="margin-top:1.4rem;">Distributed training — the two axes</h3>
+<ul>
+<li><strong>Data parallelism</strong>: same model copied across devices, each sees a data shard, gradients synced (all-reduce). Use when the model <em>fits</em> on one device but you want speed/bigger batch. SageMaker's <code>smdistributed.dataparallel</code> (SMDDP), optimized for EFA network topology.</li>
+<li><strong>Model parallelism</strong>: model too big for one device, split layers/tensors across devices. <code>smdistributed.modelparallel</code> (SMP) — pipeline parallelism (split by layer) or tensor parallelism (split within a layer, for huge LLMs).</li>
+</ul>
+<div class="hook"><strong>Hook:</strong> "Data parallel = same model, split data. Model parallel = same data, split model." "Doesn't fit in GPU memory" → model parallel. "Too slow / want bigger batch" → data parallel.</div>
+<p><strong>Training Compiler</strong>: auto-optimizes DL training code at the graph/kernel level — pick for "reduce training time/cost, no code changes."<br><strong>Managed Spot Training</strong>: up to 90% savings, auto checkpoint/resume on interruption — trigger phrase: "minimize cost" + "can tolerate interruptions."</p>
+
+<h3 id="hyperpod">3.4 HPC / HyperPod — the deep dive</h3>
+<p><strong>SageMaker HyperPod</strong> = persistent, purpose-built compute clusters for large-scale distributed training and (increasingly, 2026) inference — AWS's answer to training/serving foundation models across hundreds of GPUs without hand-managing infrastructure.</p>
+<ul>
+<li><strong>Resiliency</strong>: auto-detects faulty nodes, replaces them, resumes from last checkpoint — the #1 exam differentiator vs rolling your own EC2/Slurm cluster. Trigger: "training on 100s of GPUs keeps failing due to hardware faults, minimize manual intervention" → HyperPod.</li>
+<li><strong>Orchestration choice</strong>: Slurm <em>or</em> Amazon EKS — pick by team familiarity, same resiliency either way.</li>
+<li><strong>Task governance</strong>: prioritize/pause/resume training tasks across teams sharing a cluster (multi-tenant GPU quotas).</li>
+<li><strong>Restricted Instance Groups (RIG)</strong>: isolate instance groups for compliance-sensitive workloads within a shared cluster — got comprehensive observability in March 2026.</li>
+<li><strong>2026 additions:</strong> enhanced <strong>Ray</strong> support (create/manage Ray clusters from Studio's web UI, attach JupyterLab/Code Editor for interactive cluster-scale iteration); new instance support incl. <strong>G7e</strong> (NVIDIA RTX PRO 6000 Blackwell, up to 2.3x better inference perf than G6e, up to 768GB total GPU memory) and <code>r5d.16xlarge</code>; <strong>Disaggregated Prefill and Decode (DPD)</strong> — separates LLM inference's prefill phase (compute-bound) from decode phase (memory-bandwidth-bound) onto dedicated GPU pools. This is new-generation content, more likely tested in MLA-C02 than the retiring C01.</li>
+</ul>
+<div class="hook"><strong>When does the exam want HyperPod vs plain Training Jobs?</strong> Plain job = single run, no persistent cluster needed. HyperPod = persistent, shared, multi-team cluster for repeated large-scale (often foundation-model) training/inference with automatic fault recovery. Triggers: "hundreds of accelerators," "foundation model," "cluster shared across teams," "automatic node replacement."</div>
+<p class="src">Sources: <a href="https://aws.amazon.com/sagemaker/ai/hyperpod/features/">HyperPod features</a> · <a href="https://aws.amazon.com/about-aws/whats-new/2026/08/amazon-sagemaker-hyperpod-ray/">Ray support</a> · <a href="https://aws.amazon.com/about-aws/whats-new/2026/7/amazon-sagemaker-hyperpod-dpd/">DPD</a> · <a href="https://aws.amazon.com/about-aws/whats-new/2026/03/amazon-sagemaker-hyperpod-observability-rig/">RIG observability</a> · <a href="https://aws.amazon.com/about-aws/whats-new/2026/04/amazon-sagemaker-hyperpod-g7e-r5d/">G7e/r5d instances</a></p>
+
+<h3>3.5 Hyperparameter tuning — Automatic Model Tuning (AMT)</h3>
+<table>
+<tr><th>Strategy</th><th>How it works</th><th>Pick when...</th></tr>
+<tr><td><strong>Grid Search</strong></td><td>Exhaustive, every combination</td><td>Small, discrete space; guaranteed full coverage</td></tr>
+<tr><td><strong>Random Search</strong></td><td>Random sampling</td><td>Large space, cheap per-trial baseline, trivially parallel</td></tr>
+<tr><td><strong>Bayesian</strong> (default)</td><td>Regression over past trial results to pick next combo</td><td>Moderate budget, best result per training dollar — AWS's preferred default</td></tr>
+<tr><td><strong>Hyperband</strong></td><td>Multi-fidelity — small budgets first, kill underperformers early, reallocate</td><td>Large number of candidates + want speed — up to <strong>3x faster</strong> than Bayesian</td></tr>
+</table>
+<div class="hook"><strong>Hook:</strong> "Grid = exhaustive &amp; slow. Random = cheap &amp; dumb. Bayesian = smart &amp; sequential. Hyperband = smart &amp; parallel-with-early-stopping." Question emphasizes time/speed + many candidates → Hyperband, not Bayesian.</div>
+<p><strong>Other AMT facts:</strong> Warm start reuses a prior tuning job's results as a prior for a new one. Up to <strong>750 total training jobs</strong> per tuning job. Multi-algorithm HPO tunes across several algorithms in one job.</p>
+<p class="src">Source: <a href="https://docs.aws.amazon.com/sagemaker/latest/dg/automatic-model-tuning-how-it-works.html">SageMaker AMT how it works</a></p>
+
+<h3>3.6 Inference — pick the right option</h3>
+<table>
+<tr><th>Option</th><th>Latency</th><th>Traffic pattern</th><th>Cost model</th></tr>
+<tr><td><strong>Real-time endpoint</strong></td><td>ms</td><td>Steady, predictable, always warm</td><td>Pay for provisioned instance 24/7</td></tr>
+<tr><td><strong>Serverless Inference</strong></td><td>ms–low-sec (cold start)</td><td>Intermittent/unpredictable</td><td>Pay per inference + duration, scales to zero</td></tr>
+<tr><td><strong>Async Inference</strong></td><td>sec–min</td><td>Large payloads (&gt;1MB) / long processing</td><td>Pay for instance only while processing queue</td></tr>
+<tr><td><strong>Batch Transform</strong></td><td>offline</td><td>Entire dataset upfront, no live requests</td><td>Pay only for job duration</td></tr>
+<tr><td><strong>Multi-Model Endpoint</strong></td><td>ms</td><td>Many similar-sized models, sparse traffic</td><td>Big cost saver — dynamic load/unload from S3</td></tr>
+<tr><td><strong>Multi-Container Endpoint</strong></td><td>ms</td><td>Different models/frameworks, route by container</td><td>Same fleet, different serving stacks</td></tr>
+</table>
+<div class="hook"><strong>Trigger-phrase mapping (high-yield, memorize):</strong>
+"unpredictable/intermittent, cost-sensitive, can tolerate short delay" → Serverless. "Large payload, long-running, no immediate response needed" → Async. "Have all the data already" → Batch Transform. "Hundreds of small models, low per-model traffic" → Multi-Model Endpoint. "Always-on, latency-critical, predictable" → Real-time (+ consider Savings Plans).</div>
+<p>Also know: <strong>Inference Recommender</strong> (auto-benchmarks instance types/configs — "which instance type should I use" → this, not manual trial and error) and <strong>SageMaker Neo</strong> (compiles models for target hardware, edge or cloud — "deploy to edge" or "reduce latency without changing accuracy" → Neo).</p>
+
+<h3>3.7 MLOps layer</h3>
+<p><strong>Pipelines</strong>: native CI/CD-for-ML DAG (processing → training → eval → register → deploy). <strong>Model Registry</strong>: versioned catalog with approval workflow (Pending/Approved/Rejected) gating production promotion. <strong>Model Monitor</strong>: detects data/model-quality/bias/feature-attribution drift against a baseline. <strong>Projects</strong>: pre-built MLOps CI/CD templates (CodePipeline/CodeBuild).</p>
+<div class="hook"><strong>Worked example:</strong> <em>"Prediction quality degrading in prod, want automatic alerting when input distribution shifts."</em> → Model Monitor with a data-quality baseline + CloudWatch alarm on the monitoring schedule's violation metric.</div>
+
+<h3>3.8 Security (Domain 4)</h3>
+<ul>
+<li>Training/inference in a <strong>VPC</strong> with no internet → <code>VpcConfig</code> + VPC endpoints (PrivateLink) for S3/ECR access.</li>
+<li><strong>Network isolation mode</strong> (<code>EnableNetworkIsolation=True</code>): container can't make any outbound calls — strictest option for untrusted code / compliance.</li>
+<li>Encrypt everything with <strong>KMS</strong>: EBS volumes, S3, inter-container traffic (<code>InterContainerTrafficEncryption</code>).</li>
+<li>IAM: SageMaker execution role scoped per-project/team — never one shared admin role across notebooks.</li>
+</ul>
+</section>
+
+<section id="dea">
+<h2>4. Data Engineering Associate — the non-SageMaker half</h2>
+<p>You already have real-world muscle memory with Lambda/Athena/Redshift/Glue/S3 at Amazon — the exam gap is usually edge-case service selection and governance, not fundamentals.</p>
+
+<h3>4.1 Ingestion &amp; Transformation (34% — center of gravity)</h3>
+<p><strong>Batch:</strong> Glue (Spark, serverless, visual + code), Glue DataBrew (no-code prep), EMR (need full Spark/Hadoop control or existing jobs), Step Functions (multi-service orchestration).</p>
+<p><strong>Streaming:</strong> Kinesis Data Streams (custom consumers, fine control) vs Kinesis Data Firehose (fully managed delivery to S3/Redshift/OpenSearch, no consumer code) vs MSK (need Kafka compatibility/tooling).</p>
+<div class="hook"><strong>Hook:</strong> "Streams = you write the consumer. Firehose = AWS writes the consumer." "No code, deliver straight to S3" → Firehose.</div>
+<p><strong>Glue specifics to know cold:</strong> crawlers (auto-discover schema → Data Catalog), Glue Data Quality (DQDL declarative rules), Glue Studio (visual ETL), job bookmarks (incremental processing).</p>
+
+<h3>4.2 Data Store Management (26%)</h3>
+<p>S3 (data lake, cheap, decoupled) · Redshift (data warehouse, complex analytical SQL at scale) · DynamoDB (low-latency KV/NoSQL) · RDS/Aurora (transactional, relational) · OpenSearch (search/log analytics).</p>
+<p><strong>Redshift Spectrum</strong>: query S3 directly from Redshift without loading — "query data lake + warehouse together." <strong>Redshift Serverless</strong>: unpredictable analytics workloads, same serverless-when-unpredictable rule as SageMaker. <strong>Lake Formation</strong>: governance layer on S3-based lakes — fine-grained (row/column/tag-based) permissions across Glue/Athena/Redshift Spectrum/EMR.</p>
+
+<h3>4.3 Data Operations &amp; Support (22%)</h3>
+<p>Orchestration: Step Functions (service-to-service) vs MWAA (complex DAGs, existing Airflow) vs Glue workflows (Glue-native, simpler). Monitoring: CloudWatch (metrics/logs/alarms), CloudTrail (API audit), job-specific logs (Glue/EMR).</p>
+
+<h3>4.4 Data Security &amp; Governance (18%)</h3>
+<p>Lake Formation permissions is the single most-tested concept here. KMS encryption everywhere, IAM least privilege, Macie (PII discovery/classification in S3). Governance = who can see what, lineage, cataloging (Glue Data Catalog is the shared metadata store across Athena/Redshift Spectrum/EMR/Glue).</p>
+</section>
+
+<section id="tricks">
+<h2>5. Cross-cutting memorization tricks</h2>
+<ol>
+<li><strong>"Managed-first" reflex</strong>: when two services could work, AWS's own answer is the more managed one. Kills most wrong-answer distractors.</li>
+<li><strong>Cost-trigger words</strong>: "minimize cost," "intermittent," "unpredictable" → Serverless/Spot/scale-to-zero.</li>
+<li><strong>Latency-trigger words</strong>: "real-time," "sub-second," "immediate" → real-time endpoint / DynamoDB / Kinesis Streams, never batch.</li>
+<li><strong>"Least operational overhead"</strong> = AWS-speak for "pick the fully managed service," full stop.</li>
+<li>Build a flashcard deck of trigger-phrase → service pairs from sections 3.6 and 4.1 — those two tables alone likely cover 15–20% of total scored questions across both exams.</li>
+<li>For HPO strategies (3.5) and Inference options (3.6): rehearse the tables out loud until you can regenerate them from memory — highest-yield "matching" question types.</li>
+</ol>
+</section>
+
+<section id="resources">
+<h2>6. Resources</h2>
+<p><strong>Official (do these first):</strong></p>
+<ul>
+<li><a href="https://skillbuilder.aws" target="_blank">AWS Skill Builder</a> — free digital training + official practice questions; do the "Exam Prep" learning plan for each cert.</li>
+<li>Official exam guides: <a href="https://docs.aws.amazon.com/aws-certification/latest/examguides/machine-learning-engineer-associate-01.html" target="_blank">MLA</a> · <a href="https://d1.awsstatic.com/training-and-certification/docs-data-engineer-associate/AWS-Certified-Data-Engineer-Associate_Exam-Guide.pdf" target="_blank">DEA</a></li>
+<li>AWS whitepapers: "Machine Learning Lens" (Well-Architected), "Big Data Analytics Options on AWS"</li>
+</ul>
+<p><strong>YouTube (free, high quality):</strong></p>
+<ul>
+<li><strong>Stephane Maarek</strong> — best-in-class AWS cert content; search his channel for the ML Engineer Associate and Data Engineer Associate full courses.</li>
+<li><strong>freeCodeCamp.org</strong> — full-length (10+ hr) free AWS ML/data engineer cert courses.</li>
+<li><strong>Tutorials Dojo (Jon Bonso)</strong> — YouTube + <a href="https://tutorialsdojo.com" target="_blank">tutorialsdojo.com</a> — excellent cheat sheets and practice exams.</li>
+<li><strong>AWS Events / AWS Developers</strong> official channel — search "SageMaker HyperPod" and "SageMaker Unified Studio" for re:Invent 2025/2026 sessions covering the exact 2026 features in section 3.4.</li>
+</ul>
+<p><strong>Practice exams:</strong> Tutorials Dojo practice tests (closest to real difficulty/style for both certs) · AWS official practice sets on Skill Builder.</p>
+</section>
+
+<section id="exercises">
+<h2>7. Hands-on exercises — do these in your own AWS account</h2>
+<p>Ordered ~100→400 difficulty; each maps to a specific exam domain so you drill and build portfolio evidence simultaneously.</p>
+<ol>
+<li><strong>(100) Data prep + built-in algorithm</strong>: Load a small tabular dataset to S3 → SageMaker Studio (Unified) → Data Wrangler flow to clean/transform → train an XGBoost built-in model. <em>(MLA D1/D2)</em></li>
+<li><strong>(150) Script mode training</strong>: Same dataset, write a simple PyTorch/scikit-learn <code>train.py</code>, run via Script Mode. Compare setup effort and cost vs #1. <em>(MLA D2)</em></li>
+<li><strong>(200) Hyperparameter tuning</strong>: Wrap #2's job in an AMT tuning job — once Bayesian, once Hyperband. Compare wall-clock time and best objective metric. <em>(MLA D2 — tests §3.5)</em></li>
+<li><strong>(200) Inference option comparison</strong>: Deploy the trained model three ways — real-time endpoint, Serverless Inference, Batch Transform against a static file. Compare cost/latency directly. <em>(MLA D3 — tests §3.6)</em></li>
+<li><strong>(250) MLOps pipeline</strong>: Build a SageMaker Pipeline chaining processing → train → evaluate → conditionally register in Model Registry only if accuracy exceeds a threshold. <em>(MLA D3)</em></li>
+<li><strong>(250) Model Monitor</strong>: Baseline your endpoint's inputs, feed it deliberately skewed data, watch a data-quality violation trigger a CloudWatch alarm. <em>(MLA D4)</em></li>
+<li><strong>(300) Glue + Data Catalog + Athena</strong>: Land raw JSON/CSV in S3 → Glue crawler → Data Catalog → query with Athena → add a Glue Data Quality (DQDL) ruleset and watch it fail on bad records on purpose. <em>(DEA D1/D2)</em></li>
+<li><strong>(300) Streaming pipeline</strong>: Kinesis Data Firehose from a producer script into S3, vs a Kinesis Data Streams + Lambda consumer for the same data — note the code/ops difference. <em>(DEA D1)</em></li>
+<li><strong>(350) Lake Formation governance</strong>: Register your S3 lake location in Lake Formation, grant column-level permissions to a second IAM principal, confirm via Athena that the restriction holds. <em>(DEA D4)</em></li>
+<li><strong>(400 — capstone, HPC territory)</strong>: If quota allows, spin up a minimal <strong>SageMaker HyperPod</strong> cluster and run a small multi-node distributed training job — just to see cluster lifecycle, node health checks, and checkpoint/resume behavior firsthand. Rare hands-on experience most exam-takers skip; a genuine resume differentiator. <em>(MLA D2/D3, 2026-relevant)</em></li>
+</ol>
+<div class="hook"><strong>Study cadence:</strong> given your ADHD/execution profile, pair every numbered concept block above with its matching exercise <em>in the same sitting</em> — reading without building won't stick. Don't try to "finish the whole guide" in one sprint; one block, one exercise, close the loop, move on.</div>
+</section>
+
+</div>
+</body>
+</html>
